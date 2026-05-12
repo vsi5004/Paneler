@@ -90,7 +90,7 @@ This same structure feeds the Phase 2 SVG view. The 3D and 2D renderers share st
 |---|---|
 | Tetra, cube, octa, cubocta, dodeca, icosa | Hand-coded vertex tables |
 | Soccer ball (32), 42, 72, 92, … | `goldberg(m, n)` — vendor [`@flyskypie/goldberg-polyhedron`](https://www.npmjs.com/package/@flyskypie/goldberg-polyhedron) or transliterate Babylon.js's `CreateGoldberg`. |
-| User upload | Hand-rolled ~30 LOC OBJ face parser (preserves n-gons; `three-stdlib`'s `OBJLoader` fan-triangulates and discards polygon arity, so it's unsuitable as a topology source). |
+| **Custom shapes** | **Open design question — see below.** |
 
 ### Geometry notes
 
@@ -153,6 +153,30 @@ TLS: cert-manager DNS-01 challenge via a scoped Cloudflare API Token (`Zone:DNS:
 5. App `middleware.ts` calls `auth()` → admits any valid session. Unauthed requests to `/app/*` 307-redirect back to `paneler.app/`.
 
 No subscription tier, no `isAdmin` check — any authenticated user is admitted.
+
+## Open design questions
+
+These are unresolved decisions blocking implementation work. Each lists the candidates and trade-offs as we currently see them; pick (or merge) approaches in follow-up PRs.
+
+### How do users define custom panel shapes?
+
+Built-in shapes (presets + Goldberg) cover the common cases. For anything beyond that we need a "user-defined shape" path. Two candidates so far:
+
+**Option A — OBJ file upload**
+
+User authors a polyhedron in Blender/MeshLab/whatever, exports OBJ, drags it into Paneler. The OBJ's faces become the panels.
+
+- **Pros:** Familiar pattern. Reuses existing 3D-modelling tools. Implementation is ~30 LOC (hand-rolled face parser preserving n-gon arity — `three-stdlib`'s `OBJLoader` fan-triangulates and is unsuitable as a topology source).
+- **Cons:** Requires the user to know an external tool. Users without 3D-modelling background can't make custom bags. Doesn't enforce that faces sit on a sphere.
+
+**Option B — Coloring on the sphere surface**
+
+User paints arbitrary regions on the sphere with a brush directly in Paneler. Each contiguous painted region becomes a panel; region boundaries become panel edges. Topology *emerges* from paint strokes instead of being declared in a separate tool.
+
+- **Pros:** No external tools. Lowest barrier — anyone who can paint can design a bag. Highly creative — you can draw stylised non-symmetric layouts that no polyhedron-based approach can express. Naturally produces curved panel boundaries on the sphere (no flat-face approximation).
+- **Cons:** Harder to implement. Needs: an offscreen sphere-aligned paint buffer (cubemap or unwrapped UV texture), a region-extraction step to turn pixel regions into vector boundaries, a boundary-smoothing/simplification step, and a way to ensure regions are well-formed (closed, non-self-intersecting). The result must still produce a valid `PanelTopology` for the rest of the pipeline.
+
+The two are **not mutually exclusive** — we could ship both as alternate input methods. Decision and prioritization pending. Also worth considering a third option (a panel-count slider that picks a Goldberg `(m, n)` — already in the plan via the Goldberg generator, but UI-wise a slider would be a low-effort addition).
 
 ## Document conventions
 

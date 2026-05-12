@@ -6,10 +6,20 @@ Live at **[paneler.app](https://paneler.app)** (once deployed).
 
 ## What it does
 
-- **3D Designer** — interactive 3D viewer for spherical panel layouts. Click panels to paint them; rotate to inspect; toggle suede texture; share designs by URL.
+- **3D Designer** — interactive 3D viewer for spherical panel layouts. Click panels to paint them with a 21-color fabric palette (or any custom hex); per-shape paint tools ("paint all hexagons", "fill unpainted", reset); per-panel coloring is carried over from [Footbag-3D-Visualizer](https://github.com/gwbischof/Footbag-3D-Visualizer).
 - **Runtime panel generation** — built-in shape library (tetrahedron through 92+ panel Goldberg bags) generated procedurally in JS. No pre-baked models.
-- **OBJ upload** — bring your own polyhedron; every face becomes a clickable panel.
+- **Custom panel shapes** *(design still being figured out)* — see [Open design questions](#open-design-questions) below. Two ideas in play: OBJ file upload (each face = a panel), or coloring-on-the-sphere (paint regions directly on the sphere surface, and the regions themselves become the panels).
 - **2D cutting patterns** *(coming)* — unfold the 3D design into a flat SVG cutting template with seam allowance and stitch holes, ready for laser cutting.
+
+## Open design questions
+
+These need to be settled before the corresponding implementation work starts. See [PLAN.md](./PLAN.md#open-design-questions) for context and trade-offs.
+
+- **How do users define custom panel shapes?** Two candidates:
+  1. **OBJ upload** — user uploads a polyhedron file; each face becomes a clickable panel. Familiar pattern, leans on existing OBJ tools (Blender, MeshLab, etc.). Limited to whatever the user can build in another program.
+  2. **Coloring on the sphere surface** — user paints arbitrary regions directly on the sphere with a brush; each contiguous region becomes a panel. No external tool needed; very approachable. Implementation is harder (region extraction, boundary tracing, topology emerging from paint strokes).
+  
+  The two are not mutually exclusive — we could support both. Decision pending.
 
 ## Status
 
