@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -9,6 +9,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
 import { PRESETS } from "@/lib/topology/presets";
+import { parseObjToTopology } from "@/lib/topology/obj";
 import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
 import {
   applyColor,
@@ -17,8 +18,9 @@ import {
   decodeDesignFromHash,
   resetPanel,
 } from "@/lib/designState";
-import type { PanelColors } from "@/lib/types";
+import type { PanelColors, PanelTopology } from "@/lib/types";
 
+import { Button } from "@/components/ui/button";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { PanelInfoBar } from "./PanelInfoBar";
@@ -43,11 +45,19 @@ export function PanelerDesigner() {
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [panelColors, setPanelColors] = useState<PanelColors>({});
   const [suedeEnabled, setSuedeEnabled] = useState(false);
+  const [customTopology, setCustomTopology] = useState<PanelTopology | null>(null);
+  const [customLabel, setCustomLabel] = useState<string>("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const preset =
     PRESETS.find((p) => p.id === presetId) ??
     PRESETS.find((p) => p.id === DEFAULT_PRESET)!;
-  const topology = useMemo(() => preset.topology(), [preset]);
+  // If a custom OBJ is loaded, it takes precedence over the preset.
+  const topology = useMemo(
+    () => (customTopology ?? preset.topology()),
+    [customTopology, preset],
+  );
   const allPanelIds = useMemo(
     () => topology.panels.map((p) => p.id),
     [topology],
@@ -79,8 +89,25 @@ export function PanelerDesigner() {
 
   const handlePresetChange = useCallback((newId: string) => {
     setPresetId(newId);
+    setCustomTopology(null);
+    setCustomLabel("");
     setPanelColors({});
     setSelectedPanelId(null);
+  }, []);
+
+  const handleObjUpload = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const topo = parseObjToTopology(text, 1);
+      setCustomTopology(topo);
+      setCustomLabel(file.name);
+      setPanelColors({});
+      setSelectedPanelId(null);
+      setUploadError(null);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "OBJ parse failed");
+      window.setTimeout(() => setUploadError(null), 5000);
+    }
   }, []);
 
   const handleResetSelected = useCallback(() => {
@@ -116,19 +143,47 @@ export function PanelerDesigner() {
   return (
     <div className="flex flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
-        <ToggleGroup
-          value={[presetId]}
-          onValueChange={(v) => v[0] && handlePresetChange(v[0])}
-          variant="outline"
-          size="sm"
-        >
-          {PRESETS.map((p) => (
-            <ToggleGroupItem key={p.id} value={p.id} aria-label={p.label}>
-              {p.label}{" "}
-              <span className="text-muted-foreground">({p.panels})</span>
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            value={customTopology ? [] : [presetId]}
+            onValueChange={(v) => v[0] && handlePresetChange(v[0])}
+            variant="outline"
+            size="sm"
+          >
+            {PRESETS.map((p) => (
+              <ToggleGroupItem key={p.id} value={p.id} aria-label={p.label}>
+                {p.label}{" "}
+                <span className="text-muted-foreground">({p.panels})</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload OBJ
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".obj"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleObjUpload(file);
+              e.target.value = "";
+            }}
+          />
+          {customTopology && (
+            <span className="text-xs text-muted-foreground">
+              Custom: <code className="font-mono">{customLabel}</code> ({customTopology.panels.length})
+            </span>
+          )}
+          {uploadError && (
+            <span className="text-xs text-destructive">{uploadError}</span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
