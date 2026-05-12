@@ -28,7 +28,8 @@ Ship the 3D viewer with runtime panel generation, gated behind auth at `paneler.
 - Suede texture toggle with per-panel deterministic UV rotation.
 - Light/dark background toggle.
 - Export/import design JSON; shareable URL hash.
-- Auth.js v5 + Dex OIDC (Google sign-in). Path `/app/*` is gated; landing at `/` is public.
+- Auth.js v5 + Dex OIDC (Google sign-in). Path `/app/*` is gated in production; landing at `/` is public.
+- **Auth-off mode**: setting `AUTH_DISABLED=true` (or omitting `AUTH_SECRET`) skips the proxy/middleware gate so anyone can use `/app/*`. Default for local dev and the Phase 2 GitHub Pages preview build. Production paneler.app sets `AUTH_DISABLED=false` (or unset, which is treated as "auth on" only when `AUTH_SECRET` is present).
 
 **Out of scope for Phase 1** (deferred to Phase 2+):
 - Puffed panels (panel-interior outward displacement).
@@ -38,7 +39,7 @@ Ship the 3D viewer with runtime panel generation, gated behind auth at `paneler.
 - 2D panel-net view and SVG cutting-pattern export.
 - Per-user design persistence.
 
-### Phase 2 — 2D Cutting Patterns
+### Phase 2 — 2D Cutting Patterns + Public Preview Deploy
 
 The "SVG renderer" that meshes with the 3D view: an unfolded flat layout of the panels, sharing the same panel ID space and color state. Click/paint syncs between 3D and 2D.
 
@@ -47,6 +48,44 @@ The "SVG renderer" that meshes with the 3D view: an unfolded flat layout of the 
 - View toggle: 3D ↔ 2D (selection preserved across toggle).
 - SVG cutting-pattern export with seam allowance + stitch holes (port from `Footbag-Panel-Generator`).
 - Print/laser-cut output (LaserWeb/LightBurn-compatible).
+
+**Also in Phase 2 — Public GitHub Pages preview**
+
+Ship a second deploy target alongside the auth-gated k3s production. The same codebase produces two artifacts:
+
+| Target | URL | Build | Distribution | Auth |
+|---|---|---|---|---|
+| Production | `paneler.app/app` | container (Next.js server) | GHCR → ArgoCD → k3s | Auth.js + Dex |
+| Public preview | `vsi5004.github.io/Paneler` (or `demo.paneler.app` CNAME) | `next build` with `output: 'export'` | GH Actions → `gh-pages` branch → GH Pages | None (preview is open) |
+
+**Mechanism.** Next.js 16's static export supports the App Router. Most of the codebase already works statically — R3F is client-only, all topology/mesh code runs in the browser, designState is pure functions, the URL-hash share format is client-side. The only Phase 1 piece that can't run statically is the Auth.js middleware (renamed to **Proxy** in Next 16), and that's exactly what we want excluded from the public preview.
+
+**Config approach.** A `STATIC_EXPORT=1` env var flips `next.config.ts` into export mode:
+- `output: 'export'`, `images.unoptimized: true`, `basePath: '/Paneler'` (set for project-page URL; empty for custom domain).
+- The proxy file is excluded from the static build via a conditional in `next.config.ts` (Next allows skipping middleware/proxy when statically exporting).
+- The `/app` route ships fully open — anyone landing on the GH Pages URL goes straight to the designer.
+
+**GH Actions workflow** (separate from the GHCR/k3s workflow):
+```yaml
+# .github/workflows/gh-pages.yml
+on: { push: { branches: [main] } }
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pages: write, id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci && STATIC_EXPORT=1 npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: out }
+      - uses: actions/deploy-pages@v4
+```
+
+**Trade-offs to keep in mind:**
+- Public preview means anyone can use the full designer without an account. Acceptable for Paneler's purpose; revisit if abuse becomes a concern.
+- Future Phase 3 persistence (SQLite/Postgres) won't be available in the GH Pages build — designs only persist via URL hash / JSON export. That's already the Phase 1 behavior so no regression for preview users.
+- The two builds must stay buildable from the same source. CI runs both on every push so divergence is caught immediately.
 
 ### Phase 3 — Per-user Persistence
 
@@ -111,7 +150,7 @@ This same structure feeds the Phase 2 SVG view. The 3D and 2D renderers share st
 | Motion | framer-motion | |
 | 2D / SVG (Phase 2) | Raw React SVG + framer-motion, optional `d3-path` | Avoid svg.js / Snap.svg — imperative DOM libs fight React. |
 | State | React hooks + pure functions | Port `designState.ts` from `Footbag-3D-Visualizer` verbatim. Already passes Vitest tests. |
-| Auth | Auth.js v5 + Dex OIDC | **NOT NextAuth v4.** v5 cookie prefix is `authjs.` (not `next-auth.`) and HKDF derivation differs. Share a tiny `auth.ts` module between this repo and `paneler-business`; use the v5 `auth()` helper in middleware. |
+| Auth | Auth.js v5 + Dex OIDC | **NOT NextAuth v4.** v5 cookie prefix is `authjs.` (not `next-auth.`) and HKDF derivation differs. Share a tiny `auth.ts` module between this repo and `paneler-business`; use the v5 `auth()` helper inside `proxy.ts` (Next.js 16 renamed `middleware.ts` to `proxy.ts`). |
 | Tests | Vitest | |
 
 ## Repos
@@ -150,9 +189,23 @@ TLS: cert-manager DNS-01 challenge via a scoped Cloudflare API Token (`Zone:DNS:
 2. Clicks "Sign In" → Auth.js v5 → Dex at `dex.korroni.com` → Google.
 3. Dex callback → landing `/api/auth/callback/dex-google` → JWE session cookie set at `paneler.app` root.
 4. Landing's session check → `redirect("/app")`.
-5. App `middleware.ts` calls `auth()` → admits any valid session. Unauthed requests to `/app/*` 307-redirect back to `paneler.app/`.
+5. App `proxy.ts` calls `auth()` → admits any valid session. Unauthed requests to `/app/*` 307-redirect back to `paneler.app/`.
 
 No subscription tier, no `isAdmin` check — any authenticated user is admitted.
+
+**Auth-off mode.** The proxy short-circuits and lets every request through when:
+- `AUTH_DISABLED=true` is set explicitly, **or**
+- `AUTH_SECRET` is unset (the proxy has no key to decrypt sessions with anyway).
+
+Three deployment scenarios:
+
+| Scenario | `AUTH_DISABLED` | `AUTH_SECRET` | Result |
+|---|---|---|---|
+| Local dev (`npm run dev`) | usually `true` in `.env.local` | unset | `/app/*` open, no Dex |
+| GitHub Pages preview (Phase 2) | n/a — proxy doesn't exist in static export | n/a | `/app/*` open by construction |
+| Production `paneler.app` | unset | set via k8s Secret | `/app/*` gated by Auth.js + Dex |
+
+This matters for first-time contributors: they can clone, `npm install`, `npm run dev`, and have a fully functional designer without setting up Dex or copying secrets. Same property holds for the public GH Pages preview.
 
 ## Open design questions
 

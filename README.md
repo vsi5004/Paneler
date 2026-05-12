@@ -43,7 +43,7 @@ Companion landing page: [`paneler-business`](https://github.com/gwbischof/panele
 ```
 app/
   page.tsx               # Public marketing-y landing for the app sub-route
-  app/page.tsx           # The 3D designer (gated by /app/* middleware in prod)
+  app/page.tsx           # The 3D designer (gated by /app/* proxy in prod, open in dev / GH Pages)
   layout.tsx, globals.css
 components/
   paneler/               # PanelerDesigner (client wrapper), PanelerCanvas (R3F)
@@ -68,7 +68,9 @@ npm test                 # vitest
 npm run lint             # eslint
 ```
 
-To work on the gated `/app/*` routes locally without going through Dex, set `AUTH_DISABLED=true` in `.env.local`.
+**No Dex setup needed for local dev.** The `/app/*` route is open by default in development — the auth proxy only activates when `AUTH_SECRET` is set (production) and `AUTH_DISABLED` is not `true`. Just `npm install && npm run dev` and the full designer works.
+
+The same property applies to the public GitHub Pages preview (Phase 2): static export doesn't include a proxy file, so the preview ships fully open to anyone with the link.
 
 ## Deployment
 
