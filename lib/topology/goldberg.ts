@@ -409,6 +409,25 @@ function dualToTopology(mesh: TriMesh): PanelTopology {
     }
 
     const vertexIndices = ordered.map((o) => o.faceIdx);
+
+    // The cyclic-walk direction depends on the original triangle winding —
+    // for some panels it lands CCW-from-outside, for others CW. Normalize
+    // here so every panel renders with its front facing out and raycasts
+    // hit the near side first (otherwise clicks pass through to the panel
+    // on the far hemisphere).
+    const a = centroids[vertexIndices[0]];
+    const b = centroids[vertexIndices[1]];
+    const c = centroids[vertexIndices[2]];
+    const ab = b.clone().sub(a);
+    const ac = c.clone().sub(a);
+    const faceNormal = ab.cross(ac);
+    const panelCentroid = new Vector3();
+    for (const idx of vertexIndices) panelCentroid.add(centroids[idx]);
+    panelCentroid.divideScalar(vertexIndices.length);
+    if (faceNormal.dot(panelCentroid) < 0) {
+      vertexIndices.reverse();
+    }
+
     const shape: PanelShape = shapeForVertexCount(vertexIndices.length);
     panels.push({
       id: panelId(panels.length, shape),

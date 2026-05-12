@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { TrackballControls } from "@react-three/drei";
 import {
   Color,
   type Group,
@@ -74,7 +74,17 @@ export default function PanelerCanvas({
         suedeMaps={suedeEnabled ? maps : null}
         onPanelClick={onPanelClick}
       />
-      <OrbitControls enablePan={false} minDistance={3} maxDistance={12} />
+      {/* TrackballControls (not OrbitControls) so the sphere can roll past
+          the poles and keep spinning. OrbitControls clamps polar angle to
+          [0, π] and won't go upside-down. */}
+      <TrackballControls
+        noPan
+        rotateSpeed={3}
+        zoomSpeed={1.2}
+        minDistance={3}
+        maxDistance={12}
+        staticMoving
+      />
     </Canvas>
   );
 }
