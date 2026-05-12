@@ -5,6 +5,7 @@ import {
   panelId,
   shapeForVertexCount,
 } from "@/lib/types";
+import { goldberg11, goldbergClassI } from "./goldberg";
 
 /**
  * Build a PanelTopology from raw vertex coordinates and face index loops.
@@ -282,4 +283,8 @@ export const PRESETS: PresetEntry[] = [
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
   { id: "cubocta", label: "Cuboctahedron", panels: 14, topology: cuboctahedron },
   { id: "icosa", label: "Icosahedron", panels: 20, topology: icosahedron },
+  { id: "soccer", label: "Soccer Ball", panels: 32, topology: goldberg11 },
+  { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
+  { id: "gp3", label: "GP(3,0)", panels: 92, topology: (r?: number) => goldbergClassI(3, r) },
+  { id: "gp4", label: "GP(4,0)", panels: 162, topology: (r?: number) => goldbergClassI(4, r) },
 ];

@@ -128,7 +128,9 @@ This same structure feeds the Phase 2 SVG view. The 3D and 2D renderers share st
 | Shape | Source |
 |---|---|
 | Tetra, cube, octa, cubocta, dodeca, icosa | Hand-coded vertex tables |
-| Soccer ball (32), 42, 72, 92, … | `goldberg(m, n)` — vendor [`@flyskypie/goldberg-polyhedron`](https://www.npmjs.com/package/@flyskypie/goldberg-polyhedron) or transliterate Babylon.js's `CreateGoldberg`. |
+| Soccer ball (32) | Hand-rolled `goldberg11()` via direct truncated-icosahedron construction (`lib/topology/goldberg.ts`). No third-party code. |
+| GP(2,0)=42 / GP(3,0)=92 / GP(4,0)=162 | `goldbergClassI(m)` = sphericalize ∘ dual ∘ trisub_m ∘ icosahedron. `trisub` + `dual` adapted from [polyhedronisme](https://github.com/levskaya/polyhedronisme) (MIT). Attribution in `NOTICE`. |
+| Class II/III Goldberg (GP(m,n), m≠0,n≠0,m≠n) | Not implemented; would handle chiral panel patterns. Defer until requested. |
 | **Custom shapes** | **Open design question — see below.** |
 
 ### Geometry notes

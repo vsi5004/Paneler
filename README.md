@@ -7,7 +7,7 @@ Live at **[paneler.app](https://paneler.app)** (once deployed).
 ## What it does
 
 - **3D Designer** — interactive 3D viewer for spherical panel layouts. Click panels to paint them with a 21-color fabric palette (or any custom hex); per-shape paint tools ("paint all hexagons", "fill unpainted", reset); per-panel coloring is carried over from [Footbag-3D-Visualizer](https://github.com/gwbischof/Footbag-3D-Visualizer).
-- **Runtime panel generation** — built-in shape library (tetrahedron through 92+ panel Goldberg bags) generated procedurally in JS. No pre-baked models.
+- **Runtime panel generation** — 10 built-in shapes generated in JS at load: tetrahedron (4), cube (6), octahedron (8), dodecahedron (12), cuboctahedron (14), icosahedron (20), soccer ball (32), GP(2,0)/42, GP(3,0)/92, GP(4,0)/162. No pre-baked models.
 - **Custom panel shapes** *(design still being figured out)* — see [Open design questions](#open-design-questions) below. Two ideas in play: OBJ file upload (each face = a panel), or coloring-on-the-sphere (paint regions directly on the sphere surface, and the regions themselves become the panels).
 - **2D cutting patterns** *(coming)* — unfold the 3D design into a flat SVG cutting template with seam allowance and stitch holes, ready for laser cutting.
 
