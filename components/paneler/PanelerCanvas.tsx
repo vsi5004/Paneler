@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { Color, type Group, type Mesh } from "three";
+import { Color, type Group, type LineSegments, type Mesh } from "three";
 
 import type { PanelColors, PanelTopology } from "@/lib/types";
 import { subdivideTopology } from "@/lib/mesh/subdivide";
@@ -19,12 +19,14 @@ const CLICK_DRAG_THRESHOLD = 5;
 interface PanelerCanvasProps {
   topology: PanelTopology;
   panelColors: PanelColors;
+  selectedPanelId: string | null;
   onPanelClick: (panelId: string) => void;
 }
 
 export default function PanelerCanvas({
   topology,
   panelColors,
+  selectedPanelId,
   onPanelClick,
 }: PanelerCanvasProps) {
   const group = useMemo(() => {
@@ -45,6 +47,7 @@ export default function PanelerCanvas({
       <PanelGroup
         group={group}
         panelColors={panelColors}
+        selectedPanelId={selectedPanelId}
         onPanelClick={onPanelClick}
       />
       <OrbitControls enablePan={false} minDistance={3} maxDistance={12} />
@@ -55,16 +58,18 @@ export default function PanelerCanvas({
 function PanelGroup({
   group,
   panelColors,
+  selectedPanelId,
   onPanelClick,
 }: {
   group: Group;
   panelColors: PanelColors;
+  selectedPanelId: string | null;
   onPanelClick: (panelId: string) => void;
 }) {
   // Track pointer-down origin so we can distinguish click from camera drag.
   const downRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Sync per-panel material colors from React state whenever panelColors changes.
+  // Sync per-panel material colors from React state.
   useEffect(() => {
     group.traverse((obj) => {
       if (!(obj as Mesh).isMesh) return;
@@ -80,6 +85,15 @@ function PanelGroup({
       }
     });
   }, [group, panelColors]);
+
+  // Sync selected-panel edge highlight visibility.
+  useEffect(() => {
+    group.traverse((obj) => {
+      const outlineFor = obj.userData?.outlineFor as string | undefined;
+      if (!outlineFor) return;
+      (obj as LineSegments).visible = outlineFor === selectedPanelId;
+    });
+  }, [group, selectedPanelId]);
 
   return (
     <primitive

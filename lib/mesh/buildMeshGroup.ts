@@ -2,7 +2,10 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  EdgesGeometry,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshStandardMaterial,
 } from "three";
@@ -10,6 +13,11 @@ import type { PanelTopology } from "@/lib/types";
 import { getPanelTriangles } from "./subdivide";
 
 const DEFAULT_PANEL_COLOR = "#c41e3a";
+// Dihedral threshold for EdgesGeometry. Subdivided triangles within a panel
+// have ~0° angle between them, so any positive threshold filters them out;
+// only the panel's outer boundary remains (those edges have just one
+// adjacent triangle within the mesh).
+const EDGE_THRESHOLD_DEGREES = 1;
 
 /**
  * Convert a (subdivided + sphere-projected) PanelTopology into a renderable
@@ -51,6 +59,21 @@ export function buildMeshGroup(topo: PanelTopology): Group {
     mesh.userData.panelId = panel.id;
     mesh.userData.shape = panel.shape;
     mesh.userData.originalColor = `#${defaultColor.getHexString()}`;
+
+    // Per-panel boundary line, hidden by default. Visibility is toggled by
+    // PanelerCanvas when a panel is selected. Excluded from raycasting so
+    // clicks pass through to the underlying mesh.
+    const edges = new EdgesGeometry(geometry, EDGE_THRESHOLD_DEGREES);
+    const line = new LineSegments(
+      edges,
+      new LineBasicMaterial({ color: 0xffffff }),
+    );
+    line.name = `${panel.id}__outline`;
+    line.userData.outlineFor = panel.id;
+    line.visible = false;
+    line.raycast = () => {};
+    mesh.add(line);
+
     group.add(mesh);
   }
 
