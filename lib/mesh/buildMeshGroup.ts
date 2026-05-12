@@ -38,6 +38,12 @@ export function buildMeshGroup(topo: PanelTopology): Group {
   const triLists = getPanelTriangles(topo);
   const defaultColor = new Color(DEFAULT_PANEL_COLOR);
 
+  // Collect deduped seam segments across all panels so each panel-to-panel
+  // boundary is drawn exactly once. Without this, three adjacent panels each
+  // emit the same corner endpoints, producing visible dots at vertices.
+  const seamSegments: number[] = [];
+  const seenSeam = new Set<string>();
+
   for (const panel of topo.panels) {
     let triangles = triLists?.get(panel.id);
     if (!triangles) {
@@ -66,9 +72,8 @@ export function buildMeshGroup(topo: PanelTopology): Group {
     mesh.userData.shape = panel.shape;
     mesh.userData.originalColor = `#${defaultColor.getHexString()}`;
 
-    // Per-panel boundary line, hidden by default. Visibility is toggled by
-    // PanelerCanvas when a panel is selected. Excluded from raycasting so
-    // clicks pass through to the underlying mesh.
+    // Per-panel boundary line — used only for the selected-panel highlight.
+    // Visibility is toggled by PanelerCanvas. Excluded from raycasting.
     const edges = new EdgesGeometry(geometry, EDGE_THRESHOLD_DEGREES);
     const line = new LineSegments(
       edges,
@@ -80,10 +85,51 @@ export function buildMeshGroup(topo: PanelTopology): Group {
     line.raycast = () => {};
     mesh.add(line);
 
+    collectSeamSegments(edges, seamSegments, seenSeam);
+
     group.add(mesh);
   }
 
+  // Always-visible global seam mesh — one LineSegments for every panel
+  // boundary, drawn once per seam (no per-corner overlap).
+  if (seamSegments.length > 0) {
+    const seamGeom = new BufferGeometry();
+    seamGeom.setAttribute(
+      "position",
+      new BufferAttribute(new Float32Array(seamSegments), 3),
+    );
+    const seamLines = new LineSegments(
+      seamGeom,
+      new LineBasicMaterial({ color: 0x111111 }),
+    );
+    seamLines.name = "__seams";
+    seamLines.raycast = () => {};
+    group.add(seamLines);
+  }
+
   return group;
+}
+
+function collectSeamSegments(
+  edges: EdgesGeometry,
+  out: number[],
+  seen: Set<string>,
+): void {
+  const pos = edges.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 6) {
+    const ax = pos[i],
+      ay = pos[i + 1],
+      az = pos[i + 2];
+    const bx = pos[i + 3],
+      by = pos[i + 4],
+      bz = pos[i + 5];
+    const keyA = `${ax.toFixed(5)},${ay.toFixed(5)},${az.toFixed(5)}`;
+    const keyB = `${bx.toFixed(5)},${by.toFixed(5)},${bz.toFixed(5)}`;
+    const key = keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ax, ay, az, bx, by, bz);
+  }
 }
 
 function fanTriangulate(

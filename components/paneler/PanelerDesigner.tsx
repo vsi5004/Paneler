@@ -44,7 +44,7 @@ export function PanelerDesigner() {
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color); // red
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [panelColors, setPanelColors] = useState<PanelColors>({});
-  const [suedeEnabled, setSuedeEnabled] = useState(false);
+  const [suedeEnabled, setSuedeEnabled] = useState(true);
   const [customTopology, setCustomTopology] = useState<PanelTopology | null>(null);
   const [customLabel, setCustomLabel] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
