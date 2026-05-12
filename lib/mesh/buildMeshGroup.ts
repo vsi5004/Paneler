@@ -2,7 +2,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
-  EdgesGeometry,
   Group,
   LineBasicMaterial,
   LineSegments,
@@ -11,14 +10,9 @@ import {
   Vector3,
 } from "three";
 import type { PanelTopology } from "@/lib/types";
-import { getPanelTriangles } from "./subdivide";
+import { getBoundaryArcs, getPanelTriangles } from "./subdivide";
 
 const DEFAULT_PANEL_COLOR = "#c41e3a";
-// Dihedral threshold for EdgesGeometry. Subdivided triangles within a panel
-// have ~0° angle between them, so any positive threshold filters them out;
-// only the panel's outer boundary remains (those edges have just one
-// adjacent triangle within the mesh).
-const EDGE_THRESHOLD_DEGREES = 1;
 
 /**
  * Convert a (subdivided + sphere-projected) PanelTopology into a renderable
@@ -36,13 +30,37 @@ const EDGE_THRESHOLD_DEGREES = 1;
 export function buildMeshGroup(topo: PanelTopology): Group {
   const group = new Group();
   const triLists = getPanelTriangles(topo);
+  const arcs = getBoundaryArcs(topo);
   const defaultColor = new Color(DEFAULT_PANEL_COLOR);
 
-  // Collect deduped seam segments across all panels so each panel-to-panel
-  // boundary is drawn exactly once. Without this, three adjacent panels each
-  // emit the same corner endpoints, producing visible dots at vertices.
-  const seamSegments: number[] = [];
-  const seenSeam = new Set<string>();
+  // Group panel-boundary segments by panel for the selection-highlight lines,
+  // and collect every boundary segment once for the always-visible global
+  // seam. Each segment comes from the subdivided boundary arc of an original
+  // topology edge — so the within-panel triangle grid never enters the line
+  // mesh in the first place (no dihedral-threshold guessing).
+  const perPanelSegments = new Map<string, number[]>();
+  const globalSegments: number[] = [];
+
+  for (const edge of topo.edges) {
+    const lo = Math.min(edge.vertexA, edge.vertexB);
+    const hi = Math.max(edge.vertexA, edge.vertexB);
+    const arcVerts =
+      arcs?.get(`${lo}-${hi}`) ?? [lo, hi];
+    for (let i = 0; i < arcVerts.length - 1; i++) {
+      const a = topo.vertices[arcVerts[i]];
+      const b = topo.vertices[arcVerts[i + 1]];
+      globalSegments.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      for (const panelId of [edge.panelA, edge.panelB]) {
+        if (!panelId) continue;
+        let arr = perPanelSegments.get(panelId);
+        if (!arr) {
+          arr = [];
+          perPanelSegments.set(panelId, arr);
+        }
+        arr.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+  }
 
   for (const panel of topo.panels) {
     let triangles = triLists?.get(panel.id);
@@ -72,31 +90,35 @@ export function buildMeshGroup(topo: PanelTopology): Group {
     mesh.userData.shape = panel.shape;
     mesh.userData.originalColor = `#${defaultColor.getHexString()}`;
 
-    // Per-panel boundary line — used only for the selected-panel highlight.
-    // Visibility is toggled by PanelerCanvas. Excluded from raycasting.
-    const edges = new EdgesGeometry(geometry, EDGE_THRESHOLD_DEGREES);
-    const line = new LineSegments(
-      edges,
-      new LineBasicMaterial({ color: 0xffffff }),
-    );
-    line.name = `${panel.id}__outline`;
-    line.userData.outlineFor = panel.id;
-    line.visible = false;
-    line.raycast = () => {};
-    mesh.add(line);
-
-    collectSeamSegments(edges, seamSegments, seenSeam);
+    // White outline shown only when this panel is selected. Built from the
+    // panel's boundary arcs, so no triangle grid sneaks in.
+    const segs = perPanelSegments.get(panel.id);
+    if (segs && segs.length > 0) {
+      const outlineGeom = new BufferGeometry();
+      outlineGeom.setAttribute(
+        "position",
+        new BufferAttribute(new Float32Array(segs), 3),
+      );
+      const outline = new LineSegments(
+        outlineGeom,
+        new LineBasicMaterial({ color: 0xffffff }),
+      );
+      outline.name = `${panel.id}__outline`;
+      outline.userData.outlineFor = panel.id;
+      outline.visible = false;
+      outline.raycast = () => {};
+      mesh.add(outline);
+    }
 
     group.add(mesh);
   }
 
-  // Always-visible global seam mesh — one LineSegments for every panel
-  // boundary, drawn once per seam (no per-corner overlap).
-  if (seamSegments.length > 0) {
+  // Always-visible global seam mesh.
+  if (globalSegments.length > 0) {
     const seamGeom = new BufferGeometry();
     seamGeom.setAttribute(
       "position",
-      new BufferAttribute(new Float32Array(seamSegments), 3),
+      new BufferAttribute(new Float32Array(globalSegments), 3),
     );
     const seamLines = new LineSegments(
       seamGeom,
@@ -108,28 +130,6 @@ export function buildMeshGroup(topo: PanelTopology): Group {
   }
 
   return group;
-}
-
-function collectSeamSegments(
-  edges: EdgesGeometry,
-  out: number[],
-  seen: Set<string>,
-): void {
-  const pos = edges.attributes.position.array as Float32Array;
-  for (let i = 0; i < pos.length; i += 6) {
-    const ax = pos[i],
-      ay = pos[i + 1],
-      az = pos[i + 2];
-    const bx = pos[i + 3],
-      by = pos[i + 4],
-      bz = pos[i + 5];
-    const keyA = `${ax.toFixed(5)},${ay.toFixed(5)},${az.toFixed(5)}`;
-    const keyB = `${bx.toFixed(5)},${by.toFixed(5)},${bz.toFixed(5)}`;
-    const key = keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(ax, ay, az, bx, by, bz);
-  }
 }
 
 function fanTriangulate(

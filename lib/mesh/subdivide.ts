@@ -41,6 +41,12 @@ export function subdivideTopology(
   // loops are preserved for adjacent-panel edges and the future SVG unfold).
   const panelTriangles = new Map<string, [number, number, number][]>();
 
+  // For each ORIGINAL panel edge (canonical lo-hi corner-vertex pair), the
+  // ordered chain of post-subdivision vertex indices from lo to hi. Used by
+  // buildMeshGroup to draw clean panel boundaries without using dihedral
+  // thresholds — the within-panel subdivision grid is excluded entirely.
+  const boundaryArcs = new Map<string, number[]>();
+
   for (const panel of topo.panels) {
     const triangles: [number, number, number][] = [];
 
@@ -66,6 +72,16 @@ export function subdivideTopology(
         bIdx,
         levels,
       );
+
+      // Record the canonical lo→hi arc once. Adjacent panel will hit this
+      // same edge from the opposite direction; the cache makes it a no-op.
+      const arcKey = `${Math.min(aIdx, bIdx)}-${Math.max(aIdx, bIdx)}`;
+      if (!boundaryArcs.has(arcKey)) {
+        boundaryArcs.set(
+          arcKey,
+          aIdx < bIdx ? [...boundaryEdgeVerts] : [...boundaryEdgeVerts].reverse(),
+        );
+      }
 
       // Build a (levels+1)-row barycentric grid inside the parent triangle:
       //   row 0 is the boundary edge (shared with neighbour panel)
@@ -117,14 +133,19 @@ export function subdivideTopology(
     shape: shapeForVertexCount(p.vertexIndices.length),
   }));
 
-  const result: PanelTopology & { _triangles?: Map<string, [number, number, number][]> } = {
+  const result: PanelTopology & {
+    _triangles?: Map<string, [number, number, number][]>;
+    _boundaryArcs?: Map<string, number[]>;
+  } = {
     vertices: newVertices,
     panels: newPanels,
     edges: topo.edges.map((e) => ({ ...e })),
   };
 
-  // Attach the triangle index lists. `buildMeshGroup` reads this.
+  // Attach the triangle index lists + boundary arcs. `buildMeshGroup` reads
+  // both — triangles for the panel surfaces, arcs for the seam lines.
   result._triangles = panelTriangles;
+  result._boundaryArcs = boundaryArcs;
   return result;
 }
 
@@ -200,4 +221,18 @@ export function getPanelTriangles(
   return (topo as PanelTopology & {
     _triangles?: Map<string, [number, number, number][]>;
   })._triangles;
+}
+
+/**
+ * Per-original-edge ordered vertex chains (post-subdivision). Keys are the
+ * canonical `${min}-${max}` of the two ORIGINAL corner-vertex indices; values
+ * walk from lo to hi inclusive. Used by `buildMeshGroup` to draw panel
+ * boundaries without picking up the within-panel triangle grid.
+ */
+export function getBoundaryArcs(
+  topo: PanelTopology,
+): Map<string, number[]> | undefined {
+  return (topo as PanelTopology & {
+    _boundaryArcs?: Map<string, number[]>;
+  })._boundaryArcs;
 }
