@@ -1,8 +1,16 @@
-import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { PanelerDesigner } from "@/components/paneler/PanelerDesigner";
 
-// Marketing lives at paneler.app/ (the paneler-business app); this repo only
-// needs to serve the designer. Any hit to / inside this app — local dev,
-// direct service access — goes straight to /app.
-export default function Home() {
-  redirect("/app");
+// Mounted at basePath /app, so this renders at paneler.app/app.
+// Read the session here (server side) and pass identity + a logout
+// server-action handle down to the designer header.
+export default async function DesignerPage() {
+  const session = await auth();
+  const user = session?.user ?? null;
+
+  return (
+    <main className="flex flex-1 flex-col">
+      <PanelerDesigner user={user} />
+    </main>
+  );
 }

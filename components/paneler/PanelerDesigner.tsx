@@ -21,10 +21,21 @@ import {
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
+import { logout } from "@/lib/auth-actions";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { PanelInfoBar } from "./PanelInfoBar";
 import { ShareControls } from "./ShareControls";
+
+interface AuthUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
+interface PanelerDesignerProps {
+  user: AuthUser | null;
+}
 
 // R3F can't run on the server. App Router disallows ssr:false in Server
 // Components, so the dynamic import lives inside this 'use client' wrapper.
@@ -39,7 +50,7 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
 
 const DEFAULT_PRESET = "soccer";
 
-export function PanelerDesigner() {
+export function PanelerDesigner({ user }: PanelerDesignerProps) {
   const [presetId, setPresetId] = useState(DEFAULT_PRESET);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color); // red
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
@@ -199,6 +210,7 @@ export function PanelerDesigner() {
             panelColors={panelColors}
             onImport={handleImport}
           />
+          {user && <UserMenu user={user} />}
         </div>
       </header>
 
@@ -240,6 +252,62 @@ export function PanelerDesigner() {
           />
         </aside>
       </div>
+    </div>
+  );
+}
+
+function UserMenu({ user }: { user: AuthUser }) {
+  const [open, setOpen] = useState(false);
+  const initial =
+    (user.name ?? user.email ?? "?").trim().charAt(0).toUpperCase();
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex size-8 items-center justify-center overflow-hidden rounded-full border border-border bg-card text-sm font-medium hover:bg-muted"
+        aria-label={user.name ?? user.email ?? "Account"}
+        title={user.name ?? user.email ?? "Account"}
+      >
+        {user.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.image}
+            alt=""
+            className="size-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          initial
+        )}
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 z-50 mt-2 w-56 rounded-md border border-border bg-popover p-2 shadow-lg"
+          onMouseLeave={() => setOpen(false)}
+        >
+          <div className="px-2 py-1.5 text-sm">
+            <div className="font-medium leading-tight">
+              {user.name ?? "Signed in"}
+            </div>
+            {user.email && (
+              <div className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </div>
+            )}
+          </div>
+          <div className="my-1 h-px bg-border" />
+          <form action={logout}>
+            <button
+              type="submit"
+              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
