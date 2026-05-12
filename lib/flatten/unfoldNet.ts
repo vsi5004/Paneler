@@ -1,8 +1,7 @@
-import { Vector3 } from "three";
 import type { Panel, PanelEdge, PanelTopology } from "@/lib/types";
 import { chooseRoot } from "./chooseRoot";
 import { rigidEdgeAlign, sideOf } from "./rigidTransform";
-import type { FlatLayout, Vec2 } from "./types";
+import type { FlatLayout, PanelFlat, Vec2 } from "./types";
 
 /**
  * Unfold a `PanelTopology` into a flat net via BFS edge-unfolding:
@@ -47,6 +46,9 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
   const rootId = chooseRoot(topo);
   const rootPanel = panelById.get(rootId)!;
   result.set(rootId, flattenPanelLocal(rootPanel, topo));
+  // Per-edge sagitta ratios are intrinsic to the 3D geometry of each
+  // panel — they don't depend on how the panel is rotated/mirrored in
+  // the BFS unfold. Compute once per panel and cache.
 
   // Visited + queue
   const visited = new Set<string>([rootId]);
@@ -56,7 +58,7 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
     const currentId = queue.shift()!;
     const currentPanel = panelById.get(currentId)!;
     const currentFlat = result.get(currentId)!;
-    const currentCentroid2D = centroid2D(currentFlat);
+    const currentCentroid2D = centroid2D(currentFlat.corners);
 
     for (const edge of adjacency.get(currentId)!) {
       const neighborId =
@@ -68,7 +70,7 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
 
       const neighborFlat = unfoldNeighbour(
         currentPanel,
-        currentFlat,
+        currentFlat.corners,
         currentCentroid2D,
         neighborPanel,
         topo,
@@ -83,7 +85,7 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
   return result;
 }
 
-function flattenPanelLocal(panel: Panel, topo: PanelTopology): Vec2[] {
+function flattenPanelLocal(panel: Panel, topo: PanelTopology): PanelFlat {
   // Render each panel as a REGULAR polygon centred on the origin, with
   // edge length = the average of the panel's 3D-chord edge lengths.
   //
@@ -109,19 +111,38 @@ function flattenPanelLocal(panel: Panel, topo: PanelTopology): Vec2[] {
   const avgEdgeLen = totalEdgeLen / n;
   const radius = avgEdgeLen / (2 * Math.sin(Math.PI / n));
 
-  const flat: Vec2[] = [];
+  const corners: Vec2[] = [];
   for (let i = 0; i < n; i++) {
     // Start at the top (-π/2) and walk CCW. Panel boundary loops are
     // already CCW-from-outside (preset panels by construction, Goldberg
     // panels via the explicit re-orientation in dualToTopology), so this
     // preserves the same corner order.
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-    flat.push({
+    corners.push({
       x: radius * Math.cos(angle),
       y: radius * Math.sin(angle),
     });
   }
-  return flat;
+
+  // Per-edge sagitta-to-chord ratio for the original spherical arc, so
+  // the renderer can draw each edge as a curve that bulges outward by
+  // the same proportion the great-circle arc bulges past its 3D chord.
+  // Ratio = (1 - cos θ) / (2 sin θ) = tan(θ/2) / 2 where θ is the
+  // half-angle of the great-circle arc subtended by the edge.
+  //
+  // For the tetrahedron each edge spans ~109° of the sphere → big
+  // bulge. For a 32-panel soccer ball each edge spans ~29° → subtle.
+  const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
+  const sagittaRatios: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = topo.vertices[panel.vertexIndices[i]];
+    const b = topo.vertices[panel.vertexIndices[(i + 1) % n]];
+    const chord = a.distanceTo(b);
+    const sinHalf = Math.min(1, chord / (2 * sphereRadius));
+    const halfAngle = Math.asin(sinHalf);
+    sagittaRatios.push(Math.tan(halfAngle / 2) / 2);
+  }
+  return { corners, sagittaRatios };
 }
 
 function centroid2D(corners: ReadonlyArray<Vec2>): Vec2 {
@@ -136,29 +157,29 @@ function centroid2D(corners: ReadonlyArray<Vec2>): Vec2 {
 
 function unfoldNeighbour(
   parent: Panel,
-  parentFlat: ReadonlyArray<Vec2>,
+  parentCorners: ReadonlyArray<Vec2>,
   parentCentroid2D: Vec2,
   neighbor: Panel,
   topo: PanelTopology,
   sharedA: number,
   sharedB: number,
-): Vec2[] {
+): PanelFlat {
   // Where the shared corners landed in the parent's frame.
   const idxAinParent = parent.vertexIndices.indexOf(sharedA);
   const idxBinParent = parent.vertexIndices.indexOf(sharedB);
-  const P_A = parentFlat[idxAinParent];
-  const P_B = parentFlat[idxBinParent];
+  const P_A = parentCorners[idxAinParent];
+  const P_B = parentCorners[idxBinParent];
 
   // Where the shared corners sit in the neighbour's OWN local frame
   // (before unfolding).
   const localFlat = flattenPanelLocal(neighbor, topo);
   const idxAinNeighbour = neighbor.vertexIndices.indexOf(sharedA);
   const idxBinNeighbour = neighbor.vertexIndices.indexOf(sharedB);
-  const L_A = localFlat[idxAinNeighbour];
-  const L_B = localFlat[idxBinNeighbour];
+  const L_A = localFlat.corners[idxAinNeighbour];
+  const L_B = localFlat.corners[idxBinNeighbour];
 
   // First-pass transform without mirroring.
-  const localCentroid = centroid2D(localFlat);
+  const localCentroid = centroid2D(localFlat.corners);
   let xform = rigidEdgeAlign(L_A, L_B, P_A, P_B, /*mirror*/ false);
   let placedCentroid = xform(localCentroid);
 
@@ -172,5 +193,10 @@ function unfoldNeighbour(
     placedCentroid = xform(localCentroid);
   }
 
-  return localFlat.map(xform);
+  // Sagitta ratios are intrinsic to the panel's 3D geometry — they
+  // don't change under rotation / translation / mirror.
+  return {
+    corners: localFlat.corners.map(xform),
+    sagittaRatios: localFlat.sagittaRatios,
+  };
 }

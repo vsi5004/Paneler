@@ -11,13 +11,23 @@ export interface Vec2 {
 }
 
 /**
- * Output of `unfoldNet`: per-panel 2D corner coordinates in the unfolded
- * frame, keyed by `Panel.id`. The corner order matches the source
- * `panel.vertexIndices` order (so corner i of `vertexIndices[i]` maps to
- * the i-th entry here).
+ * Per-panel data in the unfolded layout.
  *
- * Coordinates are NOT viewport-normalised — they sit in whatever
- * absolute 2D space the BFS produced, with units matching the source
- * sphere radius. The renderer auto-fits via SVG viewBox.
+ * `corners[i]` is the 2D position of `panel.vertexIndices[i]`.
+ *
+ * `sagittaRatios[i]` is the dimensionless bulge ratio `s/c` for the edge
+ * from `corners[i]` to `corners[(i+1) % n]`, where `s` is the sagitta of
+ * the corresponding great-circle arc on the source sphere and `c` is the
+ * arc's chord length. Scale-invariant: when the renderer wants the
+ * actual 2D sagitta it multiplies by the 2D edge length. Used to draw
+ * each panel as a curve-edged polygon (`<path>` with quadratic-bezier
+ * sides) rather than a straight-edged polygon. Without this every
+ * panel looks like a flat polygon — tetrahedron edges in particular
+ * should visibly bulge because each face covers a quarter of the sphere.
  */
-export type FlatLayout = Map<string, Vec2[]>;
+export interface PanelFlat {
+  corners: Vec2[];
+  sagittaRatios: number[];
+}
+
+export type FlatLayout = Map<string, PanelFlat>;

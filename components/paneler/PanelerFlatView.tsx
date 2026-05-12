@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { unfoldNet } from "@/lib/flatten/unfoldNet";
-import type { Vec2 } from "@/lib/flatten/types";
+import type { PanelFlat, Vec2 } from "@/lib/flatten/types";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 const DEFAULT_PANEL_COLOR = "#c41e3a";
@@ -20,8 +20,11 @@ interface PanelerFlatViewProps {
  * renders. Same panel IDs + same color state, so painting and
  * selection round-trip seamlessly between the two panes.
  *
- * Renders one SVG polygon per panel — pure React, no canvas, no DOM
- * library — so click-to-paint comes for free via SVG event delegation.
+ * Each panel is drawn as a `<path>` with quadratic-bezier sides that
+ * bulge outward by the same proportion the original great-circle arc
+ * bulges past its 3D chord — so a tetrahedron (huge spherical faces)
+ * shows visibly curved triangle edges, while a 162-panel Goldberg
+ * looks nearly straight-edged.
  */
 export default function PanelerFlatView({
   topology,
@@ -45,14 +48,14 @@ export default function PanelerFlatView({
         preserveAspectRatio="xMidYMid meet"
       >
         {topology.panels.map((panel) => {
-          const corners = layout.get(panel.id);
-          if (!corners || corners.length < 3) return null;
+          const flat = layout.get(panel.id);
+          if (!flat || flat.corners.length < 3) return null;
           const fill = panelColors[panel.id] ?? DEFAULT_PANEL_COLOR;
           const selected = panel.id === selectedPanelId;
           return (
-            <polygon
+            <path
               key={panel.id}
-              points={corners.map((c) => `${c.x},${c.y}`).join(" ")}
+              d={buildCurvedPanelPath(flat)}
               fill={fill}
               stroke={selected ? "#ffffff" : "#111"}
               strokeWidth={selected ? 0.04 : 0.015}
@@ -71,21 +74,105 @@ export default function PanelerFlatView({
   );
 }
 
-function computeViewBox(layout: ReadonlyMap<string, ReadonlyArray<Vec2>>): string {
+/**
+ * Build an SVG path that traces the panel boundary with one quadratic-
+ * bezier segment per edge. Control point for each edge sits on the
+ * perpendicular bisector of the chord, offset outward (away from the
+ * panel centroid) by `2 × sagitta` — because a quadratic bezier
+ * evaluated at t=0.5 reaches half the perpendicular distance from
+ * chord to control point.
+ */
+function buildCurvedPanelPath(flat: PanelFlat): string {
+  const { corners, sagittaRatios } = flat;
+  const n = corners.length;
+  if (n < 3) return "";
+
+  // Panel centroid in flat space — used to flip the outward normal so
+  // every edge bulges AWAY from the centre, not into it.
+  let cx = 0;
+  let cy = 0;
+  for (const c of corners) {
+    cx += c.x;
+    cy += c.y;
+  }
+  cx /= n;
+  cy /= n;
+
+  const parts: string[] = [`M ${corners[0].x} ${corners[0].y}`];
+  for (let i = 0; i < n; i++) {
+    const a = corners[i];
+    const b = corners[(i + 1) % n];
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const edgeLen = Math.hypot(dx, dy);
+    // Perpendicular to the edge.
+    let nx = -dy / edgeLen;
+    let ny = dx / edgeLen;
+    // Flip if it points toward the centroid — we want OUTward bulge.
+    if (nx * (cx - midX) + ny * (cy - midY) > 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const sagitta = edgeLen * sagittaRatios[i];
+    const cpX = midX + nx * 2 * sagitta;
+    const cpY = midY + ny * 2 * sagitta;
+    parts.push(`Q ${cpX} ${cpY} ${b.x} ${b.y}`);
+  }
+  parts.push("Z");
+  return parts.join(" ");
+}
+
+function computeViewBox(layout: ReadonlyMap<string, PanelFlat>): string {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const corners of layout.values()) {
+  // Account for the outward bulge on each edge: corners alone aren't
+  // enough — quadratic-bezier control points stick out beyond the
+  // corner bounding box, so include their effective reach.
+  for (const flat of layout.values()) {
+    const { corners, sagittaRatios } = flat;
+    const n = corners.length;
+    let cx = 0;
+    let cy = 0;
     for (const c of corners) {
+      cx += c.x;
+      cy += c.y;
       if (c.x < minX) minX = c.x;
       if (c.y < minY) minY = c.y;
       if (c.x > maxX) maxX = c.x;
       if (c.y > maxY) maxY = c.y;
     }
+    cx /= n;
+    cy /= n;
+    for (let i = 0; i < n; i++) {
+      const a = corners[i];
+      const b = corners[(i + 1) % n];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const edgeLen = Math.hypot(dx, dy);
+      const sagitta = edgeLen * sagittaRatios[i];
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      let nx = -dy / edgeLen;
+      let ny = dx / edgeLen;
+      if (nx * (cx - midX) + ny * (cy - midY) > 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      // The bezier reaches half the control-point offset at t=0.5.
+      const peakX = midX + nx * sagitta;
+      const peakY = midY + ny * sagitta;
+      if (peakX < minX) minX = peakX;
+      if (peakY < minY) minY = peakY;
+      if (peakX > maxX) maxX = peakX;
+      if (peakY > maxY) maxY = peakY;
+    }
   }
   if (!isFinite(minX)) {
-    return "-1 -1 2 2"; // empty topology fallback
+    return "-1 -1 2 2";
   }
   const w = maxX - minX || 1;
   const h = maxY - minY || 1;
