@@ -25,6 +25,7 @@ import { logout } from "@/lib/auth-actions";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { PanelInfoBar } from "./PanelInfoBar";
+import PanelerFlatView from "./PanelerFlatView";
 import { ShareControls } from "./ShareControls";
 
 interface AuthUser {
@@ -216,13 +217,35 @@ export function PanelerDesigner({ user }: PanelerDesignerProps) {
 
       <div className="flex flex-1">
         <div className="flex flex-1 flex-col">
-          <PanelerCanvas
-            topology={topology}
-            panelColors={panelColors}
-            selectedPanelId={selectedPanelId}
-            suedeEnabled={suedeEnabled}
-            onPanelClick={handlePanelClick}
-          />
+          <div className="grid flex-1 grid-cols-1 md:grid-cols-2">
+            <div className="flex min-h-0 flex-col">
+              <div className="border-b px-4 py-1.5 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                3D sphere
+              </div>
+              <div className="flex flex-1 flex-col">
+                <PanelerCanvas
+                  topology={topology}
+                  panelColors={panelColors}
+                  selectedPanelId={selectedPanelId}
+                  suedeEnabled={suedeEnabled}
+                  onPanelClick={handlePanelClick}
+                />
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-col border-t md:border-l md:border-t-0">
+              <div className="border-b px-4 py-1.5 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                Flat net
+              </div>
+              <div className="flex flex-1 flex-col">
+                <PanelerFlatView
+                  topology={topology}
+                  panelColors={panelColors}
+                  selectedPanelId={selectedPanelId}
+                  onPanelClick={handlePanelClick}
+                />
+              </div>
+            </div>
+          </div>
           <div className="border-t bg-background/95 px-6 py-3">
             <PanelInfoBar
               selectedPanelId={selectedPanelId}
