@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { getPanelShape } from "@/lib/designState";
 import type { PanelColors } from "@/lib/types";
 
@@ -24,44 +23,72 @@ export function PanelInfoBar({
   const color = selectedPanelId ? panelColors[selectedPanelId] : undefined;
 
   return (
-    <Card>
-      <CardContent className="flex items-center justify-between gap-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Left: status readout. Reads like a piece of instrument output. */}
+      <div className="flex items-center gap-3 text-sm">
         {selectedPanelId ? (
-          <div className="flex items-center gap-3 text-sm">
+          <>
             <span
-              className="size-4 rounded border border-border"
+              className="size-5 rounded-sm border border-border shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
               style={{ backgroundColor: color ?? "transparent" }}
             />
-            <code className="font-mono text-xs text-muted-foreground">
+            <code className="font-mono text-xs tracking-wider text-foreground/80">
               {selectedPanelId}
             </code>
             {color && (
-              <code className="font-mono text-xs text-muted-foreground">
-                {color.toUpperCase()}
-              </code>
+              <>
+                <span
+                  aria-hidden
+                  className="font-mono text-[10px] text-muted-foreground/60"
+                >
+                  /
+                </span>
+                <code className="font-mono text-xs tracking-wider text-primary/90">
+                  {color.toUpperCase()}
+                </code>
+              </>
             )}
-          </div>
+          </>
         ) : (
-          <span className="text-sm text-muted-foreground">
-            Click a panel to select it.
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+            Click any panel to select
           </span>
         )}
-        <div className="flex items-center gap-2">
+      </div>
+      {/* Right: tool cluster. Bulk actions on the left, destructive on the
+          right, separated visually so a stray click doesn't wipe work. */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 rounded-md border border-border bg-background/40 p-1">
           {shape && (
-            <Button variant="outline" size="sm" onClick={() => onPaintShape(shape)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onPaintShape(shape)}
+              className="h-7 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:bg-primary/10 hover:text-primary"
+            >
               Paint all {shape}s
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onFillUnpainted}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onFillUnpainted}
+            className="h-7 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:bg-primary/10 hover:text-primary"
+          >
             Fill unpainted
           </Button>
-          {selectedPanelId && (
-            <Button variant="outline" size="sm" onClick={onReset}>
-              Reset panel
-            </Button>
-          )}
         </div>
-      </CardContent>
-    </Card>
+        {selectedPanelId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReset}
+            className="h-7 px-2 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            Reset
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

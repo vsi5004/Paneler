@@ -75,20 +75,44 @@ export function ShareControls({
   );
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={handleShare}>
-          {copied ? "Copied!" : "Copy share link"}
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 rounded-md border border-border bg-background/40 p-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleShare}
+          className="h-7 gap-1.5 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:bg-primary/10 hover:text-primary"
+        >
+          {copied ? (
+            <>
+              <CheckIcon />
+              Copied
+            </>
+          ) : (
+            <>
+              <LinkIcon />
+              Share link
+            </>
+          )}
         </Button>
-        <Button variant="outline" size="sm" onClick={handleDownload}>
-          Export JSON
+        <span className="h-4 w-px bg-border" aria-hidden />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDownload}
+          className="h-7 gap-1.5 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:bg-primary/10 hover:text-primary"
+        >
+          <DownloadIcon />
+          Export
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
+          className="h-7 gap-1.5 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:bg-primary/10 hover:text-primary"
         >
-          Import JSON
+          <UploadIcon />
+          Import
         </Button>
         <input
           ref={fileInputRef}
@@ -103,10 +127,50 @@ export function ShareControls({
         />
       </div>
       {error && (
-        <p className="text-xs text-destructive" role="alert">
+        <span
+          role="alert"
+          className="font-mono text-[10px] uppercase tracking-[0.15em] text-destructive"
+        >
           {error}
-        </p>
+        </span>
       )}
     </div>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
   );
 }

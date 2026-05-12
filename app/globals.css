@@ -8,8 +8,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -44,77 +44,50 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* Dark forced — neon green on near-black, matching the landing-page
+ * NYFA design system. App-specific overrides:
+ *   --workspace: a half-step lighter background for tool slabs that
+ *                sit above the canvas without feeling foreign.
+ *   --hairline: very low-opacity divider for the workshop look.
+ */
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.08 0 0);
+  --workspace: oklch(0.11 0.003 85);
+  --foreground: oklch(0.94 0.005 85);
+  --card: oklch(0.12 0.005 85);
+  --card-foreground: oklch(0.94 0.005 85);
+  --popover: oklch(0.13 0.005 85);
+  --popover-foreground: oklch(0.94 0.005 85);
+  --primary: oklch(0.89 0.22 128);
+  --primary-foreground: oklch(0.08 0 0);
+  --secondary: oklch(0.16 0.005 85);
+  --secondary-foreground: oklch(0.94 0.005 85);
+  --muted: oklch(0.16 0.005 85);
+  --muted-foreground: oklch(0.62 0.01 85);
+  --accent: oklch(0.18 0.005 85);
+  --accent-foreground: oklch(0.94 0.005 85);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 7%);
+  --hairline: oklch(1 0 0 / 4%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.89 0.22 128);
+  --chart-1: oklch(0.89 0.22 128);
+  --chart-2: oklch(0.7 0.18 145);
+  --chart-3: oklch(0.55 0.16 162);
+  --chart-4: oklch(0.4 0.13 178);
+  --chart-5: oklch(0.25 0.1 195);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.1 0.003 85);
+  --sidebar-foreground: oklch(0.94 0.005 85);
+  --sidebar-primary: oklch(0.89 0.22 128);
+  --sidebar-primary-foreground: oklch(0.08 0 0);
+  --sidebar-accent: oklch(0.16 0.005 85);
+  --sidebar-accent-foreground: oklch(0.94 0.005 85);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.89 0.22 128);
 }
 
 @layer base {
@@ -127,4 +100,38 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Subtle film grain overlay — same source as the landing page so the
+ * surface texture carries across the auth boundary. Keep opacity low
+ * (0.025 vs the landing's 0.035) so it doesn't fight the canvases. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Tool-slab styling — a single class so the same look applies across
+ * the toolbar, footer, and sidebar without re-typing the recipe. */
+.workshop-slab {
+  background:
+    linear-gradient(180deg, oklch(0.11 0.003 85) 0%, oklch(0.09 0.003 85) 100%);
+  border-color: var(--hairline);
+}
+
+/* A whisper-thin top hairline used to separate stacked toolbars. */
+.workshop-hairline {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--border) 20%,
+      var(--border) 80%,
+      transparent 100%
+    );
+  height: 1px;
 }

@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getPanelShape } from "@/lib/designState";
 import type { PanelTopology, PanelColors } from "@/lib/types";
@@ -26,7 +25,10 @@ export function ColorSummary({
   onSwatchClick,
 }: ColorSummaryProps) {
   const breakdowns = useMemo<ShapeBreakdown[]>(() => {
-    const byShape = new Map<string, { total: number; counts: Map<string, number>; unpainted: number }>();
+    const byShape = new Map<
+      string,
+      { total: number; counts: Map<string, number>; unpainted: number }
+    >();
     for (const panel of topology.panels) {
       const shape = getPanelShape(panel.id);
       const entry =
@@ -53,50 +55,60 @@ export function ColorSummary({
   }, [topology, panelColors]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Color summary</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="max-h-80">
-          <div className="flex flex-col gap-3 text-sm">
-            {breakdowns.map((b) => (
-              <div key={b.shape}>
-                <div className="mb-1 font-medium capitalize">
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
+          Summary
+        </h2>
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          {topology.panels.length} panels
+        </span>
+      </div>
+      <ScrollArea className="-mr-2 flex-1 pr-2">
+        <div className="flex flex-col gap-4 pb-2">
+          {breakdowns.map((b) => (
+            <div key={b.shape}>
+              <div className="mb-2 flex items-baseline gap-2">
+                <span className="font-heading text-sm uppercase tracking-[0.18em] text-primary">
                   {b.shape}
-                  <span className="ml-2 text-muted-foreground">
-                    {b.total} {b.total === 1 ? "panel" : "panels"}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {b.total}
+                </span>
+                {b.unpainted > 0 && (
+                  <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                    {b.unpainted} blank
                   </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {b.byColor.map(({ color, count }) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => onSwatchClick?.(color)}
-                      title={`${color} × ${count}`}
-                      className="flex h-6 items-center gap-1 rounded border border-border px-1.5 transition-colors hover:bg-muted"
-                    >
-                      <span
-                        className="size-3 rounded-sm"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {count}
-                      </span>
-                    </button>
-                  ))}
-                  {b.unpainted > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {b.unpainted} unpainted
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+              <div className="flex flex-wrap gap-1.5">
+                {b.byColor.map(({ color, count }) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => onSwatchClick?.(color)}
+                    title={`${color} × ${count}`}
+                    className="group flex h-7 items-center gap-1.5 rounded-md border border-border bg-background/40 pl-1 pr-2 transition-all hover:border-primary/50 hover:bg-background/80"
+                  >
+                    <span
+                      className="size-5 rounded-sm shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="font-mono text-[11px] text-foreground/80">
+                      {count}
+                    </span>
+                  </button>
+                ))}
+                {b.byColor.length === 0 && b.unpainted === b.total && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    All unpainted
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
