@@ -28,7 +28,12 @@ export default auth((req) => {
 
 export const config = {
   // Matcher is relative to basePath; with basePath="/app" this matches
-  // /app and everything under it. Exclude /api/health so the readiness/
-  // liveness probes don't get redirected.
-  matcher: ["/((?!api/health).*)"],
+  // /app and everything under it. Exclusions:
+  //   - api/health: the readiness/liveness probes are unauthenticated.
+  //   - _next/static, _next/image, _next/data: hashed bundles served to
+  //     every visitor. Gating them sends unauthed browsers' CSS / JS /
+  //     RSC payload requests to the landing instead of the file, and
+  //     the app renders unstyled until the user signs in. Cookie-aware
+  //     auth happens on the page request, not the asset requests.
+  matcher: ["/((?!api/health|_next/).*)"],
 };
