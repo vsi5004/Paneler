@@ -1,11 +1,24 @@
 "use client";
 
+import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
-// Phase 1 placeholder: a single sphere proving the R3F stack works end-to-end.
-// Subsequent tasks replace this with the panel-topology pipeline.
-export default function PanelerCanvas() {
+import type { PanelTopology } from "@/lib/types";
+import { subdivideTopology } from "@/lib/mesh/subdivide";
+import { projectToSphere } from "@/lib/mesh/projectToSphere";
+import { buildMeshGroup } from "@/lib/mesh/buildMeshGroup";
+
+const SPHERE_RADIUS = 2;
+const SUBDIVISION_LEVELS = 6;
+
+export default function PanelerCanvas({ topology }: { topology: PanelTopology }) {
+  const group = useMemo(() => {
+    const subdivided = subdivideTopology(topology, SUBDIVISION_LEVELS);
+    projectToSphere(subdivided, SPHERE_RADIUS);
+    return buildMeshGroup(subdivided);
+  }, [topology]);
+
   return (
     <Canvas
       camera={{ position: [0, 0, 6], fov: 45 }}
@@ -15,10 +28,7 @@ export default function PanelerCanvas() {
       <ambientLight intensity={0.6} />
       <directionalLight position={[3, 5, 4]} intensity={1.2} />
       <directionalLight position={[-3, -2, -4]} intensity={0.3} />
-      <mesh>
-        <sphereGeometry args={[2, 64, 64]} />
-        <meshStandardMaterial color="#c41e3a" />
-      </mesh>
+      <primitive object={group} />
       <OrbitControls enablePan={false} minDistance={3} maxDistance={12} />
     </Canvas>
   );
