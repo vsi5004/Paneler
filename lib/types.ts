@@ -39,3 +39,22 @@ export function shapeForVertexCount(n: number): PanelShape {
 export function panelId(index: number, shape: PanelShape): string {
   return `panel_${String(index + 1).padStart(3, "0")}_${shape}`;
 }
+
+// -----------------------------------------------------------------------------
+// Design state types (ported from Footbag-3D-Visualizer)
+// -----------------------------------------------------------------------------
+
+export type PanelColors = Record<string, string>;
+
+export interface Design {
+  /** Schema version. Bump for breaking changes to encoded designs. */
+  version: 1;
+  modelType: string;
+  panelColors: PanelColors;
+}
+
+export interface PaletteEntry {
+  id: string;
+  label: string;
+  color: string;
+}
