@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+.git
+.github
+__tests__
+*.md
+!README.md
+!PLAN.md
+.env*
+!.env.example
+coverage
+*.log
+.DS_Store

@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: vsi5004/paneler
+  KUBE_PROJECT_PATH: prod/paneler
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  update-kube:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout kube repo
+        uses: actions/checkout@v4
+        with:
+          repository: gwbischof/kube
+          ssh-key: ${{ secrets.KUBE_DEPLOY_KEY }}
+
+      - name: Update image tag
+        run: |
+          cd ${{ env.KUBE_PROJECT_PATH }}
+          # The `# paneler` anchor lets sed find the right line even if the
+          # kustomization gains additional images later.
+          sed -i "s|newTag: .*# paneler$|newTag: ${{ github.sha }} # paneler|" kustomization.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "deploy: paneler:${{ github.sha }}"
+          git push
