@@ -41,13 +41,17 @@ Companion landing page: [`paneler-business`](https://github.com/gwbischof/panele
 ## Repo layout
 
 ```
-app/                     # Next.js App Router pages
-components/              # React components
-  paneler/               # The 3D designer (Canvas, Model, UI)
+app/
+  page.tsx               # Public marketing-y landing for the app sub-route
+  app/page.tsx           # The 3D designer (gated by /app/* middleware in prod)
+  layout.tsx, globals.css
+components/
+  paneler/               # PanelerDesigner (client wrapper), PanelerCanvas (R3F)
+  ui/                    # shadcn primitives (button, card, popover, slider, …)
 lib/
   topology/              # Panel-graph generators (presets, Goldberg, OBJ parser)
   mesh/                  # subdivide → projectToSphere → buildMeshGroup
-  designState.ts         # Pure-function state helpers (ported from Footbag-3D-Visualizer)
+  utils.ts               # cn() helper
 public/textures/         # Suede normal + roughness maps
 __tests__/               # Vitest
 ```
