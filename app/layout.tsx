@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Paneler",
   description:
-    "Design and generate cutting templates for sewn spherical objects — footbags, juggling balls, and more.",
+    "Design your hacky sack before you sew it. Paint every panel in 3D, save the design as a link, stitch the bag you actually wanted.",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
