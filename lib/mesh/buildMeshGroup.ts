@@ -13,6 +13,11 @@ import type { PanelTopology } from "@/lib/types";
 import { getBoundaryArcs, getPanelTriangles } from "./subdivide";
 
 const DEFAULT_PANEL_COLOR = "#c41e3a";
+// Push seam-line vertices a hair outside the panel mesh radius so they sit
+// strictly in front of the sphere from any camera angle. Without this, lines
+// on the back hemisphere were leaking through the front-facing panels and
+// the sphere read as semi-transparent.
+const SEAM_RADIUS_BOOST = 1.004;
 
 /**
  * Convert a (subdivided + sphere-projected) PanelTopology into a renderable
@@ -49,7 +54,13 @@ export function buildMeshGroup(topo: PanelTopology): Group {
     for (let i = 0; i < arcVerts.length - 1; i++) {
       const a = topo.vertices[arcVerts[i]];
       const b = topo.vertices[arcVerts[i + 1]];
-      globalSegments.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      const ax = a.x * SEAM_RADIUS_BOOST;
+      const ay = a.y * SEAM_RADIUS_BOOST;
+      const az = a.z * SEAM_RADIUS_BOOST;
+      const bx = b.x * SEAM_RADIUS_BOOST;
+      const by = b.y * SEAM_RADIUS_BOOST;
+      const bz = b.z * SEAM_RADIUS_BOOST;
+      globalSegments.push(ax, ay, az, bx, by, bz);
       for (const panelId of [edge.panelA, edge.panelB]) {
         if (!panelId) continue;
         let arr = perPanelSegments.get(panelId);
@@ -57,7 +68,7 @@ export function buildMeshGroup(topo: PanelTopology): Group {
           arr = [];
           perPanelSegments.set(panelId, arr);
         }
-        arr.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        arr.push(ax, ay, az, bx, by, bz);
       }
     }
   }
@@ -74,9 +85,6 @@ export function buildMeshGroup(topo: PanelTopology): Group {
       color: defaultColor.clone(),
       metalness: 0,
       roughness: 0.85,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
     });
 
     // Generate per-panel UVs after projection so the (future) suede texture
