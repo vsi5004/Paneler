@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { Color, type Group, type LineSegments, type Mesh } from "three";
+import {
+  Color,
+  type Group,
+  type LineSegments,
+  type Mesh,
+  type MeshStandardMaterial,
+  type Texture,
+} from "three";
 
 import type { PanelColors, PanelTopology } from "@/lib/types";
 import { subdivideTopology } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { buildMeshGroup } from "@/lib/mesh/buildMeshGroup";
+import { loadSuedeTextures } from "@/lib/mesh/suedeTexture";
 
 const SPHERE_RADIUS = 2;
 const SUBDIVISION_LEVELS = 6;
@@ -20,6 +28,7 @@ interface PanelerCanvasProps {
   topology: PanelTopology;
   panelColors: PanelColors;
   selectedPanelId: string | null;
+  suedeEnabled: boolean;
   onPanelClick: (panelId: string) => void;
 }
 
@@ -27,6 +36,7 @@ export default function PanelerCanvas({
   topology,
   panelColors,
   selectedPanelId,
+  suedeEnabled,
   onPanelClick,
 }: PanelerCanvasProps) {
   const group = useMemo(() => {
@@ -34,6 +44,19 @@ export default function PanelerCanvas({
     projectToSphere(subdivided, SPHERE_RADIUS);
     return buildMeshGroup(subdivided);
   }, [topology]);
+
+  // Lazy-load the suede maps the first time the toggle is flipped on.
+  const [maps, setMaps] = useState<{ normal: Texture; roughness: Texture } | null>(null);
+  useEffect(() => {
+    if (!suedeEnabled || maps) return;
+    let cancelled = false;
+    loadSuedeTextures().then((m) => {
+      if (!cancelled) setMaps(m);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [suedeEnabled, maps]);
 
   return (
     <Canvas
@@ -48,6 +71,7 @@ export default function PanelerCanvas({
         group={group}
         panelColors={panelColors}
         selectedPanelId={selectedPanelId}
+        suedeMaps={suedeEnabled ? maps : null}
         onPanelClick={onPanelClick}
       />
       <OrbitControls enablePan={false} minDistance={3} maxDistance={12} />
@@ -59,11 +83,13 @@ function PanelGroup({
   group,
   panelColors,
   selectedPanelId,
+  suedeMaps,
   onPanelClick,
 }: {
   group: Group;
   panelColors: PanelColors;
   selectedPanelId: string | null;
+  suedeMaps: { normal: Texture; roughness: Texture } | null;
   onPanelClick: (panelId: string) => void;
 }) {
   // Track pointer-down origin so we can distinguish click from camera drag.
@@ -94,6 +120,26 @@ function PanelGroup({
       (obj as LineSegments).visible = outlineFor === selectedPanelId;
     });
   }, [group, selectedPanelId]);
+
+  // Sync suede normal/roughness maps onto every panel material.
+  useEffect(() => {
+    group.traverse((obj) => {
+      if (!(obj as Mesh).isMesh) return;
+      const mat = (obj as Mesh).material as MeshStandardMaterial | undefined;
+      if (!mat || Array.isArray(mat)) return;
+      if (suedeMaps) {
+        mat.normalMap = suedeMaps.normal;
+        mat.normalScale.set(3, 3);
+        mat.roughnessMap = suedeMaps.roughness;
+        mat.roughness = 1;
+      } else {
+        mat.normalMap = null;
+        mat.roughnessMap = null;
+        mat.roughness = 0.85;
+      }
+      mat.needsUpdate = true;
+    });
+  }, [group, suedeMaps]);
 
   return (
     <primitive

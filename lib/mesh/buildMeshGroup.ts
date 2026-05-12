@@ -8,6 +8,7 @@ import {
   LineSegments,
   Mesh,
   MeshStandardMaterial,
+  Vector3,
 } from "three";
 import type { PanelTopology } from "@/lib/types";
 import { getPanelTriangles } from "./subdivide";
@@ -54,6 +55,11 @@ export function buildMeshGroup(topo: PanelTopology): Group {
       polygonOffsetUnits: 1,
     });
 
+    // Generate per-panel UVs after projection so the (future) suede texture
+    // has correct grain direction. Each panel gets a unique deterministic
+    // rotation so stripes don't align across the sphere.
+    generatePanelUVs(geometry, panel.id);
+
     const mesh = new Mesh(geometry, material);
     mesh.name = panel.id;
     mesh.userData.panelId = panel.id;
@@ -88,6 +94,57 @@ function fanTriangulate(
     triangles.push([boundaryLoop[0], boundaryLoop[i], boundaryLoop[i + 1]]);
   }
   return triangles;
+}
+
+/**
+ * Generate UV coordinates for a panel's geometry by projecting positions
+ * onto a tangent plane at the panel's centroid. Each panel's UV frame is
+ * rotated by a hash of its name so the (optional) suede texture's grain
+ * direction varies — without this, all panels show parallel stripes that
+ * look obviously fake.
+ *
+ * Ported from Footbag-3D-Visualizer/FootbagModel.tsx (generatePanelUVs).
+ */
+function generatePanelUVs(geometry: BufferGeometry, meshName: string): void {
+  const pos = geometry.attributes.position;
+  if (!pos) return;
+
+  const center = new Vector3();
+  const vertex = new Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    vertex.fromBufferAttribute(pos, i);
+    center.add(vertex);
+  }
+  center.divideScalar(pos.count).normalize();
+
+  const helper =
+    Math.abs(center.dot(new Vector3(0, 0, 1))) < 0.9
+      ? new Vector3(0, 0, 1)
+      : new Vector3(1, 0, 0);
+  const baseTanU = new Vector3().crossVectors(center, helper).normalize();
+  const baseTanV = new Vector3().crossVectors(center, baseTanU).normalize();
+
+  // Deterministic per-panel rotation angle.
+  const hash = meshName
+    .split("")
+    .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const angle = (hash % 360) * (Math.PI / 180);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const tanU = new Vector3()
+    .addScaledVector(baseTanU, cos)
+    .addScaledVector(baseTanV, sin);
+  const tanV = new Vector3()
+    .addScaledVector(baseTanU, -sin)
+    .addScaledVector(baseTanV, cos);
+
+  const uvs = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    vertex.fromBufferAttribute(pos, i);
+    uvs[i * 2] = vertex.dot(tanU);
+    uvs[i * 2 + 1] = vertex.dot(tanV);
+  }
+  geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
 }
 
 function buildPanelGeometry(

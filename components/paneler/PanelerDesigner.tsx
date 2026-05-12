@@ -42,6 +42,7 @@ export function PanelerDesigner() {
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color); // red
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [panelColors, setPanelColors] = useState<PanelColors>({});
+  const [suedeEnabled, setSuedeEnabled] = useState(false);
 
   const preset =
     PRESETS.find((p) => p.id === presetId) ??
@@ -128,11 +129,22 @@ export function PanelerDesigner() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        <ShareControls
-          modelType={presetId}
-          panelColors={panelColors}
-          onImport={handleImport}
-        />
+        <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={suedeEnabled}
+              onChange={(e) => setSuedeEnabled(e.target.checked)}
+              className="size-4 cursor-pointer"
+            />
+            Suede texture
+          </label>
+          <ShareControls
+            modelType={presetId}
+            panelColors={panelColors}
+            onImport={handleImport}
+          />
+        </div>
       </header>
 
       <div className="flex flex-1">
@@ -141,6 +153,7 @@ export function PanelerDesigner() {
             topology={topology}
             panelColors={panelColors}
             selectedPanelId={selectedPanelId}
+            suedeEnabled={suedeEnabled}
             onPanelClick={handlePanelClick}
           />
           <div className="border-t bg-background/95 px-6 py-3">
