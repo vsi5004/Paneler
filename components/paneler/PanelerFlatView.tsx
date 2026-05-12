@@ -57,8 +57,9 @@ export default function PanelerFlatView({
               key={panel.id}
               d={buildCurvedPanelPath(flat)}
               fill={fill}
-              stroke={selected ? "#ffffff" : "#111"}
-              strokeWidth={selected ? 0.04 : 0.015}
+              stroke="#ffffff"
+              strokeWidth={selected ? 0.04 : 0.012}
+              strokeOpacity={selected ? 1 : 0.75}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
               style={{ cursor: "pointer" }}

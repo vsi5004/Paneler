@@ -1,28 +1,31 @@
-import type { Panel, PanelEdge, PanelTopology } from "@/lib/types";
+import { Vector3 } from "three";
+import type { Panel, PanelTopology } from "@/lib/types";
 import { chooseRoot } from "./chooseRoot";
-import { rigidEdgeAlign, sideOf } from "./rigidTransform";
 import type { FlatLayout, PanelFlat, Vec2 } from "./types";
 
+const RING_SPACING_FACTOR = 2.2; // ring radius growth per BFS depth in panel circumradii
+const RING_FIT_PADDING = 1.25; // crowding-fit multiplier so panels stay separated
+
 /**
- * Unfold a `PanelTopology` into a flat net via BFS edge-unfolding:
+ * Flatten a `PanelTopology` into a Schlegel-style net:
  *
- *   1. Pick a root panel (top-of-sphere).
- *   2. Lay it flat by projecting its corners into its local tangent
- *      plane (centroid at origin; arbitrary orthonormal basis).
- *   3. BFS across panel adjacency. For each unvisited neighbour:
- *      - Compute the neighbour's *local* flat shape the same way.
- *      - Find the shared corner pair (V_a, V_b).
- *      - Build a rigid 2D transform that maps the neighbour's local
- *        (V_a, V_b) onto the parent's already-placed (P_a, P_b), with a
- *        mirror so the neighbour lands on the OPPOSITE side of the
- *        edge from the parent's centroid.
- *      - Apply the transform to every corner of the neighbour.
+ *   1. BFS from a chosen root to assign each panel a depth (ring index).
+ *   2. Group panels by depth.
+ *   3. For each ring, place panels around a circle whose radius is the
+ *      max of (a) `depth × 2.2 × circumradius` and (b) the smallest
+ *      radius that fits the ring's panel count without crowding.
+ *   4. Sort panels within a ring by their 3D azimuth around the root
+ *      so neighbours in 3D stay neighbours in 2D.
+ *   5. Each panel renders as a regular polygon with curve-edged sides
+ *      (sagitta from the original spherical arc).
  *
- * This is the standard "polyhedron net unfolding" algorithm. For most
- * panel-count footbag topologies (soccer ball, GP(m,0), …) the result is
- * a clean Schlegel-style net. For pathological highly-curved topologies
- * panels can overlap — accepted for now; an overlap-resolving packer is
- * a follow-up.
+ * This abandons the strict edge-unfolding the previous version did
+ * (which inevitably overlapped on closed surfaces because of the
+ * spherical angular defect at every vertex) in favour of a layout
+ * that mirrors the landing-page hero animation: concentric rings of
+ * panels, visibly separated. Panels no longer touch at shared edges,
+ * but the design preview reads cleanly and shows every panel at a
+ * glance.
  */
 export function unfoldNet(topo: PanelTopology): FlatLayout {
   const result: FlatLayout = new Map();
@@ -31,107 +34,176 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
   const panelById = new Map<string, Panel>();
   for (const p of topo.panels) panelById.set(p.id, p);
 
-  // Adjacency: panelId → edges touching it.
-  const adjacency = new Map<string, PanelEdge[]>();
+  // Undirected adjacency for the depth BFS.
+  const adjacency = new Map<string, string[]>();
   for (const panel of topo.panels) adjacency.set(panel.id, []);
   for (const edge of topo.edges) {
-    if (edge.panelA && adjacency.has(edge.panelA)) {
-      adjacency.get(edge.panelA)!.push(edge);
-    }
-    if (edge.panelB && adjacency.has(edge.panelB)) {
-      adjacency.get(edge.panelB)!.push(edge);
-    }
+    if (!edge.panelA || !edge.panelB) continue;
+    adjacency.get(edge.panelA)?.push(edge.panelB);
+    adjacency.get(edge.panelB)?.push(edge.panelA);
   }
 
   const rootId = chooseRoot(topo);
-  const rootPanel = panelById.get(rootId)!;
-  result.set(rootId, flattenPanelLocal(rootPanel, topo));
-  // Per-edge sagitta ratios are intrinsic to the 3D geometry of each
-  // panel — they don't depend on how the panel is rotated/mirrored in
-  // the BFS unfold. Compute once per panel and cache.
+  const rootPanel = panelById.get(rootId);
+  if (!rootPanel) return result;
 
-  // Visited + queue
-  const visited = new Set<string>([rootId]);
+  // BFS to assign each panel a ring index.
+  const depthOf = new Map<string, number>([[rootId, 0]]);
   const queue: string[] = [rootId];
-
   while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    const currentPanel = panelById.get(currentId)!;
-    const currentFlat = result.get(currentId)!;
-    const currentCentroid2D = centroid2D(currentFlat.corners);
-
-    for (const edge of adjacency.get(currentId)!) {
-      const neighborId =
-        edge.panelA === currentId ? edge.panelB : edge.panelA;
-      if (!neighborId || visited.has(neighborId)) continue;
-      const neighborPanel = panelById.get(neighborId);
-      if (!neighborPanel) continue;
-      visited.add(neighborId);
-
-      const neighborFlat = unfoldNeighbour(
-        currentPanel,
-        currentFlat.corners,
-        currentCentroid2D,
-        neighborPanel,
-        topo,
-        edge.vertexA,
-        edge.vertexB,
-      );
-      result.set(neighborId, neighborFlat);
-      queue.push(neighborId);
+    const id = queue.shift()!;
+    const d = depthOf.get(id)!;
+    for (const next of adjacency.get(id) ?? []) {
+      if (depthOf.has(next)) continue;
+      depthOf.set(next, d + 1);
+      queue.push(next);
     }
+  }
+
+  // Group by depth.
+  const byDepth = new Map<number, Panel[]>();
+  for (const panel of topo.panels) {
+    const d = depthOf.get(panel.id) ?? 0;
+    let bucket = byDepth.get(d);
+    if (!bucket) {
+      bucket = [];
+      byDepth.set(d, bucket);
+    }
+    bucket.push(panel);
+  }
+
+  // Tangent basis at the root for computing each panel's 3D azimuth
+  // around the root direction. Panels at similar 3D azimuths will end
+  // up at similar 2D angles → neighbours-in-3D stay neighbours-in-2D.
+  const rootCentroid = computeCentroid3D(rootPanel, topo);
+  const rootNormal = rootCentroid.clone().normalize();
+  const helper =
+    Math.abs(rootNormal.dot(new Vector3(0, 1, 0))) < 0.9
+      ? new Vector3(0, 1, 0)
+      : new Vector3(1, 0, 0);
+  const tanX = new Vector3().crossVectors(rootNormal, helper).normalize();
+  const tanY = new Vector3().crossVectors(rootNormal, tanX).normalize();
+
+  // Average circumradius across all panels — sizes both the polygons
+  // and the ring spacing. We use the average rather than per-panel to
+  // keep panels of the same shape the same visual size.
+  const circumradius = estimateAvgCircumradius(topo);
+
+  for (const [d, panels] of byDepth) {
+    if (d === 0) {
+      const local = flattenPanelLocal(rootPanel, topo, circumradius);
+      result.set(rootPanel.id, local);
+      continue;
+    }
+    placeRing({
+      result,
+      panels,
+      depth: d,
+      circumradius,
+      topo,
+      rootCentroid,
+      tanX,
+      tanY,
+    });
   }
 
   return result;
 }
 
-function flattenPanelLocal(panel: Panel, topo: PanelTopology): PanelFlat {
-  // Render each panel as a REGULAR polygon centred on the origin, with
-  // edge length = the average of the panel's 3D-chord edge lengths.
-  //
-  // Why not tangent-plane projection (the geometrically faithful choice)?
-  // A sphere has non-zero Gaussian curvature, so unfolding any closed
-  // patch of it flat produces angular defects — adjacent panels can't
-  // all share corners exactly, and you get visible gaps at every vertex.
-  // For an interactive *design preview* the user wants a clean Schlegel-
-  // style net (hero-animation look). Regular polygons give that for the
-  // soccer ball and Goldberg variants because their panels are already
-  // near-regular on the sphere; small edge-length mismatches between
-  // adjacent panels are absorbed by `rigidEdgeAlign`'s scale step.
-  //
-  // Geometrically faithful flattening with seam-bulge compensation
-  // belongs to the Phase 2 SVG cutting-template export.
-  const n = panel.vertexIndices.length;
-  let totalEdgeLen = 0;
-  for (let i = 0; i < n; i++) {
-    const a = topo.vertices[panel.vertexIndices[i]];
-    const b = topo.vertices[panel.vertexIndices[(i + 1) % n]];
-    totalEdgeLen += a.distanceTo(b);
-  }
-  const avgEdgeLen = totalEdgeLen / n;
-  const radius = avgEdgeLen / (2 * Math.sin(Math.PI / n));
+function placeRing({
+  result,
+  panels,
+  depth,
+  circumradius,
+  topo,
+  rootCentroid,
+  tanX,
+  tanY,
+}: {
+  result: FlatLayout;
+  panels: Panel[];
+  depth: number;
+  circumradius: number;
+  topo: PanelTopology;
+  rootCentroid: Vector3;
+  tanX: Vector3;
+  tanY: Vector3;
+}): void {
+  const n = panels.length;
+  // Two constraints on ring radius:
+  //   - Don't crowd the previous ring: each ring step is ~2.2 panels wide.
+  //   - Don't crowd within this ring: arc between panel centres must
+  //     exceed RING_FIT_PADDING × 2 × circumradius.
+  const minByDepth = depth * RING_SPACING_FACTOR * circumradius;
+  const minByFit =
+    n > 1 ? (n * RING_FIT_PADDING * circumradius) / Math.PI : 0;
+  const ringRadius = Math.max(minByDepth, minByFit);
 
+  // Sort by 3D azimuth so adjacent-in-3D panels land adjacent-in-2D.
+  const withAngle = panels.map((panel) => {
+    const c = computeCentroid3D(panel, topo);
+    const local = c.clone().sub(rootCentroid);
+    return {
+      panel,
+      angle: Math.atan2(local.dot(tanY), local.dot(tanX)),
+    };
+  });
+  withAngle.sort((a, b) => a.angle - b.angle);
+
+  // Distribute uniformly (preserving angular order) so the ring is
+  // evenly populated regardless of how clustered the 3D azimuths are.
+  for (let i = 0; i < n; i++) {
+    const { panel } = withAngle[i];
+    const angle = (i * 2 * Math.PI) / n;
+    const cx = ringRadius * Math.cos(angle);
+    const cy = ringRadius * Math.sin(angle);
+
+    // Rotate the panel so its "top" corner points outward (away from
+    // the root). Without this, all panels share the same orientation
+    // and the ring reads as a clumped strip rather than radiating
+    // outward.
+    const orient = angle + Math.PI / 2;
+    const cosO = Math.cos(orient);
+    const sinO = Math.sin(orient);
+
+    const local = flattenPanelLocal(panel, topo, circumradius);
+    const corners = local.corners.map((p) => ({
+      x: p.x * cosO - p.y * sinO + cx,
+      y: p.x * sinO + p.y * cosO + cy,
+    }));
+    result.set(panel.id, {
+      corners,
+      sagittaRatios: local.sagittaRatios,
+    });
+  }
+}
+
+function flattenPanelLocal(
+  panel: Panel,
+  topo: PanelTopology,
+  circumradius: number,
+): PanelFlat {
+  const n = panel.vertexIndices.length;
+  // All panels share the same circumradius so a hexagon and an adjacent
+  // pentagon look like the same visual size. Edges DO end up at slightly
+  // different lengths across shape types (a pentagon's side is wider for
+  // the same circumradius than a hexagon's), which mirrors how those
+  // panels appear on the sphere anyway.
   const corners: Vec2[] = [];
   for (let i = 0; i < n; i++) {
-    // Start at the top (-π/2) and walk CCW. Panel boundary loops are
-    // already CCW-from-outside (preset panels by construction, Goldberg
-    // panels via the explicit re-orientation in dualToTopology), so this
-    // preserves the same corner order.
+    // Top corner at -π/2 (will be rotated outward when placed in a ring).
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / n;
     corners.push({
-      x: radius * Math.cos(angle),
-      y: radius * Math.sin(angle),
+      x: circumradius * Math.cos(angle),
+      y: circumradius * Math.sin(angle),
     });
   }
 
-  // Per-edge sagitta-to-chord ratio for the original spherical arc, so
-  // the renderer can draw each edge as a curve that bulges outward by
-  // the same proportion the great-circle arc bulges past its 3D chord.
-  // Ratio = (1 - cos θ) / (2 sin θ) = tan(θ/2) / 2 where θ is the
-  // half-angle of the great-circle arc subtended by the edge.
-  //
-  // For the tetrahedron each edge spans ~109° of the sphere → big
-  // bulge. For a 32-panel soccer ball each edge spans ~29° → subtle.
+  // Per-edge sagitta-to-chord ratio for the original spherical arc:
+  //   ratio = tan(θ/2) / 2, where θ is the half-angle of the great
+  //   circle subtended by the 3D chord.
+  // Tetrahedron faces span ~109° of the sphere → big bulge.
+  // 32-panel soccer ball faces span ~29° → subtle.
   const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
   const sagittaRatios: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -145,58 +217,30 @@ function flattenPanelLocal(panel: Panel, topo: PanelTopology): PanelFlat {
   return { corners, sagittaRatios };
 }
 
-function centroid2D(corners: ReadonlyArray<Vec2>): Vec2 {
-  let x = 0;
-  let y = 0;
-  for (const p of corners) {
-    x += p.x;
-    y += p.y;
-  }
-  return { x: x / corners.length, y: y / corners.length };
+function computeCentroid3D(panel: Panel, topo: PanelTopology): Vector3 {
+  const c = new Vector3();
+  for (const vi of panel.vertexIndices) c.add(topo.vertices[vi]);
+  c.divideScalar(panel.vertexIndices.length);
+  return c;
 }
 
-function unfoldNeighbour(
-  parent: Panel,
-  parentCorners: ReadonlyArray<Vec2>,
-  parentCentroid2D: Vec2,
-  neighbor: Panel,
-  topo: PanelTopology,
-  sharedA: number,
-  sharedB: number,
-): PanelFlat {
-  // Where the shared corners landed in the parent's frame.
-  const idxAinParent = parent.vertexIndices.indexOf(sharedA);
-  const idxBinParent = parent.vertexIndices.indexOf(sharedB);
-  const P_A = parentCorners[idxAinParent];
-  const P_B = parentCorners[idxBinParent];
-
-  // Where the shared corners sit in the neighbour's OWN local frame
-  // (before unfolding).
-  const localFlat = flattenPanelLocal(neighbor, topo);
-  const idxAinNeighbour = neighbor.vertexIndices.indexOf(sharedA);
-  const idxBinNeighbour = neighbor.vertexIndices.indexOf(sharedB);
-  const L_A = localFlat.corners[idxAinNeighbour];
-  const L_B = localFlat.corners[idxBinNeighbour];
-
-  // First-pass transform without mirroring.
-  const localCentroid = centroid2D(localFlat.corners);
-  let xform = rigidEdgeAlign(L_A, L_B, P_A, P_B, /*mirror*/ false);
-  let placedCentroid = xform(localCentroid);
-
-  // The neighbour must end up on the OPPOSITE side of the shared edge
-  // from the parent's centroid. Check via cross-product side test; flip
-  // mirror if needed.
-  const parentSide = Math.sign(sideOf(P_A, P_B, parentCentroid2D));
-  const neighborSide = Math.sign(sideOf(P_A, P_B, placedCentroid));
-  if (parentSide === neighborSide) {
-    xform = rigidEdgeAlign(L_A, L_B, P_A, P_B, /*mirror*/ true);
-    placedCentroid = xform(localCentroid);
+function estimateAvgCircumradius(topo: PanelTopology): number {
+  // Compute the average bounding-circle radius across all panels —
+  // approximated as half the average edge length divided by sin(π/n).
+  let totalChord = 0;
+  let edgeCount = 0;
+  for (const panel of topo.panels) {
+    const n = panel.vertexIndices.length;
+    for (let i = 0; i < n; i++) {
+      const a = topo.vertices[panel.vertexIndices[i]];
+      const b = topo.vertices[panel.vertexIndices[(i + 1) % n]];
+      totalChord += a.distanceTo(b);
+      edgeCount++;
+    }
   }
-
-  // Sagitta ratios are intrinsic to the panel's 3D geometry — they
-  // don't change under rotation / translation / mirror.
-  return {
-    corners: localFlat.corners.map(xform),
-    sagittaRatios: localFlat.sagittaRatios,
-  };
+  if (edgeCount === 0) return 1;
+  const avgEdge = totalChord / edgeCount;
+  // Use a 5-gon as the reference shape — splits the difference between
+  // typical 5/6-gon panels in Goldberg topologies.
+  return avgEdge / (2 * Math.sin(Math.PI / 5));
 }
