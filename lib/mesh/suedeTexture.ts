@@ -7,8 +7,12 @@ import {
   TextureLoader,
 } from "three";
 
-const NORMAL_MAP_URL = "/textures/suede_normal.png";
-const ROUGHNESS_MAP_URL = "/textures/suede_roughness.png";
+// Prefix the public-assets URL with the configured basePath so the
+// browser request lands on this service rather than the reverse proxy's
+// catch-all rule.
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const NORMAL_MAP_URL = `${BASE_PATH}/textures/suede_normal.png`;
+const ROUGHNESS_MAP_URL = `${BASE_PATH}/textures/suede_roughness.png`;
 const TEXTURE_REPEAT = 0.2;
 
 // Lazy singletons — the textures are large (~14 MB combined) so we only load

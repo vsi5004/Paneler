@@ -15,12 +15,18 @@ import type { NextConfig } from "next";
 //                      preview ships fully open. Uses /Paneler basePath
 //                      to match the GH Pages project URL.
 const isStaticExport = process.env.STATIC_EXPORT === "1";
+const basePath = isStaticExport ? "/Paneler" : "/app";
 
 const nextConfig: NextConfig = {
   // three.js is published as ESM and Drei pulls in un-transpiled paths the
   // Next bundler can't statically analyze otherwise.
   transpilePackages: ["three"],
-  basePath: isStaticExport ? "/Paneler" : "/app",
+  basePath,
+  // Surface the basePath to client code so raw fetches (TextureLoader,
+  // OBJ uploads, etc.) can prefix it onto `/textures/...` etc. Without
+  // this the browser hits /textures/... directly and our reverse proxy
+  // routes that to the wrong service.
+  env: { NEXT_PUBLIC_BASE_PATH: basePath },
   ...(isStaticExport
     ? {
         output: "export",
