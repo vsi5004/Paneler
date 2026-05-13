@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 
 // Two build modes:
@@ -17,6 +18,11 @@ import type { NextConfig } from "next";
 const isStaticExport = process.env.STATIC_EXPORT === "1";
 const basePath = isStaticExport ? "/Paneler" : "/app";
 
+// Absolute path for the webpack alias (webpack requires absolute paths).
+// Turbopack uses the @/ specifier directly so it bundles the stub as a normal
+// project module rather than externalising it as a runtime require().
+const authActionsStubAbs = path.resolve("./lib/auth-actions-stub");
+
 const nextConfig: NextConfig = {
   // three.js is published as ESM and Drei pulls in un-transpiled paths the
   // Next bundler can't statically analyze otherwise.
@@ -31,6 +37,18 @@ const nextConfig: NextConfig = {
     ? {
         output: "export",
         images: { unoptimized: true },
+        // Swap auth-actions.ts for a no-op stub so the "use server" file never
+        // enters the build graph and the serverActionsManifest stays empty.
+        // See lib/auth-actions-stub.ts and PLAN.md for the full rationale.
+        turbopack: {
+          resolveAlias: {
+            "@/lib/auth-actions": "@/lib/auth-actions-stub",
+          },
+        },
+        webpack: (config: { resolve: { alias: Record<string, string> } }) => {
+          config.resolve.alias["@/lib/auth-actions"] = authActionsStubAbs;
+          return config;
+        },
       }
     : {
         output: "standalone",

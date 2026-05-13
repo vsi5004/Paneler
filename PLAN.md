@@ -99,6 +99,8 @@ Ship a second deploy target alongside the server build. The same codebase produc
 
 **Config approach.** A `STATIC_EXPORT=1` env var flips `next.config.ts` into export mode (`output: 'export'`, `images.unoptimized: true`, configurable `basePath` for project-page URLs). The `/app` route ships fully open.
 
+**Server action exclusion.** Next.js populates a `serverActionsManifest` at compile time from every `"use server"` file in the build graph — any entry in that manifest causes a hard error under `output: "export"`. `lib/auth-actions.ts` contains the logout server action and must be excluded from static builds. The mechanism: `lib/auth-actions-stub.ts` exports the same function signatures without `"use server"`, and `next.config.ts` aliases `@/lib/auth-actions` → the stub when `STATIC_EXPORT=1` (via `turbopack.resolveAlias` and `webpack.resolve.alias`). A route handler was considered as an alternative but would require explicit CSRF handling — the server action path gets that for free via React's same-origin enforcement. **If new exports are added to `auth-actions.ts`, add matching no-op exports to the stub.**
+
 **Trade-offs to keep in mind:**
 - Static preview means anyone can use the full designer without an account. Acceptable for Paneler's purpose; revisit if abuse becomes a concern.
 - Future Phase 3 persistence won't be available in the static build — designs only persist via URL hash / JSON export. That's already the Phase 1 behavior so no regression for preview users.

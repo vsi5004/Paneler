@@ -2,10 +2,8 @@ import { auth } from "@/lib/auth";
 import { logout } from "@/lib/auth-actions";
 import { PanelerDesigner } from "@/components/paneler/PanelerDesigner";
 
-// Static export (GitHub Pages) ships with no auth — skip the session read and
-// don't pass the logout server action. Next.js disallows server action
-// references in the client bundle during static export, so logoutAction must
-// be undefined rather than the real function when STATIC_EXPORT=1.
+// In static export builds, next.config.ts aliases @/lib/auth-actions to a
+// no-op stub so the "use server" file never enters the build graph.
 const isStaticExport = process.env.STATIC_EXPORT === "1";
 
 // Mounted at basePath /app, so this renders at paneler.app/app.
