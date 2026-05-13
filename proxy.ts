@@ -39,5 +39,9 @@ export const config = {
   //     via TextureLoader (<img>). Same class of problem as _next/ — if
   //     the session check ever 307s the image request, the load fails
   //     silently and panels render without suede.
-  matcher: ["/((?!api/health|_next/|textures/).*)"],
+  //   - icon.svg: the favicon. Browser fetches it as soon as the HTML
+  //     loads, often before any cookie roundtrip resolves. Add any
+  //     future top-level public assets (robots.txt, manifest.json,
+  //     apple-touch-icon.png, etc.) to this list as they're introduced.
+  matcher: ["/((?!api/health|_next/|textures/|icon\\.svg).*)"],
 };
