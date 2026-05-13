@@ -12,4 +12,16 @@ import NextAuth from "next-auth";
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [],
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 }, // 30d, matches landing
+  callbacks: {
+    // Surface the JWT `sub` (Dex-issued stable OIDC subject) on session.user.id
+    // so request handlers can scope RLS queries to it. Default Auth.js v5
+    // session doesn't expose `sub` — only name/email/image — but the JWT
+    // already carries it from the landing's sign-in flow.
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = (token.sub as string) ?? "";
+      }
+      return session;
+    },
+  },
 });

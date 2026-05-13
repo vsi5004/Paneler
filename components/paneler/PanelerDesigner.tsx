@@ -20,8 +20,10 @@ import {
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
+import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
+import { DesignNav } from "./DesignNav";
 import { PanelInfoBar } from "./PanelInfoBar";
 import PanelerFlatView from "./PanelerFlatView";
 import { ShareControls } from "./ShareControls";
@@ -35,6 +37,8 @@ interface AuthUser {
 interface PanelerDesignerProps {
   user: AuthUser | null;
   logoutAction?: () => Promise<void>;
+  /** True when the app runs against Postgres. Drives the left-nav design list. */
+  dbEnabled: boolean;
 }
 
 // R3F can't run on the server. App Router disallows ssr:false in Server
@@ -52,7 +56,11 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
 
 const DEFAULT_PRESET = "soccer";
 
-export function PanelerDesigner({ user, logoutAction }: PanelerDesignerProps) {
+export function PanelerDesigner({
+  user,
+  logoutAction,
+  dbEnabled,
+}: PanelerDesignerProps) {
   const [presetId, setPresetId] = useState(DEFAULT_PRESET);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
@@ -80,16 +88,65 @@ export function PanelerDesigner({ user, logoutAction }: PanelerDesignerProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!window.location.hash) return;
+    // URL-hash share is the files-only/GH-Pages share mechanism. In DB mode
+    // sharing happens via the per-design publish toggle, so stale hash links
+    // are silently ignored.
+    if (dbEnabled) return;
     try {
       const design = decodeDesignFromHash(window.location.hash);
       const match = PRESETS.find((p) => p.id === design.modelType);
+      // One-shot hydration from URL hash on mount — set-state-in-effect is
+      // the right pattern here (no other way to seed initial state from a
+      // browser-only API).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (match) setPresetId(match.id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPanelColors(design.panelColors);
     } catch {
       // ignore — preserves the default-empty design
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dbEnabled]);
+
+  // Designs nav + persistence (DB modes only). The hook stays inert when
+  // disabled, so it's safe to instantiate unconditionally.
+  const snapshotCurrent = useCallback(
+    () => ({ version: 1 as const, modelType: presetId, panelColors }),
+    [presetId, panelColors],
+  );
+  const ds = useDesigns({ enabled: dbEnabled, snapshotCurrent });
+  const { currentId } = ds;
+
+  // Auto-save the current row when the design changes (debounced). Tiny
+  // payloads, fine to write often; the debounce avoids one POST per
+  // panel-click while painting.
+  useEffect(() => {
+    if (!dbEnabled || !currentId) return;
+    const t = window.setTimeout(() => {
+      ds.saveCurrent().catch(() => {
+        // Surfacing a toast is overkill here; failures show up in DevTools
+        // and the user will retry by interacting again.
+      });
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [dbEnabled, currentId, presetId, panelColors, ds]);
+
+  const handleLoadDesign = useCallback(
+    async (id: string) => {
+      const row = await ds.load(id);
+      if (!row) return;
+      const match = PRESETS.find((p) => p.id === row.payload.modelType);
+      if (match) setPresetId(match.id);
+      setCustomTopology(null);
+      setCustomLabel("");
+      setPanelColors(row.payload.panelColors);
+      setSelectedPanelId(null);
+    },
+    [ds],
+  );
+
+  const handleCreateDesign = useCallback(async () => {
+    await ds.create("Untitled");
+  }, [ds]);
 
   const handlePanelClick = useCallback(
     (panelId: string) => {
@@ -153,7 +210,21 @@ export function PanelerDesigner({ user, logoutAction }: PanelerDesignerProps) {
   );
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 overflow-hidden">
+      {dbEnabled && (
+        <DesignNav
+          designs={ds.designs}
+          currentId={ds.currentId}
+          loading={ds.loading}
+          onCreate={handleCreateDesign}
+          onLoad={handleLoadDesign}
+          onRename={ds.rename}
+          onToggleStarred={ds.toggleStarred}
+          onTogglePublished={ds.togglePublished}
+          onDelete={ds.remove}
+        />
+      )}
+      <div className="flex flex-1 flex-col">
       {/* Identity strip — thin, low-density. Brand + account. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
         <div className="flex items-center gap-3">
@@ -305,6 +376,7 @@ export function PanelerDesigner({ user, logoutAction }: PanelerDesignerProps) {
             onSwatchClick={setSelectedColor}
           />
         </aside>
+      </div>
       </div>
     </div>
   );
