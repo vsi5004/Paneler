@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   MoreHorizontal,
   Plus,
@@ -26,6 +28,8 @@ interface DesignNavProps {
   designs: DesignRow[];
   currentId: string | null;
   loading: boolean;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   onCreate: () => void;
   onLoad: (id: string) => void;
   onRename: (id: string, name: string) => Promise<void>;
@@ -38,6 +42,8 @@ export function DesignNav({
   designs,
   currentId,
   loading,
+  collapsed,
+  onToggleCollapsed,
   onCreate,
   onLoad,
   onRename,
@@ -48,13 +54,38 @@ export function DesignNav({
   const starred = designs.filter((d) => d.starred);
   const recents = designs.filter((d) => !d.starred);
 
+  // Collapsed: a thin rail with just a chevron to expand. Width transition
+  // is on the container so the canvas reflows smoothly.
+  if (collapsed) {
+    return (
+      <aside className="flex h-full w-10 shrink-0 flex-col items-center border-r border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] bg-[var(--workspace)] py-3">
+        <button
+          type="button"
+          aria-label="Expand designs nav"
+          onClick={onToggleCollapsed}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] bg-[var(--workspace)]">
-      {/* Header — small word-mark, no logo image (Paneler doesn't have one in-app). */}
-      <header className="flex items-center px-4 py-3 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)]">
+      {/* Header — word-mark + collapse toggle. */}
+      <header className="flex items-center justify-between px-4 py-3 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)]">
         <span className="font-heading text-lg uppercase tracking-[0.2em]">
           Paneler
         </span>
+        <button
+          type="button"
+          aria-label="Collapse designs nav"
+          onClick={onToggleCollapsed}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
       </header>
 
       {/* New Design button */}

@@ -19,7 +19,14 @@ import {
 } from "@/lib/designState";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
+import { type PanelImperativeHandle } from "react-resizable-panels";
+
 import { Button } from "@/components/ui/button";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
@@ -116,28 +123,52 @@ export function PanelerDesigner({
   const ds = useDesigns({ enabled: dbEnabled, snapshotCurrent });
   const { currentId } = ds;
 
-  // Explicit save via the toolbar button (below). No timer-based autosave
-  // for v1; the auto-save-before-switch/create in useDesigns is the only
-  // implicit save path so unsaved tweaks aren't lost on row change.
+  // Save state surfaces on the toolbar button label. Both explicit
+  // (handleSave below) and debounced autosave (effect below) flow through
+  // it so the user sees a single source of truth for "is my work saved".
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
-  const handleSave = useCallback(async () => {
-    if (!dbEnabled) return;
-    setSaveState("saving");
-    try {
-      if (currentId) {
-        await ds.saveCurrent();
-      } else {
-        await ds.create("Untitled");
+
+  const runSave = useCallback(
+    async (mode: "save-or-create" | "save-only") => {
+      if (!dbEnabled) return;
+      // Autosave should never silently materialize a row — only the
+      // explicit button does that.
+      if (!currentId && mode === "save-only") return;
+      setSaveState("saving");
+      try {
+        if (currentId) {
+          await ds.saveCurrent();
+        } else {
+          await ds.create("Untitled");
+        }
+        setSaveState("saved");
+        window.setTimeout(() => setSaveState("idle"), 1500);
+      } catch {
+        setSaveState("error");
+        window.setTimeout(() => setSaveState("idle"), 2500);
       }
-      setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 1500);
-    } catch {
-      setSaveState("error");
-      window.setTimeout(() => setSaveState("idle"), 2500);
-    }
-  }, [dbEnabled, currentId, ds]);
+    },
+    [dbEnabled, currentId, ds],
+  );
+
+  const handleSave = useCallback(
+    () => runSave("save-or-create"),
+    [runSave],
+  );
+
+  // Debounced autosave on edit. Tiny payloads, fine to write often; the
+  // 1500ms window collapses runs of panel-clicks (painting) into a single
+  // POST. The auto-save-before-switch/create path in useDesigns covers the
+  // case where the timer hasn't elapsed before the user navigates away.
+  useEffect(() => {
+    if (!dbEnabled || !currentId) return;
+    const t = window.setTimeout(() => {
+      void runSave("save-only");
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [dbEnabled, currentId, presetId, panelColors, runSave]);
 
   const handleLoadDesign = useCallback(
     async (id: string) => {
@@ -218,22 +249,54 @@ export function PanelerDesigner({
     [],
   );
 
+  // Imperative handle for the left nav's ResizablePanel — lets the chevron
+  // in DesignNav collapse/expand the panel without React having to thread
+  // controlled state through react-resizable-panels (which manages its own
+  // sizing). onResize on the panel is how we detect the collapsed/expanded
+  // transitions (this version dropped the dedicated onCollapse/onExpand
+  // callbacks).
+  const navPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  const toggleNav = useCallback(() => {
+    const p = navPanelRef.current;
+    if (!p) return;
+    if (p.isCollapsed()) p.expand();
+    else p.collapse();
+  }, []);
+
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <ResizablePanelGroup orientation="horizontal" className="flex-1">
       {dbEnabled && (
-        <DesignNav
-          designs={ds.designs}
-          currentId={ds.currentId}
-          loading={ds.loading}
-          onCreate={handleCreateDesign}
-          onLoad={handleLoadDesign}
-          onRename={ds.rename}
-          onToggleStarred={ds.toggleStarred}
-          onTogglePublished={ds.togglePublished}
-          onDelete={ds.remove}
-        />
+        <>
+          <ResizablePanel
+            panelRef={navPanelRef}
+
+            collapsible
+            collapsedSize={3}
+            defaultSize={20}
+            minSize={14}
+            maxSize={35}
+            onResize={(size) => setNavCollapsed(size.asPercentage <= 3.5)}
+          >
+            <DesignNav
+              designs={ds.designs}
+              currentId={ds.currentId}
+              loading={ds.loading}
+              collapsed={navCollapsed}
+              onToggleCollapsed={toggleNav}
+              onCreate={handleCreateDesign}
+              onLoad={handleLoadDesign}
+              onRename={ds.rename}
+              onToggleStarred={ds.toggleStarred}
+              onTogglePublished={ds.togglePublished}
+              onDelete={ds.remove}
+            />
+          </ResizablePanel>
+          <ResizableHandle />
+        </>
       )}
-      <div className="flex flex-1 flex-col">
+      <ResizablePanel defaultSize={dbEnabled ? 80 : 100}>
+        <div className="flex h-full flex-col">
       {/* Identity strip — thin, low-density. Brand + account. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
         <div className="flex items-center gap-3">
@@ -349,67 +412,76 @@ export function PanelerDesigner({
         </div>
       </div>
 
-      {/* Canvas stage + sidebar. */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col">
-          <div className="grid flex-1 grid-cols-1 md:grid-cols-2">
-            <CanvasFrame label="3D · Sphere">
-              <PanelerCanvas
-                topology={topology}
-                panelColors={panelColors}
+      {/* Canvas stage + sidebar — resizable. Outer split is canvas | palette;
+          inner split (inside canvas-col) is 3D | 2D. */}
+      <ResizablePanelGroup orientation="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={75} minSize={45}>
+          <div className="flex h-full flex-col">
+            <ResizablePanelGroup orientation="horizontal" className="flex-1">
+              <ResizablePanel defaultSize={50} minSize={20}>
+                <CanvasFrame label="3D · Sphere">
+                  <PanelerCanvas
+                    topology={topology}
+                    panelColors={panelColors}
+                    selectedPanelId={selectedPanelId}
+                    suedeEnabled={suedeEnabled}
+                    onPanelClick={handlePanelClick}
+                  />
+                </CanvasFrame>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={50} minSize={20}>
+                <CanvasFrame label="2D · Flat net">
+                  <PanelerFlatView
+                    topology={topology}
+                    panelColors={panelColors}
+                    selectedPanelId={selectedPanelId}
+                    onPanelClick={handlePanelClick}
+                  />
+                </CanvasFrame>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+            {/* Status bar — instrument readout + tool cluster. */}
+            <div className="workshop-slab border-t px-5 py-2.5">
+              <PanelInfoBar
                 selectedPanelId={selectedPanelId}
-                suedeEnabled={suedeEnabled}
-                onPanelClick={handlePanelClick}
-              />
-            </CanvasFrame>
-            <CanvasFrame
-              label="2D · Flat net"
-              className="border-t md:border-l md:border-t-0"
-            >
-              <PanelerFlatView
-                topology={topology}
                 panelColors={panelColors}
-                selectedPanelId={selectedPanelId}
-                onPanelClick={handlePanelClick}
+                onReset={handleResetSelected}
+                onPaintShape={handlePaintShape}
+                onFillUnpainted={handleFillUnpainted}
               />
-            </CanvasFrame>
-          </div>
-          {/* Status bar — instrument readout + tool cluster. */}
-          <div className="workshop-slab border-t px-5 py-2.5">
-            <PanelInfoBar
-              selectedPanelId={selectedPanelId}
-              panelColors={panelColors}
-              onReset={handleResetSelected}
-              onPaintShape={handlePaintShape}
-              onFillUnpainted={handleFillUnpainted}
-            />
-          </div>
-        </div>
-        <aside className="hidden w-80 flex-col gap-5 overflow-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
-          <section>
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
-                Palette
-              </h2>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                21 fabrics
-              </span>
             </div>
-            <ColorPalette
-              selected={selectedColor}
-              onSelect={setSelectedColor}
+          </div>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={25} minSize={15} maxSize={45}>
+          <aside className="flex h-full flex-col gap-5 overflow-hidden border-l bg-[var(--sidebar)]/60 p-5">
+            <section>
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
+                  Palette
+                </h2>
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                  21 fabrics
+                </span>
+              </div>
+              <ColorPalette
+                selected={selectedColor}
+                onSelect={setSelectedColor}
+              />
+            </section>
+            <div className="workshop-hairline" />
+            <ColorSummary
+              topology={topology}
+              panelColors={panelColors}
+              onSwatchClick={setSelectedColor}
             />
-          </section>
-          <div className="workshop-hairline" />
-          <ColorSummary
-            topology={topology}
-            panelColors={panelColors}
-            onSwatchClick={setSelectedColor}
-          />
-        </aside>
-      </div>
-      </div>
-    </div>
+          </aside>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
 
