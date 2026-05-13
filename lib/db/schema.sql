@@ -39,6 +39,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Required for `SET ROLE paneler_app` from the owner connection. Without
+-- this, Postgres rejects the SET with "permission denied to set role" (42501)
+-- — the owner must be a member of the target role to assume it.
+GRANT paneler_app TO paneler;
+
 GRANT USAGE ON SCHEMA public TO paneler_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON designs TO paneler_app;
 
