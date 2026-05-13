@@ -35,5 +35,9 @@ export const config = {
   //     RSC payload requests to the landing instead of the file, and
   //     the app renders unstyled until the user signs in. Cookie-aware
   //     auth happens on the page request, not the asset requests.
-  matcher: ["/((?!api/health|_next/).*)"],
+  //   - textures/: public PNG normal/roughness maps loaded by Three.js
+  //     via TextureLoader (<img>). Same class of problem as _next/ — if
+  //     the session check ever 307s the image request, the load fails
+  //     silently and panels render without suede.
+  matcher: ["/((?!api/health|_next/|textures/).*)"],
 };
