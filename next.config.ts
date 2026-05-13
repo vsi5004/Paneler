@@ -55,7 +55,10 @@ const nextConfig: NextConfig = {
     if (isStaticExport) return [];
     return [
       {
-        source: "/(.*)",
+        // `/:path*` matches every path including the root. `/(.*)` only
+        // matched non-empty paths, which left the root page (`/app` after
+        // basePath stripping) without the security headers.
+        source: "/:path*",
         headers: [
           {
             key: "Content-Security-Policy",
