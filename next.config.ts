@@ -18,10 +18,13 @@ import type { NextConfig } from "next";
 const isStaticExport = process.env.STATIC_EXPORT === "1";
 const basePath = isStaticExport ? "/Paneler" : "/app";
 
-// Absolute path for the webpack alias (webpack requires absolute paths).
-// Turbopack uses the @/ specifier directly so it bundles the stub as a normal
-// project module rather than externalising it as a runtime require().
+// Absolute paths for webpack aliases (webpack requires absolute paths).
+// Turbopack uses the @/ specifier directly so it bundles each stub as a
+// normal project module rather than externalising it as a runtime require().
 const authActionsStubAbs = path.resolve("./lib/auth-actions-stub");
+const dbClientStubAbs = path.resolve("./lib/db/client-stub");
+const dbDesignsStubAbs = path.resolve("./lib/db/designs-stub");
+const dbMigrateStubAbs = path.resolve("./lib/db/migrate-stub");
 
 const nextConfig: NextConfig = {
   // three.js is published as ESM and Drei pulls in un-transpiled paths the
@@ -33,20 +36,34 @@ const nextConfig: NextConfig = {
   // this the browser hits /textures/... directly and our reverse proxy
   // routes that to the wrong service.
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  // Standalone picks up *.server.ts so /api/designs/*/route.server.ts
+  // registers as a route. Static export uses only the defaults, so files
+  // ending in `.server.ts` resolve to a name like `route.server` (not the
+  // expected `route`) and Next.js ignores them — keeping POST/PUT/DELETE
+  // handlers out of the static-export build graph.
+  pageExtensions: isStaticExport
+    ? ["tsx", "ts"]
+    : ["server.ts", "server.tsx", "tsx", "ts"],
   ...(isStaticExport
     ? {
         output: "export",
         images: { unoptimized: true },
-        // Swap auth-actions.ts for a no-op stub so the "use server" file never
-        // enters the build graph and the serverActionsManifest stays empty.
-        // See lib/auth-actions-stub.ts and PLAN.md for the full rationale.
+        // Alias server-only modules to no-op stubs so static export never
+        // pulls `pg`, "use server", or other Node-only code into the bundle.
+        // See lib/auth-actions-stub.ts + lib/db/*-stub.ts and PLAN.md.
         turbopack: {
           resolveAlias: {
             "@/lib/auth-actions": "@/lib/auth-actions-stub",
+            "@/lib/db/client": "@/lib/db/client-stub",
+            "@/lib/db/designs": "@/lib/db/designs-stub",
+            "@/lib/db/migrate": "@/lib/db/migrate-stub",
           },
         },
         webpack: (config: { resolve: { alias: Record<string, string> } }) => {
           config.resolve.alias["@/lib/auth-actions"] = authActionsStubAbs;
+          config.resolve.alias["@/lib/db/client"] = dbClientStubAbs;
+          config.resolve.alias["@/lib/db/designs"] = dbDesignsStubAbs;
+          config.resolve.alias["@/lib/db/migrate"] = dbMigrateStubAbs;
           return config;
         },
       }

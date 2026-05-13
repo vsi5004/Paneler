@@ -74,7 +74,7 @@ Ship the 3D viewer with runtime panel generation. Auth.js v5 is wired in, option
 - Edge relaxation (hex-edge-ratio solver — produces footbag-style silhouettes vs uniform soccer ball).
 - Live styling sliders (puff amount, stitch amplitude, subdivision count).
 - 2D panel-net view and SVG cutting-pattern export.
-- Per-user design persistence.
+- Per-user design persistence. *(Implemented in this branch — see Phase 3.)*
 
 ### Phase 2 — 2D Cutting Patterns + Static Preview Build
 
@@ -108,11 +108,29 @@ Ship a second deploy target alongside the server build. The same codebase produc
 
 ### Phase 3 — Per-user Persistence
 
-Dual-backend storage layer selected by `DATABASE_URL`:
-- `file:./paneler.db` → SQLite (standalone, no auth required — useful for self-host).
-- `postgres://…` → Postgres (production deployments).
+Three runtime modes, picked by env vars:
 
-Schema sketch: `designs(id, owner_email, model_type, panel_colors_json, created_at, updated_at)`. App-side UI: "My Designs" list, save/load buttons.
+| Mode | Triggered by | Designs nav | Storage |
+|---|---|---|---|
+| Files-only | `DATABASE_URL` unset (GH Pages always) | hidden | export/import JSON; URL-hash share |
+| DB without auth | `DATABASE_URL` + `AUTH_DISABLED=true` (local dev) | shown | Postgres, scoped to `dev-local` |
+| DB with auth | `DATABASE_URL` + `AUTH_SECRET` (production k8s) | shown | Postgres, scoped per OIDC `sub` via RLS |
+
+**Single backend, not dual.** Earlier drafts proposed SQLite for standalone/self-host; we dropped it. The complexity wasn't worth it — the existing export/import flow covers the "no DB" path, and a single Postgres code path keeps the type/test surface small. K8s deploys get a CNPG cluster; local dev runs Postgres in docker-compose.
+
+**Schema.** One `designs` table (see [`lib/db/schema.sql`](./lib/db/schema.sql)):
+- `user_sub text NOT NULL` — Dex-issued OIDC subject (stable across email changes). RLS isolation key.
+- `email text` — denormalized for display only, never used for scoping.
+- `payload jsonb NOT NULL` — the `Design` object (`{version, modelType, panelColors}`).
+- `starred`, `published` booleans for the nav UI.
+
+RLS uses `FORCE ROW LEVEL SECURITY` + a single `FOR ALL` policy keyed on `current_setting('app.user_sub')`. Migrations run as the CNPG-generated owner; the request path connects as a separate non-owner `paneler_app` role for defense in depth. Per-request session vars are set in a `BEGIN`/`COMMIT` transaction so `SET LOCAL` actually applies.
+
+**Migration runs at server boot** via `instrumentation.ts` (idempotent SQL, module-level promise dedupe). The split health endpoint — `/api/health/live` always 200, `/api/health/ready` 503 until migration completes — lets a stuck migration hold a deploy un-ready without killing the pod's liveness.
+
+**Sharing.** URL-hash share format is preserved for files-only mode (GH Pages and local-without-DB). In DB+auth mode, the hash decoder is silently bypassed; sharing happens via a per-design "Publish" toggle. The public-browse view + share button consuming `published=true` is deferred to a later iteration — v1 ships the data shape and the toggle only.
+
+**Static export compatibility.** `next.config.ts` flips `pageExtensions` so `route.server.ts` API files aren't discovered in the static build, and aliases `lib/db/*` modules to no-op stubs — same pattern as `lib/auth-actions-stub.ts`. `instrumentation.ts` early-returns and uses dynamic import for the migrate module so `pg` never enters the bundle.
 
 ### Phase 4 — Styling Realism
 
