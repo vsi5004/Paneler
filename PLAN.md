@@ -14,6 +14,43 @@ Paneler unifies three prior repos into one web app:
 
 The new architecture: one Next.js app does 3D design (Phase 1) and 2D cutting-pattern generation (Phase 2), with shared panel topology between the two views. Python and Blender are removed; everything runs in JS in the browser.
 
+## User Workflow
+
+The app is a linear 4-step flow. Each step produces outputs consumed by the next.
+
+### Step 1 — Design
+Select a base 3D model (built-in Goldberg/Platonic preset or OBJ upload), tweak physical bag parameters (diameter, edge relaxation, panel proportions), then assign colors to panels using the interactive **3D sphere view** and the **2D flat net view** side by side, plus the color palette. Both views stay in sync.
+
+### Step 2 — Panel Templates
+For each distinct panel shape present in the design, configure the physical cutting template independently:
+- **Seam allowance** — extra material beyond the cut line
+- **Bite** — distance from cut edge inward to the stitch holes (needle engagement depth)
+- **Gather** — extra perimeter material (%) so sewn panels puff outward
+- **Stitch holes** — count, spacing, corner margins
+- **Stitching line** — guide line drawn on template at the seam-allowance offset
+- **Curved edges** — replace straight edges with circular arcs
+
+Each panel type is exportable as an individual SVG at 1:1 scale (mm units).
+
+### Step 3 — Laser Cutter Layout
+Panels are grouped by color. Each color gets its own layout view: panels arranged on a user-defined fabric width using a space-efficient nesting pattern. Controls include spacing, orientation, and invert-alternates nesting. Material utilization % is shown live. Each color layout is exportable as an SVG.
+
+### Step 4 — G-code Generator *(optional, not yet scoped)*
+Converts each color's SVG layout into controller-ready G-code. Inputs: controller type (GRBL, Smoothie, Marlin, …), laser power, kerf width, feed rate, curve minimum segments. Each color file exports as a `.gcode`/`.nc` file.
+
+### Step Navigation
+
+Single-page view-state approach (no routing). All four steps share one component tree so state flows freely — no serialization between steps.
+
+**Implementation sketch:**
+- `PanelerDesigner` holds a `step: 1 | 2 | 3 | 4` state variable.
+- The existing top bar gains a step indicator strip (e.g. `DESIGNER · TEMPLATES · LAYOUT · GCODE`). When `step > 1` the topology preset buttons are hidden and replaced by this strip. A back-chevron or the strip itself navigates between steps.
+- The main canvas area and right sidebar render different content per step (`step === 1` → existing 3D+2D views; `step === 2` → template cards; `step === 3` → laser layout).
+- Transitions via Framer Motion `AnimatePresence` (already in the project).
+- A "Next →" affordance lives in the bottom status bar (currently holds the paint tools); it advances the step and is disabled if prerequisites aren't met (e.g. no panels painted before moving to Step 2).
+
+---
+
 ## Phases
 
 ### Phase 1 — 3D Designer + Optional Auth *(current)*
