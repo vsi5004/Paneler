@@ -102,8 +102,23 @@ export function DesignNav({
             Loading designs…
           </div>
         ) : designs.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No designs yet
+          <div className="px-3 py-6 space-y-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Unsaved draft
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You&apos;re editing a draft of the canvas above. Click{" "}
+              <span className="font-mono text-foreground">Save</span> in the
+              toolbar to keep it, or{" "}
+              <button
+                type="button"
+                onClick={onCreate}
+                className="font-mono text-foreground underline-offset-2 hover:underline"
+              >
+                save now
+              </button>
+              .
+            </p>
           </div>
         ) : (
           <>

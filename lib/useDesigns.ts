@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Design } from "@/lib/types";
 
 export interface DesignRow {
@@ -37,11 +37,8 @@ export function useDesigns({ enabled, snapshotCurrent }: UseDesignsOptions) {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
-  // Only seed once per mount — even if the user later deletes everything we
-  // don't auto-resurrect a row behind their back.
-  const seededRef = useRef(false);
 
-  const refetch = useCallback(async (): Promise<DesignRow[] | null> => {
+  const refetch = useCallback(async () => {
     if (!enabled) return [];
     try {
       setLoading(true);
@@ -53,46 +50,19 @@ export function useDesigns({ enabled, snapshotCurrent }: UseDesignsOptions) {
       return designs;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      // null distinguishes "fetch failed" from "fetched, but empty" — the
-      // mount-time seed only fires on the second case.
-      return null;
+      return [];
     } finally {
       setLoading(false);
     }
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    void (async () => {
-      const list = await refetch();
-      // Skip the seed on fetch error (null) or when rows already exist.
-      if (cancelled || seededRef.current || list === null || list.length > 0)
-        return;
-      // Brand-new user: seed their first row with whatever's currently on
-      // the canvas. Avoids the "No designs yet" cold-start state.
-      seededRef.current = true;
-      try {
-        const payload = snapshotCurrent();
-        const res = await fetch(BASE + "/api/designs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Untitled", payload }),
-        });
-        if (!res.ok) return;
-        const { design } = (await res.json()) as { design: DesignRow };
-        if (cancelled) return;
-        setDesigns([design]);
-        setCurrentId(design.id);
-      } catch {
-        // First-load seed is best-effort; user can still click "+ New Design".
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, refetch]);
+    // One-shot fetch on mount + whenever `enabled` flips on. Refetch's
+    // setState writes happen asynchronously after the fetch, not
+    // synchronously in the effect body, but lint can't tell.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refetch();
+  }, [refetch]);
 
   // Save the current in-memory design back to its row. No-op when nothing is
   // selected — the URL-hash → in-memory case isn't materialized in the nav.
