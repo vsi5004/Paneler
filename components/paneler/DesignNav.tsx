@@ -4,8 +4,8 @@ import { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Copy,
   MoreHorizontal,
+  Pencil,
   Plus,
   Send,
   Star,
@@ -271,7 +271,7 @@ function NavRow({
               setRenaming(true);
             }}
           >
-            <Copy className="mr-2 h-4 w-4" />
+            <Pencil className="mr-2 h-4 w-4" />
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem
