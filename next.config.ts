@@ -44,6 +44,56 @@ const nextConfig: NextConfig = {
   pageExtensions: isStaticExport
     ? ["tsx", "ts"]
     : ["server.ts", "server.tsx", "tsx", "ts"],
+  // Security response headers. Only applied in the standalone build —
+  // GH Pages serves headers from its own infra and ignores this hook. The
+  // CSP keeps script/style 'unsafe-inline' because Next.js's hydration
+  // bootstrap inlines small chunks; defense for *script* injection here
+  // rests on RLS (XSS can't reach other users' data) + httpOnly cookies
+  // (XSS can't steal the session). Tighter to nonce-based CSP is doable
+  // later if we ever render untrusted markdown or similar.
+  async headers() {
+    if (isStaticExport) return [];
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              // Google avatar URLs come from several googleusercontent
+              // subdomains. blob: covers OBJ-upload preview thumbnails;
+              // data: covers any small inline images Next.js emits.
+              "img-src 'self' data: blob: https://*.googleusercontent.com https://*.ggpht.com",
+              "font-src 'self' data:",
+              "connect-src 'self'",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "object-src 'none'",
+            ].join("; "),
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Redundant with CSP frame-ancestors but harmless and respected
+          // by older clients that don't parse CSP.
+          { key: "X-Frame-Options", value: "DENY" },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(), microphone=(), camera=()",
+          },
+        ],
+      },
+    ];
+  },
   ...(isStaticExport
     ? {
         output: "export",

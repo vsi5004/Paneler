@@ -10,6 +10,10 @@ import type { Design } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+// Match the caps in ../route.server.ts.
+const MAX_BODY_BYTES = 256 * 1024;
+const MAX_NAME_CHARS = 200;
+
 interface PatchBody {
   name?: string;
   payload?: Design;
@@ -60,6 +64,11 @@ export async function PUT(
   if (r.kind === "err") return r.res;
   const { id } = await params;
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
+
   let body: PatchBody;
   try {
     body = (await req.json()) as PatchBody;
@@ -68,6 +77,15 @@ export async function PUT(
   }
   if (body.payload !== undefined && body.payload.version !== 1) {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
+  if (
+    body.payload !== undefined &&
+    JSON.stringify(body.payload).length > MAX_BODY_BYTES
+  ) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
+  if (typeof body.name === "string" && body.name.length > MAX_NAME_CHARS) {
+    return NextResponse.json({ error: "name_too_long" }, { status: 400 });
   }
 
   const design = await updateDesign(r.userSub, id, body);
