@@ -20,7 +20,6 @@ import {
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
-import { logout } from "@/lib/auth-actions";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { PanelInfoBar } from "./PanelInfoBar";
@@ -35,6 +34,7 @@ interface AuthUser {
 
 interface PanelerDesignerProps {
   user: AuthUser | null;
+  logoutAction?: () => Promise<void>;
 }
 
 // R3F can't run on the server. App Router disallows ssr:false in Server
@@ -52,7 +52,7 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
 
 const DEFAULT_PRESET = "soccer";
 
-export function PanelerDesigner({ user }: PanelerDesignerProps) {
+export function PanelerDesigner({ user, logoutAction }: PanelerDesignerProps) {
   const [presetId, setPresetId] = useState(DEFAULT_PRESET);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
@@ -172,7 +172,7 @@ export function PanelerDesigner({ user }: PanelerDesignerProps) {
             enabled={suedeEnabled}
             onChange={setSuedeEnabled}
           />
-          {user && <UserMenu user={user} />}
+          {user && <UserMenu user={user} logoutAction={logoutAction} />}
         </div>
       </div>
 
@@ -415,7 +415,7 @@ function UploadGlyph() {
   );
 }
 
-function UserMenu({ user }: { user: AuthUser }) {
+function UserMenu({ user, logoutAction }: { user: AuthUser; logoutAction?: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const initial =
     (user.name ?? user.email ?? "?").trim().charAt(0).toUpperCase();
@@ -459,14 +459,16 @@ function UserMenu({ user }: { user: AuthUser }) {
               </div>
             )}
           </div>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="w-full px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              Sign out
-            </button>
-          </form>
+          {logoutAction && (
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="w-full px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                Sign out
+              </button>
+            </form>
+          )}
         </div>
       )}
     </div>
