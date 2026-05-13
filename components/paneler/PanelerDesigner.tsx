@@ -116,19 +116,28 @@ export function PanelerDesigner({
   const ds = useDesigns({ enabled: dbEnabled, snapshotCurrent });
   const { currentId } = ds;
 
-  // Auto-save the current row when the design changes (debounced). Tiny
-  // payloads, fine to write often; the debounce avoids one POST per
-  // panel-click while painting.
-  useEffect(() => {
-    if (!dbEnabled || !currentId) return;
-    const t = window.setTimeout(() => {
-      ds.saveCurrent().catch(() => {
-        // Surfacing a toast is overkill here; failures show up in DevTools
-        // and the user will retry by interacting again.
-      });
-    }, 1500);
-    return () => window.clearTimeout(t);
-  }, [dbEnabled, currentId, presetId, panelColors, ds]);
+  // Explicit save via the toolbar button (below). No timer-based autosave
+  // for v1; the auto-save-before-switch/create in useDesigns is the only
+  // implicit save path so unsaved tweaks aren't lost on row change.
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const handleSave = useCallback(async () => {
+    if (!dbEnabled) return;
+    setSaveState("saving");
+    try {
+      if (currentId) {
+        await ds.saveCurrent();
+      } else {
+        await ds.create("Untitled");
+      }
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 1500);
+    } catch {
+      setSaveState("error");
+      window.setTimeout(() => setSaveState("idle"), 2500);
+    }
+  }, [dbEnabled, currentId, ds]);
 
   const handleLoadDesign = useCallback(
     async (id: string) => {
@@ -311,11 +320,33 @@ export function PanelerDesigner({
             </span>
           )}
         </div>
-        <ShareControls
-          modelType={presetId}
-          panelColors={panelColors}
-          onImport={handleImport}
-        />
+        <div className="flex items-center gap-2">
+          {dbEnabled && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSave}
+              disabled={saveState === "saving"}
+              className={`h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${
+                saveState === "error" ? "text-destructive" : ""
+              }`}
+            >
+              <SaveIcon />
+              {saveState === "saving"
+                ? "Saving…"
+                : saveState === "saved"
+                  ? "Saved"
+                  : saveState === "error"
+                    ? "Save failed"
+                    : "Save"}
+            </Button>
+          )}
+          <ShareControls
+            modelType={presetId}
+            panelColors={panelColors}
+            onImport={handleImport}
+          />
+        </div>
       </div>
 
       {/* Canvas stage + sidebar. */}
@@ -483,6 +514,16 @@ function UploadGlyph() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
     </svg>
   );
 }

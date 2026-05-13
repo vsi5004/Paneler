@@ -82,6 +82,29 @@ describe("useDesigns", () => {
     expect(result.current.designs[0].id).toBe("row-1");
   });
 
+  it("seeds an Untitled row when the initial list is empty (first login)", async () => {
+    installFetch([
+      // First GET returns no rows.
+      {
+        matches: (url, init) =>
+          url.endsWith("/api/designs") && (init?.method ?? "GET") === "GET",
+        respond: () => jsonRes({ designs: [] }),
+      },
+      // Hook auto-creates one with the current canvas snapshot.
+      {
+        matches: (url, init) =>
+          url.endsWith("/api/designs") && init?.method === "POST",
+        respond: () => jsonRes({ design: row({ id: "seeded", name: "Untitled" }) }, 201),
+      },
+    ]);
+    const { result } = renderHook(() =>
+      useDesigns({ enabled: true, snapshotCurrent }),
+    );
+    await waitFor(() => expect(result.current.designs).toHaveLength(1));
+    expect(result.current.designs[0].id).toBe("seeded");
+    expect(result.current.currentId).toBe("seeded");
+  });
+
   it("create auto-saves the current row first, then POSTs and selects the new one", async () => {
     installFetch([
       // Initial list — one existing row, currently selected via load().
