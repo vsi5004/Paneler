@@ -1,5 +1,12 @@
 [
   {
+    "slug": "baseball",
+    "label": "Baseball",
+    "glbPath": "/presets/baseball.glb",
+    "panelCount": 2,
+    "shapeSignature": "2g"
+  },
+  {
     "slug": "tetra",
     "label": "Tetrahedron",
     "glbPath": "/presets/tetra.glb",

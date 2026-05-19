@@ -15,6 +15,7 @@ import { GLTFLoader } from "three-stdlib";
 
 import type { PanelColors } from "@/lib/types";
 import { loadSuedeTextures } from "@/lib/mesh/suedeTexture";
+import { generatePanelUVsOnGeometry } from "@/lib/mesh/panelUVs";
 
 // Pixel drag threshold above which a pointer-down→pointer-up sequence is
 // treated as a camera drag, not a panel click. Matches Footbag-3D-Visualizer.
@@ -123,6 +124,17 @@ function useGlbGroup(bytes: Uint8Array | null): Group | null {
           if (!mesh.isMesh) return;
           const panelId = mesh.userData?.panelId as string | undefined;
           if (!panelId) return;
+          // Fallbacks for user-uploaded GLBs that may be missing normals or
+          // UVs. Template GLBs already carry both, but a Blender export
+          // without "Generate UVs" still needs to render and accept the
+          // suede texture, so we patch them in here.
+          const geom = mesh.geometry;
+          if (!geom.attributes.normal) {
+            geom.computeVertexNormals();
+          }
+          if (!geom.attributes.uv) {
+            generatePanelUVsOnGeometry(geom, panelId);
+          }
           const mat = mesh.material as MeshStandardMaterial;
           if (mat && "color" in mat) {
             mesh.userData.originalColor = `#${mat.color.getHexString()}`;

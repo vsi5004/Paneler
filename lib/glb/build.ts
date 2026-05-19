@@ -1,7 +1,8 @@
 import { Document } from "@gltf-transform/core";
-import { Vector3 } from "three";
+import { BufferAttribute, BufferGeometry, Vector3 } from "three";
 import type { PanelTopology } from "@/lib/types";
 import { getPanelTriangles, getBoundaryArcs } from "@/lib/mesh/subdivide";
+import { buildPanelUVArray } from "@/lib/mesh/panelUVs";
 
 const SEAM_RADIUS_BOOST = 1.004;
 const SEAM_NODE_NAME = "__seams";
@@ -68,16 +69,53 @@ export function buildGlbDocument(
       }
     }
 
+    // Smooth shading needs normals; suede texture needs UVs. We bake both
+    // into the GLB so other glTF tooling renders the templates correctly and
+    // the runtime can skip the recomputation step. Normals are computed via
+    // Three.js' BufferGeometry pass so we share the same algorithm the
+    // renderer would have produced from a missing-normal fallback.
+    const positionTyped = new Float32Array(localPositions);
+    const indexTyped = new Uint32Array(localIndices);
+    const tempGeom = new BufferGeometry();
+    tempGeom.setAttribute("position", new BufferAttribute(positionTyped, 3));
+    tempGeom.setIndex(new BufferAttribute(indexTyped, 1));
+    tempGeom.computeVertexNormals();
+    // Copy into a fresh Float32Array so its buffer type is the strict
+    // `ArrayBuffer` gltf-transform's setArray expects (Three.js' attribute
+    // .array is typed as `ArrayBufferLike` which TS rejects).
+    const normalTyped = new Float32Array(
+      (tempGeom.attributes.normal as BufferAttribute).array as Float32Array,
+    );
+    const uvTyped = new Float32Array(
+      buildPanelUVArray(
+        positionTyped,
+        positionTyped.length / 3,
+        panel.id,
+      ),
+    );
+
     const positionAccessor = doc
       .createAccessor()
       .setType("VEC3")
-      .setArray(new Float32Array(localPositions))
+      .setArray(positionTyped)
+      .setBuffer(buffer);
+
+    const normalAccessor = doc
+      .createAccessor()
+      .setType("VEC3")
+      .setArray(normalTyped)
+      .setBuffer(buffer);
+
+    const uvAccessor = doc
+      .createAccessor()
+      .setType("VEC2")
+      .setArray(uvTyped)
       .setBuffer(buffer);
 
     const indexAccessor = doc
       .createAccessor()
       .setType("SCALAR")
-      .setArray(new Uint32Array(localIndices))
+      .setArray(indexTyped)
       .setBuffer(buffer);
 
     const materialName = `${panel.id}_mat`;
@@ -94,6 +132,8 @@ export function buildGlbDocument(
     const primitive = doc
       .createPrimitive()
       .setAttribute("POSITION", positionAccessor)
+      .setAttribute("NORMAL", normalAccessor)
+      .setAttribute("TEXCOORD_0", uvAccessor)
       .setIndices(indexAccessor)
       .setMaterial(material);
 
