@@ -7,26 +7,21 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
-import { PRESETS } from "@/lib/topology/presets";
-import { parseObjToTopology } from "@/lib/topology/obj";
 import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
 import {
   applyColor,
   applyColorToUnpainted,
   applyShapeColor,
-  decodeDesignFromHash,
-  resetPanel,
 } from "@/lib/designState";
-import type { PanelColors, PanelTopology } from "@/lib/types";
+import type { PanelColors } from "@/lib/types";
+import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 
 import { Button } from "@/components/ui/button";
-import { useDesigns } from "@/lib/useDesigns";
+import { openGlb, saveGlb } from "@/lib/files/glbFile";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
-import { DesignNav } from "./DesignNav";
 import { PanelInfoBar } from "./PanelInfoBar";
 import PanelerFlatView from "./PanelerFlatView";
-import { ShareControls } from "./ShareControls";
 
 interface AuthUser {
   name?: string | null;
@@ -34,10 +29,18 @@ interface AuthUser {
   image?: string | null;
 }
 
+interface TemplateEntry {
+  slug: string;
+  label: string;
+  glbPath: string;
+  panelCount: number;
+  shapeSignature: string;
+}
+
 interface PanelerDesignerProps {
   user: AuthUser | null;
   logoutAction?: () => Promise<void>;
-  /** True when the app runs against Postgres. Drives the left-nav design list. */
+  /** True when the app runs against Postgres. Drives the saved-designs nav. */
   dbEnabled: boolean;
 }
 
@@ -54,190 +57,168 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
   ),
 });
 
-const DEFAULT_PRESET = "soccer";
+const DEFAULT_TEMPLATE = "soccer";
+const PRESETS_BASE = (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + "/presets";
 
 export function PanelerDesigner({
   user,
   logoutAction,
-  dbEnabled,
 }: PanelerDesignerProps) {
-  const [presetId, setPresetId] = useState(DEFAULT_PRESET);
+  const [templates, setTemplates] = useState<TemplateEntry[]>([]);
+  const [activeTemplateSlug, setActiveTemplateSlug] = useState<string | null>(null);
+  const [uploadedName, setUploadedName] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
-  const [panelColors, setPanelColors] = useState<PanelColors>({});
   const [suedeEnabled, setSuedeEnabled] = useState(true);
-  const [customTopology, setCustomTopology] = useState<PanelTopology | null>(
-    null,
-  );
-  const [customLabel, setCustomLabel] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle",
+  );
+  // Persisted FileSystemFileHandle for save-in-place on FSA-capable browsers.
+  // Lives in a ref so re-renders don't cycle the handle's permission state.
+  const fileHandleRef = useRef<FileSystemHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const preset =
-    PRESETS.find((p) => p.id === presetId) ??
-    PRESETS.find((p) => p.id === DEFAULT_PRESET)!;
-  const topology = useMemo(
-    () => customTopology ?? preset.topology(),
-    [customTopology, preset],
-  );
+  const design = useGlbDesign();
+  const {
+    bytes,
+    topology,
+    panelColors,
+    loadFromUrl,
+    loadFromBytes,
+    setPanelColors,
+  } = design;
+
+  // One-shot template manifest fetch. The bake script writes
+  // public/presets/index.json next to the GLBs.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${PRESETS_BASE}/index.json`)
+      .then((r) => r.json() as Promise<TemplateEntry[]>)
+      .then((list) => {
+        if (cancelled) return;
+        setTemplates(list);
+        // Pick a sensible starting template; load it.
+        const initial = list.find((t) => t.slug === DEFAULT_TEMPLATE) ?? list[0];
+        if (initial) {
+          setActiveTemplateSlug(initial.slug);
+          void loadFromUrl(PRESETS_BASE + initial.glbPath.replace(/^\/presets/, ""));
+        }
+      })
+      .catch(() => {
+        // Manifest fetch can fail in non-deployed test contexts; UI handles
+        // the empty list gracefully.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadFromUrl]);
+
   const allPanelIds = useMemo(
-    () => topology.panels.map((p) => p.id),
+    () => topology?.panels.map((p) => p.id) ?? [],
     [topology],
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.location.hash) return;
-    // URL-hash share is the files-only/GH-Pages share mechanism. In DB mode
-    // sharing happens via the per-design publish toggle, so stale hash links
-    // are silently ignored.
-    if (dbEnabled) return;
-    try {
-      const design = decodeDesignFromHash(window.location.hash);
-      const match = PRESETS.find((p) => p.id === design.modelType);
-      // One-shot hydration from URL hash on mount — set-state-in-effect is
-      // the right pattern here (no other way to seed initial state from a
-      // browser-only API).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (match) setPresetId(match.id);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPanelColors(design.panelColors);
-    } catch {
-      // ignore — preserves the default-empty design
-    }
-  }, [dbEnabled]);
-
-  // Designs nav + persistence (DB modes only). The hook stays inert when
-  // disabled, so it's safe to instantiate unconditionally.
-  const snapshotCurrent = useCallback(
-    () => ({ version: 1 as const, modelType: presetId, panelColors }),
-    [presetId, panelColors],
-  );
-  const ds = useDesigns({ enabled: dbEnabled, snapshotCurrent });
-  const { currentId } = ds;
-
-  // Explicit save via the toolbar button (below). No timer-based autosave
-  // for v1; the auto-save-before-switch/create in useDesigns is the only
-  // implicit save path so unsaved tweaks aren't lost on row change.
-  const [saveState, setSaveState] = useState<
-    "idle" | "saving" | "saved" | "error"
-  >("idle");
-  const handleSave = useCallback(async () => {
-    if (!dbEnabled) return;
-    setSaveState("saving");
-    try {
-      if (currentId) {
-        await ds.saveCurrent();
-      } else {
-        await ds.create("Untitled");
-      }
-      setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 1500);
-    } catch {
-      setSaveState("error");
-      window.setTimeout(() => setSaveState("idle"), 2500);
-    }
-  }, [dbEnabled, currentId, ds]);
-
-  const handleLoadDesign = useCallback(
-    async (id: string) => {
-      const row = await ds.load(id);
-      if (!row) return;
-      const match = PRESETS.find((p) => p.id === row.payload.modelType);
-      if (match) setPresetId(match.id);
-      setCustomTopology(null);
-      setCustomLabel("");
-      setPanelColors(row.payload.panelColors);
-      setSelectedPanelId(null);
-    },
-    [ds],
-  );
-
-  const handleCreateDesign = useCallback(async () => {
-    await ds.create("Untitled");
-  }, [ds]);
 
   const handlePanelClick = useCallback(
     (panelId: string) => {
       setSelectedPanelId(panelId);
-      setPanelColors((prev) => applyColor(prev, panelId, selectedColor));
+      setPanelColors((prev: PanelColors) => applyColor(prev, panelId, selectedColor));
     },
-    [selectedColor],
+    [selectedColor, setPanelColors],
   );
 
-  const handlePresetChange = useCallback((newId: string) => {
-    setPresetId(newId);
-    setCustomTopology(null);
-    setCustomLabel("");
-    setPanelColors({});
-    setSelectedPanelId(null);
-  }, []);
-
-  const handleObjUpload = useCallback(async (file: File) => {
-    try {
-      const text = await file.text();
-      const topo = parseObjToTopology(text, 1);
-      setCustomTopology(topo);
-      setCustomLabel(file.name);
-      setPanelColors({});
+  const handleTemplateChange = useCallback(
+    (slug: string) => {
+      const entry = templates.find((t) => t.slug === slug);
+      if (!entry) return;
+      setActiveTemplateSlug(slug);
+      setUploadedName(null);
       setSelectedPanelId(null);
-      setUploadError(null);
+      void loadFromUrl(PRESETS_BASE + entry.glbPath.replace(/^\/presets/, ""));
+    },
+    [templates, loadFromUrl],
+  );
+
+  const handleGlbUpload = useCallback(
+    async (file: File) => {
+      try {
+        const buf = await file.arrayBuffer();
+        setUploadError(null);
+        setActiveTemplateSlug(null);
+        setUploadedName(file.name);
+        setSelectedPanelId(null);
+        // A file-picker upload doesn't give us a writable handle, so saves
+        // will need to re-prompt for a location. The "Open" flow does.
+        fileHandleRef.current = null;
+        await loadFromBytes(new Uint8Array(buf));
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "GLB load failed");
+        window.setTimeout(() => setUploadError(null), 5000);
+      }
+    },
+    [loadFromBytes],
+  );
+
+  const handleOpen = useCallback(async () => {
+    setUploadError(null);
+    try {
+      const opened = await openGlb();
+      if (!opened) return;
+      setActiveTemplateSlug(null);
+      setUploadedName(opened.name);
+      setSelectedPanelId(null);
+      fileHandleRef.current = opened.handle;
+      await loadFromBytes(opened.bytes);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "OBJ parse failed");
+      setUploadError(err instanceof Error ? err.message : "Open failed");
       window.setTimeout(() => setUploadError(null), 5000);
     }
-  }, []);
+  }, [loadFromBytes]);
+
+  const handleSave = useCallback(async () => {
+    setSaveState("saving");
+    try {
+      const bytes = await design.serialize();
+      if (!bytes) {
+        setSaveState("idle");
+        return;
+      }
+      const suggested =
+        uploadedName ??
+        (activeTemplateSlug ? `${activeTemplateSlug}.glb` : "design.glb");
+      const handle = await saveGlb(bytes, suggested, fileHandleRef.current);
+      if (handle) fileHandleRef.current = handle;
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 1500);
+    } catch (err) {
+      console.error(err);
+      setSaveState("error");
+      window.setTimeout(() => setSaveState("idle"), 2500);
+    }
+  }, [design, uploadedName, activeTemplateSlug]);
 
   const handleResetSelected = useCallback(() => {
     if (!selectedPanelId) return;
-    setPanelColors((prev) => resetPanel(prev, selectedPanelId));
-  }, [selectedPanelId]);
+    design.resetPanel(selectedPanelId);
+  }, [design, selectedPanelId]);
 
   const handlePaintShape = useCallback(
     (shape: string) => {
-      setPanelColors((prev) =>
+      setPanelColors((prev: PanelColors) =>
         applyShapeColor(prev, allPanelIds, shape, selectedColor),
       );
     },
-    [allPanelIds, selectedColor],
+    [allPanelIds, selectedColor, setPanelColors],
   );
 
   const handleFillUnpainted = useCallback(() => {
-    setPanelColors((prev) =>
+    setPanelColors((prev: PanelColors) =>
       applyColorToUnpainted(prev, allPanelIds, selectedColor),
     );
-  }, [allPanelIds, selectedColor]);
-
-  const handleImport = useCallback(
-    (importedModelType: string, importedColors: PanelColors) => {
-      const match = PRESETS.find((p) => p.id === importedModelType);
-      if (match) setPresetId(match.id);
-      setPanelColors(importedColors);
-      setSelectedPanelId(null);
-    },
-    [],
-  );
-
-  const [navCollapsed, setNavCollapsed] = useState(false);
-  const toggleNav = useCallback(() => setNavCollapsed((v) => !v), []);
+  }, [allPanelIds, selectedColor, setPanelColors]);
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      {dbEnabled && (
-        <DesignNav
-          designs={ds.designs}
-          currentId={ds.currentId}
-          loading={ds.loading}
-          collapsed={navCollapsed}
-          onToggleCollapsed={toggleNav}
-          onCreate={handleCreateDesign}
-          onLoad={handleLoadDesign}
-          onRename={ds.rename}
-          onToggleStarred={ds.toggleStarred}
-          onTogglePublished={ds.togglePublished}
-          onDelete={ds.remove}
-        />
-      )}
       <div className="flex flex-1 flex-col">
       {/* Identity strip — thin, low-density. Brand + account. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
@@ -266,24 +247,24 @@ export function PanelerDesigner({
         <div className="flex flex-wrap items-center gap-3">
           <PresetLabel />
           <ToggleGroup
-            value={customTopology ? [] : [presetId]}
-            onValueChange={(v) => v[0] && handlePresetChange(v[0])}
+            value={activeTemplateSlug ? [activeTemplateSlug] : []}
+            onValueChange={(v) => v[0] && handleTemplateChange(v[0])}
             variant="outline"
             size="sm"
             className="rounded-md border border-border bg-background/40 p-0.5"
           >
-            {PRESETS.map((p) => (
+            {templates.map((t) => (
               <ToggleGroupItem
-                key={p.id}
-                value={p.id}
-                aria-label={p.label}
+                key={t.slug}
+                value={t.slug}
+                aria-label={t.label}
                 className="h-7 gap-1.5 rounded-sm border-0 px-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
                 <span className="text-foreground/90 data-[state=on]:text-primary-foreground">
-                  {p.label}
+                  {t.label}
                 </span>
                 <span className="font-mono text-[10px] opacity-70">
-                  {p.panels}
+                  {t.panelCount}
                 </span>
               </ToggleGroupItem>
             ))}
@@ -296,27 +277,31 @@ export function PanelerDesigner({
             className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
           >
             <UploadGlyph />
-            Upload OBJ
+            Upload GLB
           </Button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".obj"
+            accept=".glb,model/gltf-binary"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleObjUpload(file);
+              if (file) void handleGlbUpload(file);
               e.target.value = "";
             }}
           />
-          {customTopology && (
+          {uploadedName && (
             <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-primary/90">
               <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-              {customLabel}
-              <span className="text-muted-foreground/70">·</span>
-              <span className="text-muted-foreground">
-                {customTopology.panels.length} panels
-              </span>
+              {uploadedName}
+              {topology && (
+                <>
+                  <span className="text-muted-foreground/70">·</span>
+                  <span className="text-muted-foreground">
+                    {topology.panels.length} panels
+                  </span>
+                </>
+              )}
             </span>
           )}
           {uploadError && (
@@ -326,31 +311,33 @@ export function PanelerDesigner({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {dbEnabled && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSave}
-              disabled={saveState === "saving"}
-              className={`h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${
-                saveState === "error" ? "text-destructive" : ""
-              }`}
-            >
-              <SaveIcon />
-              {saveState === "saving"
-                ? "Saving…"
-                : saveState === "saved"
-                  ? "Saved"
-                  : saveState === "error"
-                    ? "Save failed"
-                    : "Save"}
-            </Button>
-          )}
-          <ShareControls
-            modelType={presetId}
-            panelColors={panelColors}
-            onImport={handleImport}
-          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleOpen()}
+            className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            <OpenIcon />
+            Open
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleSave()}
+            disabled={saveState === "saving" || !bytes}
+            className={`h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${
+              saveState === "error" ? "text-destructive" : ""
+            }`}
+          >
+            <SaveIcon />
+            {saveState === "saving"
+              ? "Saving…"
+              : saveState === "saved"
+                ? "Saved"
+                : saveState === "error"
+                  ? "Save failed"
+                  : "Save"}
+          </Button>
         </div>
       </div>
 
@@ -360,7 +347,7 @@ export function PanelerDesigner({
           <div className="grid flex-1 grid-cols-1 md:grid-cols-2">
             <CanvasFrame label="3D · Sphere">
               <PanelerCanvas
-                topology={topology}
+                glbBytes={bytes}
                 panelColors={panelColors}
                 selectedPanelId={selectedPanelId}
                 suedeEnabled={suedeEnabled}
@@ -371,12 +358,20 @@ export function PanelerDesigner({
               label="2D · Flat net"
               className="border-t md:border-l md:border-t-0"
             >
-              <PanelerFlatView
-                topology={topology}
-                panelColors={panelColors}
-                selectedPanelId={selectedPanelId}
-                onPanelClick={handlePanelClick}
-              />
+              {topology ? (
+                <PanelerFlatView
+                  topology={topology}
+                  panelColors={panelColors}
+                  selectedPanelId={selectedPanelId}
+                  onPanelClick={handlePanelClick}
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+                    Loading…
+                  </span>
+                </div>
+              )}
             </CanvasFrame>
           </div>
           {/* Status bar — instrument readout + tool cluster. */}
@@ -406,11 +401,13 @@ export function PanelerDesigner({
             />
           </section>
           <div className="workshop-hairline" />
-          <ColorSummary
-            topology={topology}
-            panelColors={panelColors}
-            onSwatchClick={setSelectedColor}
-          />
+          {topology && (
+            <ColorSummary
+              topology={topology}
+              panelColors={panelColors}
+              onSwatchClick={setSelectedColor}
+            />
+          )}
         </aside>
       </div>
       </div>
@@ -484,11 +481,6 @@ function SuedeToggle({ enabled, onChange }: SuedeToggleProps) {
   );
 }
 
-/**
- * Wrapper for each canvas pane: floats a small mono label in the top-left
- * corner so the canvas content reads as the primary surface, not a
- * heading-and-content stack.
- */
 function CanvasFrame({
   label,
   className,
@@ -519,6 +511,14 @@ function UploadGlyph() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function OpenIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

@@ -22,10 +22,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 // Button is used for the "+ New Design" CTA only; per-row triggers use the
 // raw Base UI Trigger element (asChild isn't supported on Base UI).
-import type { DesignRow } from "@/lib/useDesigns";
+import type { DesignMeta } from "@/lib/types";
 
 interface DesignNavProps {
-  designs: DesignRow[];
+  designs: DesignMeta[];
   currentId: string | null;
   loading: boolean;
   collapsed: boolean;
@@ -177,7 +177,7 @@ function NavSection({
 }
 
 interface NavRowProps {
-  design: DesignRow;
+  design: DesignMeta;
   active: boolean;
   onLoad: (id: string) => void;
   onRename: (id: string, name: string) => Promise<void>;

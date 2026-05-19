@@ -66,8 +66,8 @@ const url = process.env.TEST_DATABASE_URL;
     await client.query("SET LOCAL ROLE paneler_app");
     await client.query("SELECT set_config('app.user_sub', 'user-a', true)");
     await client.query(
-      `INSERT INTO designs (user_sub, name, payload)
-       VALUES ('user-a', 'A', '{"version":1,"modelType":"soccer","panelColors":{}}'::jsonb)`,
+      `INSERT INTO designs (user_sub, name, glb_key)
+       VALUES ('user-a', 'A', 'designs/a.glb')`,
     );
     await client.query("COMMIT");
 
@@ -76,8 +76,8 @@ const url = process.env.TEST_DATABASE_URL;
     await client.query("SET LOCAL ROLE paneler_app");
     await client.query("SELECT set_config('app.user_sub', 'user-b', true)");
     await client.query(
-      `INSERT INTO designs (user_sub, name, payload)
-       VALUES ('user-b', 'B', '{"version":1,"modelType":"soccer","panelColors":{}}'::jsonb)`,
+      `INSERT INTO designs (user_sub, name, glb_key)
+       VALUES ('user-b', 'B', 'designs/b.glb')`,
     );
     const { rows: bRows } = await client.query<{ name: string }>(
       "SELECT name FROM designs",
@@ -93,8 +93,8 @@ const url = process.env.TEST_DATABASE_URL;
     await client.query("SELECT set_config('app.user_sub', 'user-a', true)");
     await expect(
       client.query(
-        `INSERT INTO designs (user_sub, name, payload)
-         VALUES ('hacker', 'spoof', '{"version":1,"modelType":"x","panelColors":{}}'::jsonb)`,
+        `INSERT INTO designs (user_sub, name, glb_key)
+         VALUES ('hacker', 'spoof', 'designs/x.glb')`,
       ),
     ).rejects.toThrow(/row-level security/);
     await client.query("ROLLBACK");
