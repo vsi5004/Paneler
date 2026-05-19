@@ -158,10 +158,37 @@ function cloneTopology(topo: PanelTopology): PanelTopology {
 }
 
 function computeCentroid(vertices: Vector3[], indices: readonly number[]): Vector3 {
-  const c = new Vector3();
-  for (const idx of indices) c.add(vertices[idx]);
-  c.divideScalar(indices.length);
-  return c;
+  // Arithmetic average works for convex panels on the sphere (Goldberg /
+  // Platonic faces): the average vector points well inside the panel and has
+  // a magnitude close to the sphere radius.
+  const naive = new Vector3();
+  for (const idx of indices) naive.add(vertices[idx]);
+  naive.divideScalar(indices.length);
+
+  // For non-convex or great-circle-ish boundaries (e.g. the Baseball
+  // template's wavy seam, whose ±latitude swings cancel out), the arithmetic
+  // average collapses toward the sphere center. Fan-triangulation from
+  // origin spikes every parent triangle through the ball's interior and
+  // projectToSphere refuses to normalize the zero-length vertex, so the
+  // panel renders as garbage. Fall back to the signed-area vector
+  // (Σ vᵢ × vᵢ₊₁), which always points to the panel's interior hemisphere
+  // regardless of boundary shape — for a CCW-from-outside boundary it's the
+  // outward face normal at the panel center.
+  if (naive.lengthSq() < 0.04) {
+    const radius = vertices[indices[0]].length() || 1;
+    const areaVec = new Vector3();
+    const cross = new Vector3();
+    for (let i = 0; i < indices.length; i++) {
+      const a = vertices[indices[i]];
+      const b = vertices[indices[(i + 1) % indices.length]];
+      cross.crossVectors(a, b);
+      areaVec.add(cross);
+    }
+    if (areaVec.lengthSq() > 0) {
+      return areaVec.normalize().multiplyScalar(radius);
+    }
+  }
+  return naive;
 }
 
 function addVertex(pool: Vector3[], v: Vector3): number {
