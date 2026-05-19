@@ -4,6 +4,14 @@ Living roadmap for Paneler. Updated as scope, phase boundaries, or design decisi
 
 For product-level "what is this and how do I run it" info, see [README.md](./README.md).
 
+## Status — May 2026
+
+The **GLB-source-of-truth refactor** has landed. The previous JSON-based `Design` payload (`{ modelType, panelColors }` regenerated from parametric generators at runtime) is gone. A design is now a binary glTF in Cloudflare R2 (kube mode) or on the user's disk (files-only mode). The Postgres row holds only metadata + a `glb_key` pointer. The OBJ upload feature was removed and replaced by GLB upload — Blender (or any glTF exporter) is the supported authoring tool.
+
+The "How do users define custom panel shapes?" open question below is **resolved**: GLB upload from Blender, with each mesh primitive becoming one panel.
+
+Geometry editing in the app (drag a vertex, split a panel) is deferred to a follow-up PR. The current scope is load/save + color editing of GLBs; the unfold view and template fork-on-create flows are intact.
+
 ## Context
 
 Paneler unifies three prior repos into one web app:

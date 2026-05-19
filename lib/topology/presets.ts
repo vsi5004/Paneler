@@ -6,6 +6,7 @@ import {
   shapeForVertexCount,
 } from "@/lib/types";
 import { goldberg11, goldbergClassI } from "./goldberg";
+import { baseball } from "./baseball";
 
 /**
  * Build a PanelTopology from raw vertex coordinates and face index loops.
@@ -277,6 +278,7 @@ export interface PresetEntry {
 }
 
 export const PRESETS: PresetEntry[] = [
+  { id: "baseball", label: "Baseball", panels: 2, topology: baseball },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },

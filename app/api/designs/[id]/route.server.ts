@@ -6,19 +6,22 @@ import {
   getDesign,
   updateDesign,
 } from "@/lib/db/designs";
-import type { Design } from "@/lib/types";
+import { deleteObject } from "@/lib/r2/client";
 
 export const dynamic = "force-dynamic";
 
-// Match the caps in ../route.server.ts.
-const MAX_BODY_BYTES = 256 * 1024;
 const MAX_NAME_CHARS = 200;
 
 interface PatchBody {
   name?: string;
-  payload?: Design;
   starred?: boolean;
   published?: boolean;
+  panel_count?: number;
+  shape_signature?: string;
+  palette_hash?: string;
+  glb_etag?: string;
+  glb_size_bytes?: number;
+  thumbnail_key?: string;
 }
 
 async function resolveUser(): Promise<
@@ -64,25 +67,11 @@ export async function PUT(
   if (r.kind === "err") return r.res;
   const { id } = await params;
 
-  const contentLength = Number(req.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
-  }
-
   let body: PatchBody;
   try {
     body = (await req.json()) as PatchBody;
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
-  if (body.payload !== undefined && body.payload.version !== 1) {
-    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
-  }
-  if (
-    body.payload !== undefined &&
-    JSON.stringify(body.payload).length > MAX_BODY_BYTES
-  ) {
-    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
   }
   if (typeof body.name === "string" && body.name.length > MAX_NAME_CHARS) {
     return NextResponse.json({ error: "name_too_long" }, { status: 400 });
@@ -102,9 +91,19 @@ export async function DELETE(
   const r = await resolveUser();
   if (r.kind === "err") return r.res;
   const { id } = await params;
-  const ok = await deleteDesign(r.userSub, id);
-  if (!ok) {
+  // Fetch the row first so we know the glb_key to delete from R2. The DB row
+  // and R2 object are loosely coupled; if the R2 delete fails the row is
+  // still removed and the object becomes an orphan (cleaned up by a future
+  // sweeper if we ever need one).
+  const existing = await getDesign(r.userSub, id);
+  if (!existing) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  await deleteDesign(r.userSub, id);
+  try {
+    await deleteObject(existing.glb_key);
+  } catch (err) {
+    console.error("[paneler:r2] delete failed for", existing.glb_key, err);
   }
   return new Response(null, { status: 204 });
 }

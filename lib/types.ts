@@ -41,16 +41,44 @@ export function panelId(index: number, shape: PanelShape): string {
 }
 
 // -----------------------------------------------------------------------------
-// Design state types (ported from Footbag-3D-Visualizer)
+// Design state types
+//
+// Geometry + per-panel colors live in the GLB blob (in R2 in kube mode, on the
+// user's disk in GH Pages mode). This type is metadata only — the queryable
+// fields that mirror what the GLB contains, plus the bookkeeping the designs
+// nav needs (name, starred, timestamps).
 // -----------------------------------------------------------------------------
 
+/**
+ * Live-in-React-state mirror of each panel's material color, keyed by panel
+ * id (`panel_NNN_<shape>`). Kept in parallel with the gltf-transform Document's
+ * baseColorFactor entries so the canvas re-renders without re-parsing the GLB
+ * on every paint stroke.
+ */
 export type PanelColors = Record<string, string>;
 
-export interface Design {
-  /** Schema version. Bump for breaking changes to encoded designs. */
-  version: 1;
-  modelType: string;
-  panelColors: PanelColors;
+/**
+ * Per-design metadata stored in Postgres. The GLB bytes themselves live in R2
+ * at `designs/{id}.glb`. The mirror fields (panel_count, shape_signature,
+ * palette_hash, glb_etag, glb_size_bytes, thumbnail_key) are recomputed
+ * client-side after every save.
+ */
+export interface DesignMeta {
+  id: string;
+  name: string;
+  glb_key: string;
+  glb_etag: string | null;
+  glb_size_bytes: number | null;
+  thumbnail_key: string | null;
+  panel_count: number | null;
+  shape_signature: string | null;
+  palette_hash: string | null;
+  source: string | null;
+  template_slug: string | null;
+  starred: boolean;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PaletteEntry {

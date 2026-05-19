@@ -1,9 +1,10 @@
-// Pure-function helpers for design state. Ported from Footbag-3D-Visualizer
-// (../Footbag-3D-Visualizer/src/components/footbag-designer/designState.ts) so
-// the existing Vitest coverage carries forward and the URL-hash share format
-// stays compatible with any links already in the wild.
+// Pure-function helpers for the in-memory PanelColors mirror.
+// After the GLB-source-of-truth refactor, the design's persistent state lives
+// inside the .glb (materials' baseColorFactor). This file holds the small
+// React-state helpers used during a session — apply a color, paint by shape,
+// fill unpainted — operating on a `PanelColors` record keyed by panel id.
 
-import type { Design, PanelColors } from "@/lib/types";
+import type { PanelColors } from "@/lib/types";
 
 /**
  * Extract the shape suffix from a panel ID.
@@ -63,59 +64,4 @@ export function applyColorToUnpainted(
     }
   }
   return next;
-}
-
-export function exportDesign(modelType: string, panelColors: PanelColors): Design {
-  return { version: 1, modelType, panelColors };
-}
-
-export function importDesign(jsonString: string): Design {
-  let data: unknown;
-  try {
-    data = JSON.parse(jsonString);
-  } catch {
-    throw new Error("Invalid JSON");
-  }
-  if (typeof data !== "object" || data === null) {
-    throw new Error("Invalid design format");
-  }
-  const obj = data as Record<string, unknown>;
-  if (obj.version !== 1) {
-    throw new Error(`Unsupported design version: ${String(obj.version ?? "missing")}`);
-  }
-  if (!obj.modelType || typeof obj.modelType !== "string") {
-    throw new Error("Missing or invalid modelType");
-  }
-  if (typeof obj.panelColors !== "object" || obj.panelColors === null) {
-    throw new Error("Missing panelColors");
-  }
-
-  // Strip non-panel keys defensively.
-  const sanitizedColors: PanelColors = {};
-  for (const [key, val] of Object.entries(obj.panelColors as Record<string, unknown>)) {
-    if (key.startsWith("panel_") && typeof val === "string") {
-      sanitizedColors[key] = val;
-    }
-  }
-
-  return { version: 1, modelType: obj.modelType, panelColors: sanitizedColors };
-}
-
-// URL hash format: #v1:<base64-encoded-JSON>. Compatible with the existing
-// Footbag-3D-Visualizer share-link encoding so old links keep working.
-export function encodeDesignToHash(design: Design): string {
-  return "#v1:" + btoa(JSON.stringify(design));
-}
-
-export function decodeDesignFromHash(hash: string | null | undefined): Design {
-  if (!hash || !hash.startsWith("#v1:")) {
-    throw new Error("Not a valid design share link");
-  }
-  let json: string;
-  try {
-    json = atob(hash.slice(4));
-  } catch {
-    throw new Error("Invalid or corrupted share link");
-  }
-  return importDesign(json);
 }

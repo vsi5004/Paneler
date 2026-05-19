@@ -1,0 +1,79 @@
+[
+  {
+    "slug": "baseball",
+    "label": "Baseball",
+    "glbPath": "/presets/baseball.glb",
+    "panelCount": 2,
+    "shapeSignature": "2g"
+  },
+  {
+    "slug": "tetra",
+    "label": "Tetrahedron",
+    "glbPath": "/presets/tetra.glb",
+    "panelCount": 4,
+    "shapeSignature": "4t"
+  },
+  {
+    "slug": "cube",
+    "label": "Cube",
+    "glbPath": "/presets/cube.glb",
+    "panelCount": 6,
+    "shapeSignature": "6q"
+  },
+  {
+    "slug": "octa",
+    "label": "Octahedron",
+    "glbPath": "/presets/octa.glb",
+    "panelCount": 8,
+    "shapeSignature": "8t"
+  },
+  {
+    "slug": "dodeca",
+    "label": "Dodecahedron",
+    "glbPath": "/presets/dodeca.glb",
+    "panelCount": 12,
+    "shapeSignature": "12p"
+  },
+  {
+    "slug": "cubocta",
+    "label": "Cuboctahedron",
+    "glbPath": "/presets/cubocta.glb",
+    "panelCount": 14,
+    "shapeSignature": "8t+6q"
+  },
+  {
+    "slug": "icosa",
+    "label": "Icosahedron",
+    "glbPath": "/presets/icosa.glb",
+    "panelCount": 20,
+    "shapeSignature": "20t"
+  },
+  {
+    "slug": "soccer",
+    "label": "Soccer Ball",
+    "glbPath": "/presets/soccer.glb",
+    "panelCount": 32,
+    "shapeSignature": "12p+20h"
+  },
+  {
+    "slug": "gp2",
+    "label": "GP(2,0)",
+    "glbPath": "/presets/gp2.glb",
+    "panelCount": 42,
+    "shapeSignature": "12p+30h"
+  },
+  {
+    "slug": "gp3",
+    "label": "GP(3,0)",
+    "glbPath": "/presets/gp3.glb",
+    "panelCount": 92,
+    "shapeSignature": "12p+80h"
+  },
+  {
+    "slug": "gp4",
+    "label": "GP(4,0)",
+    "glbPath": "/presets/gp4.glb",
+    "panelCount": 162,
+    "shapeSignature": "12p+150h"
+  }
+]

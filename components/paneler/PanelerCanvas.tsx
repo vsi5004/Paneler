@@ -5,27 +5,26 @@ import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { TrackballControls } from "@react-three/drei";
 import {
   Color,
-  type Group,
+  Group,
   type LineSegments,
   type Mesh,
   type MeshStandardMaterial,
   type Texture,
 } from "three";
+import { GLTFLoader } from "three-stdlib";
 
-import type { PanelColors, PanelTopology } from "@/lib/types";
-import { subdivideTopology } from "@/lib/mesh/subdivide";
-import { projectToSphere } from "@/lib/mesh/projectToSphere";
-import { buildMeshGroup } from "@/lib/mesh/buildMeshGroup";
+import type { PanelColors } from "@/lib/types";
 import { loadSuedeTextures } from "@/lib/mesh/suedeTexture";
+import { generatePanelUVsOnGeometry } from "@/lib/mesh/panelUVs";
 
-const SPHERE_RADIUS = 2;
-const SUBDIVISION_LEVELS = 6;
 // Pixel drag threshold above which a pointer-down→pointer-up sequence is
 // treated as a camera drag, not a panel click. Matches Footbag-3D-Visualizer.
 const CLICK_DRAG_THRESHOLD = 5;
+const SEAM_NODE_NAME = "__seams";
 
 interface PanelerCanvasProps {
-  topology: PanelTopology;
+  /** The GLB bytes for the current design. Null while loading. */
+  glbBytes: Uint8Array | null;
   panelColors: PanelColors;
   selectedPanelId: string | null;
   suedeEnabled: boolean;
@@ -33,17 +32,13 @@ interface PanelerCanvasProps {
 }
 
 export default function PanelerCanvas({
-  topology,
+  glbBytes,
   panelColors,
   selectedPanelId,
   suedeEnabled,
   onPanelClick,
 }: PanelerCanvasProps) {
-  const group = useMemo(() => {
-    const subdivided = subdivideTopology(topology, SUBDIVISION_LEVELS);
-    projectToSphere(subdivided, SPHERE_RADIUS);
-    return buildMeshGroup(subdivided);
-  }, [topology]);
+  const group = useGlbGroup(glbBytes);
 
   // Lazy-load the suede maps the first time the toggle is flipped on.
   const [maps, setMaps] = useState<{ normal: Texture; roughness: Texture } | null>(null);
@@ -67,13 +62,15 @@ export default function PanelerCanvas({
       <ambientLight intensity={0.6} />
       <directionalLight position={[3, 5, 4]} intensity={1.2} />
       <directionalLight position={[-3, -2, -4]} intensity={0.3} />
-      <PanelGroup
-        group={group}
-        panelColors={panelColors}
-        selectedPanelId={selectedPanelId}
-        suedeMaps={suedeEnabled ? maps : null}
-        onPanelClick={onPanelClick}
-      />
+      {group && (
+        <PanelGroup
+          group={group}
+          panelColors={panelColors}
+          selectedPanelId={selectedPanelId}
+          suedeMaps={suedeEnabled ? maps : null}
+          onPanelClick={onPanelClick}
+        />
+      )}
       {/* TrackballControls (not OrbitControls) so the sphere can roll past
           the poles and keep spinning. OrbitControls clamps polar angle to
           [0, π] and won't go upside-down. */}
@@ -87,6 +84,91 @@ export default function PanelerCanvas({
       />
     </Canvas>
   );
+}
+
+/**
+ * Parse a GLB byte buffer into a Three.js scene Group. Returns null until the
+ * first parse completes. Disposes previous geometry on input change so we
+ * don't leak GPU memory when switching templates.
+ */
+function useGlbGroup(bytes: Uint8Array | null): Group | null {
+  const [group, setGroup] = useState<Group | null>(null);
+
+  useEffect(() => {
+    if (!bytes) {
+      setGroup(null);
+      return;
+    }
+    let cancelled = false;
+    const loader = new GLTFLoader();
+    // GLTFLoader.parse wants an ArrayBuffer aligned to the GLB header — copy
+    // to a fresh standalone ArrayBuffer to avoid offset gotchas when the
+    // upload path reuses a larger buffer (and to satisfy TS, since Uint8Array
+    // .buffer is now typed as ArrayBuffer | SharedArrayBuffer).
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+    loader.parse(
+      ab,
+      "",
+      (gltf) => {
+        if (cancelled) return;
+        // Disable raycast on the baked seam mesh so clicks pass through it
+        // to the panels behind. Also record the template's original color on
+        // each panel mesh so reset/derived UI can recover it.
+        gltf.scene.traverse((obj) => {
+          if (obj.name === SEAM_NODE_NAME) {
+            obj.raycast = () => {};
+            return;
+          }
+          const mesh = obj as Mesh;
+          if (!mesh.isMesh) return;
+          const panelId = mesh.userData?.panelId as string | undefined;
+          if (!panelId) return;
+          // Fallbacks for user-uploaded GLBs that may be missing normals or
+          // UVs. Template GLBs already carry both, but a Blender export
+          // without "Generate UVs" still needs to render and accept the
+          // suede texture, so we patch them in here.
+          const geom = mesh.geometry;
+          if (!geom.attributes.normal) {
+            geom.computeVertexNormals();
+          }
+          if (!geom.attributes.uv) {
+            generatePanelUVsOnGeometry(geom, panelId);
+          }
+          const mat = mesh.material as MeshStandardMaterial;
+          if (mat && "color" in mat) {
+            mesh.userData.originalColor = `#${mat.color.getHexString()}`;
+          }
+        });
+        setGroup(gltf.scene as unknown as Group);
+      },
+      (err) => {
+        if (!cancelled) console.error("GLB parse error", err);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [bytes]);
+
+  // Dispose old group resources when we get a new one (or when unmounting).
+  const prevRef = useRef<Group | null>(null);
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = group;
+    if (!prev || prev === group) return;
+    prev.traverse((obj) => {
+      const mesh = obj as Mesh;
+      if (mesh.isMesh) {
+        mesh.geometry?.dispose();
+        const mat = mesh.material;
+        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+        else mat?.dispose();
+      }
+    });
+  }, [group]);
+
+  return group;
 }
 
 function PanelGroup({
@@ -108,12 +190,13 @@ function PanelGroup({
   // Sync per-panel material colors from React state.
   useEffect(() => {
     group.traverse((obj) => {
-      if (!(obj as Mesh).isMesh) return;
       const mesh = obj as Mesh;
-      const panelId = mesh.userData.panelId as string | undefined;
+      if (!mesh.isMesh) return;
+      const panelId = mesh.userData?.panelId as string | undefined;
       if (!panelId) return;
       const targetHex =
-        panelColors[panelId] ?? (mesh.userData.originalColor as string);
+        panelColors[panelId] ?? (mesh.userData.originalColor as string | undefined);
+      if (!targetHex) return;
       const mat = mesh.material;
       if (Array.isArray(mat)) return;
       if ("color" in mat) {
@@ -122,20 +205,35 @@ function PanelGroup({
     });
   }, [group, panelColors]);
 
-  // Sync selected-panel edge highlight visibility.
+  // Highlight the selected panel by lifting its material emissive a touch.
+  // Avoids carrying separate outline meshes per panel; the seam network
+  // already lives in the GLB.
   useEffect(() => {
     group.traverse((obj) => {
-      const outlineFor = obj.userData?.outlineFor as string | undefined;
-      if (!outlineFor) return;
-      (obj as LineSegments).visible = outlineFor === selectedPanelId;
+      const mesh = obj as Mesh;
+      if (!mesh.isMesh) return;
+      const panelId = mesh.userData?.panelId as string | undefined;
+      if (!panelId) return;
+      const mat = mesh.material as MeshStandardMaterial | undefined;
+      if (!mat || Array.isArray(mat) || !("emissive" in mat)) return;
+      if (panelId === selectedPanelId) {
+        mat.emissive.setRGB(0.25, 0.25, 0.25);
+      } else {
+        mat.emissive.setRGB(0, 0, 0);
+      }
     });
   }, [group, selectedPanelId]);
 
-  // Sync suede normal/roughness maps onto every panel material.
+  // Sync suede normal/roughness maps onto every panel material — skipping the
+  // baked seam mesh, which doesn't shade like fabric.
   useEffect(() => {
     group.traverse((obj) => {
-      if (!(obj as Mesh).isMesh) return;
-      const mat = (obj as Mesh).material as MeshStandardMaterial | undefined;
+      if (obj.name === SEAM_NODE_NAME) return;
+      const mesh = obj as Mesh;
+      if (!mesh.isMesh) return;
+      const panelId = mesh.userData?.panelId as string | undefined;
+      if (!panelId) return;
+      const mat = mesh.material as MeshStandardMaterial | undefined;
       if (!mat || Array.isArray(mat)) return;
       if (suedeMaps) {
         mat.normalMap = suedeMaps.normal;

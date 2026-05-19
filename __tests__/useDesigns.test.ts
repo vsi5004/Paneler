@@ -1,20 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
-import { useDesigns, type DesignRow } from "@/lib/useDesigns";
-import type { Design } from "@/lib/types";
+import { useDesigns } from "@/lib/useDesigns";
+import type { DesignMeta } from "@/lib/types";
 
-const SOCCER_DESIGN: Design = {
-  version: 1,
-  modelType: "soccer",
-  panelColors: { panel_001_pentagon: "#ff0000" },
-};
-
-function row(overrides: Partial<DesignRow> = {}): DesignRow {
+function row(overrides: Partial<DesignMeta> = {}): DesignMeta {
   return {
     id: "row-1",
     name: "Untitled",
-    payload: SOCCER_DESIGN,
+    glb_key: "designs/row-1.glb",
+    glb_etag: null,
+    glb_size_bytes: null,
+    thumbnail_key: null,
+    panel_count: 32,
+    shape_signature: "12p+20h",
+    palette_hash: null,
+    source: "template:soccer",
+    template_slug: "soccer",
     starred: false,
     published: false,
     created_at: "2026-05-12T00:00:00Z",
@@ -28,7 +30,7 @@ interface QueueEntry {
   respond: () => Response;
 }
 
-function installFetch(queue: QueueEntry[]): vi.Mock {
+function installFetch(queue: QueueEntry[]): ReturnType<typeof vi.fn> {
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     const idx = queue.findIndex((q) => q.matches(url, init));
     if (idx < 0) {
@@ -48,8 +50,6 @@ function jsonRes(body: unknown, status = 200): Response {
   });
 }
 
-const snapshotCurrent = () => SOCCER_DESIGN;
-
 describe("useDesigns", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -58,9 +58,7 @@ describe("useDesigns", () => {
   it("stays inert when disabled (no fetch, no designs)", () => {
     const mock = vi.fn();
     global.fetch = mock as unknown as typeof fetch;
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: false, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: false }));
     expect(result.current.designs).toEqual([]);
     expect(result.current.loading).toBe(false);
     expect(mock).not.toHaveBeenCalled();
@@ -74,61 +72,37 @@ describe("useDesigns", () => {
         respond: () => jsonRes({ designs: [row()] }),
       },
     ]);
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.designs).toHaveLength(1);
     expect(result.current.designs[0].id).toBe("row-1");
+    expect(result.current.designs[0].glb_key).toBe("designs/row-1.glb");
   });
 
-  it("create auto-saves the current row first, then POSTs and selects the new one", async () => {
+  it("createFromTemplate POSTs with templateSlug and selects the new row", async () => {
     installFetch([
-      // Initial list — one existing row, currently selected via load().
       {
         matches: (url, init) =>
           url.endsWith("/api/designs") && (init?.method ?? "GET") === "GET",
-        respond: () => jsonRes({ designs: [row({ id: "row-1" })] }),
+        respond: () => jsonRes({ designs: [] }),
       },
-      // load("row-1") to set currentId
-      {
-        matches: (url, init) =>
-          url.endsWith("/api/designs/row-1") && (init?.method ?? "GET") === "GET",
-        respond: () => jsonRes({ design: row({ id: "row-1" }) }),
-      },
-      // Auto-save before create
-      {
-        matches: (url, init) =>
-          url.endsWith("/api/designs/row-1") && init?.method === "PUT",
-        respond: () => jsonRes({ design: row({ id: "row-1" }) }),
-      },
-      // Actual create
       {
         matches: (url, init) =>
           url.endsWith("/api/designs") && init?.method === "POST",
-        respond: () =>
-          jsonRes({ design: row({ id: "row-2", name: "Untitled" }) }, 201),
+        respond: () => jsonRes({ design: row({ id: "row-2" }) }, 201),
       },
     ]);
-
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
-
     await act(async () => {
-      await result.current.load("row-1");
-    });
-    expect(result.current.currentId).toBe("row-1");
-
-    await act(async () => {
-      await result.current.create("Untitled");
+      await result.current.createFromTemplate({
+        name: "My Soccer",
+        templateSlug: "soccer",
+        panelCount: 32,
+      });
     });
     expect(result.current.currentId).toBe("row-2");
-    expect(result.current.designs.map((d) => d.id)).toEqual([
-      "row-2",
-      "row-1",
-    ]);
+    expect(result.current.designs.map((d) => d.id)).toEqual(["row-2"]);
   });
 
   it("rename updates the row in place", async () => {
@@ -144,9 +118,7 @@ describe("useDesigns", () => {
         respond: () => jsonRes({ design: row({ name: "Renamed" }) }),
       },
     ]);
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       await result.current.rename("row-1", "Renamed");
@@ -167,9 +139,7 @@ describe("useDesigns", () => {
         respond: () => jsonRes({ design: row({ published: true }) }),
       },
     ]);
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       await result.current.togglePublished("row-1");
@@ -191,18 +161,11 @@ describe("useDesigns", () => {
       },
       {
         matches: (url, init) =>
-          url.endsWith("/api/designs/row-1") && init?.method === "PUT",
-        respond: () => jsonRes({ design: row({ id: "row-1" }) }),
-      },
-      {
-        matches: (url, init) =>
           url.endsWith("/api/designs/row-1") && init?.method === "DELETE",
         respond: () => new Response(null, { status: 204 }),
       },
     ]);
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       await result.current.load("row-1");
@@ -222,9 +185,7 @@ describe("useDesigns", () => {
         respond: () => jsonRes({ error: "db_disabled" }, 503),
       },
     ]);
-    const { result } = renderHook(() =>
-      useDesigns({ enabled: true, snapshotCurrent }),
-    );
+    const { result } = renderHook(() => useDesigns({ enabled: true }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe("db_disabled");
   });
