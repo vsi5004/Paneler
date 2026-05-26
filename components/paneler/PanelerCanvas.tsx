@@ -1,18 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, type ThreeEvent } from "@react-three/fiber";
+import { useEffect, useRef, useState } from "react";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { TrackballControls } from "@react-three/drei";
+import { useMemo } from "react";
 import {
+  BufferAttribute,
+  BufferGeometry,
   Color,
+  type DirectionalLight,
   EdgesGeometry,
+  Float32BufferAttribute,
   Group,
   LineBasicMaterial,
   LineSegments,
+  PointsMaterial,
+  Vector3 as Vec3,
   type Mesh,
   type MeshStandardMaterial,
   type Texture,
 } from "three";
+import * as THREE from "three";
 import { GLTFLoader } from "three-stdlib";
 
 import type { PanelColors } from "@/lib/types";
@@ -57,13 +65,12 @@ export default function PanelerCanvas({
 
   return (
     <Canvas
-      camera={{ position: [0, 0, 6], fov: 45 }}
+      camera={{ position: [0, 0, 8], fov: 45 }}
       gl={{ antialias: true }}
       className="flex-1"
     >
       <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 5, 4]} intensity={1.2} />
-      <directionalLight position={[-3, -2, -4]} intensity={0.3} />
+      <CameraLights />
       {group && (
         <PanelGroup
           group={group}
@@ -79,12 +86,99 @@ export default function PanelerCanvas({
       <TrackballControls
         noPan
         rotateSpeed={3}
-        zoomSpeed={1.2}
+        zoomSpeed={3}
         minDistance={3}
         maxDistance={12}
         staticMoving
       />
     </Canvas>
+  );
+}
+
+/** Stars that follow the camera so they stay fixed while the sphere rotates. */
+function Starfield({ count = 200, radius = 50 }: { count?: number; radius?: number }) {
+  const ref = useRef<THREE.Points>(null);
+  const { geometry, material } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = radius * (0.8 + Math.random() * 0.2);
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+      const roll = Math.random();
+      if (roll < 0.4) {
+        colors[i * 3] = 0.7 + Math.random() * 0.15;
+        colors[i * 3 + 1] = 0.75 + Math.random() * 0.15;
+        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
+      } else if (roll < 0.7) {
+        colors[i * 3] = 0.95 + Math.random() * 0.05;
+        colors[i * 3 + 1] = 0.9 + Math.random() * 0.05;
+        colors[i * 3 + 2] = 0.8 + Math.random() * 0.1;
+      } else if (roll < 0.85) {
+        colors[i * 3] = 0.95 + Math.random() * 0.05;
+        colors[i * 3 + 1] = 0.75 + Math.random() * 0.15;
+        colors[i * 3 + 2] = 0.3 + Math.random() * 0.2;
+      } else {
+        colors[i * 3] = 0.9 + Math.random() * 0.1;
+        colors[i * 3 + 1] = 0.5 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.5 + Math.random() * 0.3;
+      }
+    }
+    const geo = new BufferGeometry();
+    geo.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geo.setAttribute("color", new Float32BufferAttribute(colors, 3));
+    const mat = new PointsMaterial({
+      size: 0.4,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.85,
+      vertexColors: true,
+    });
+    return { geometry: geo, material: mat };
+  }, [count, radius]);
+
+  // Keep the star sphere centered on the camera each frame
+  useFrame(({ camera }) => {
+    if (ref.current) {
+      ref.current.position.copy(camera.position);
+    }
+  });
+
+  return <points ref={ref} geometry={geometry} material={material} />;
+}
+
+// Offsets in camera-local space for key and fill lights.
+const KEY_OFFSET = new Vec3(3, 5, 4);
+const FILL_OFFSET = new Vec3(-3, -2, -4);
+const _v = new Vec3(); // reusable scratch vector
+
+/** Directional lights that follow the camera so the sphere is lit
+ *  consistently regardless of orbit angle. */
+function CameraLights() {
+  const keyRef = useRef<DirectionalLight>(null);
+  const fillRef = useRef<DirectionalLight>(null);
+  useFrame(({ camera }) => {
+    if (keyRef.current) {
+      _v.copy(KEY_OFFSET).applyQuaternion(camera.quaternion).add(camera.position);
+      keyRef.current.position.copy(_v);
+      keyRef.current.target.position.set(0, 0, 0);
+      keyRef.current.target.updateMatrixWorld();
+    }
+    if (fillRef.current) {
+      _v.copy(FILL_OFFSET).applyQuaternion(camera.quaternion).add(camera.position);
+      fillRef.current.position.copy(_v);
+      fillRef.current.target.position.set(0, 0, 0);
+      fillRef.current.target.updateMatrixWorld();
+    }
+  });
+  return (
+    <>
+      <directionalLight ref={keyRef} intensity={1.2} />
+      <directionalLight ref={fillRef} intensity={0.3} />
+    </>
   );
 }
 
@@ -219,8 +313,6 @@ function PanelGroup({
       const mat = mesh.material as MeshStandardMaterial | undefined;
       if (!mat || Array.isArray(mat) || !("emissive" in mat)) return;
       if (panelId === selectedPanelId) {
-        mat.emissive.copy(mat.color).multiplyScalar(0.3);
-
         // Border outline from the panel boundary edges. EdgesGeometry with
         // a 30° threshold picks up only the panel boundary (no adjacent face)
         // and skips smooth interior subdivision edges.
@@ -231,8 +323,6 @@ function PanelGroup({
         outline.scale.setScalar(1.005);
         mesh.add(outline);
         outlineRef.current = outline;
-      } else {
-        mat.emissive.setRGB(0, 0, 0);
       }
     });
 

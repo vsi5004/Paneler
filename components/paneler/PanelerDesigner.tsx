@@ -12,6 +12,7 @@ import {
   applyColor,
   applyColorToUnpainted,
   applyShapeColor,
+  getPanelShape,
 } from "@/lib/designState";
 import type { PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
-import { PanelInfoBar } from "./PanelInfoBar";
+
 import PanelerFlatView from "./PanelerFlatView";
 
 interface AuthUser {
@@ -69,7 +70,7 @@ export function PanelerDesigner({
   const [uploadedName, setUploadedName] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_PALETTE[4].color);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
-  const [suedeEnabled, setSuedeEnabled] = useState(true);
+  const suedeEnabled = true;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
@@ -228,16 +229,9 @@ export function PanelerDesigner({
             <span className="font-heading text-base tracking-[0.22em] text-foreground">
               PANELER
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-              Designer
-            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <SuedeToggle
-            enabled={suedeEnabled}
-            onChange={setSuedeEnabled}
-          />
           {user && <UserMenu user={user} logoutAction={logoutAction} />}
         </div>
       </div>
@@ -344,8 +338,8 @@ export function PanelerDesigner({
       {/* Canvas stage + sidebar. */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col">
-          <div className="grid flex-1 grid-cols-1 md:grid-cols-2">
-            <CanvasFrame label="3D · Sphere">
+          <div className="flex flex-1 flex-col md:flex-row">
+            <CanvasFrame label="3D · Sphere" className="flex-1">
               <PanelerCanvas
                 glbBytes={bytes}
                 panelColors={panelColors}
@@ -354,9 +348,10 @@ export function PanelerDesigner({
                 onPanelClick={handlePanelClick}
               />
             </CanvasFrame>
+            <div className="glow-divider" />
             <CanvasFrame
               label="2D · Flat net"
-              className="border-t md:border-l md:border-t-0"
+              className="flex-1"
             >
               {topology ? (
                 <PanelerFlatView
@@ -374,18 +369,9 @@ export function PanelerDesigner({
               )}
             </CanvasFrame>
           </div>
-          {/* Status bar — instrument readout + tool cluster. */}
-          <div className="workshop-slab border-t px-5 py-2.5">
-            <PanelInfoBar
-              selectedPanelId={selectedPanelId}
-              panelColors={panelColors}
-              onReset={handleResetSelected}
-              onPaintShape={handlePaintShape}
-              onFillUnpainted={handleFillUnpainted}
-            />
-          </div>
         </div>
-        <aside className="hidden w-80 flex-col gap-5 overflow-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
+        <aside className="hidden w-80 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
+          {/* Palette */}
           <section>
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
@@ -400,13 +386,15 @@ export function PanelerDesigner({
               onSelect={setSelectedColor}
             />
           </section>
-          <div className="workshop-hairline" />
+          <div className="workshop-hairline mt-5" />
           {topology && (
-            <ColorSummary
-              topology={topology}
-              panelColors={panelColors}
-              onSwatchClick={setSelectedColor}
-            />
+            <div className="mt-5 flex flex-1 flex-col overflow-hidden">
+              <ColorSummary
+                topology={topology}
+                panelColors={panelColors}
+                onSwatchClick={setSelectedColor}
+              />
+            </div>
           )}
         </aside>
       </div>
@@ -451,35 +439,6 @@ function PresetLabel() {
   );
 }
 
-interface SuedeToggleProps {
-  enabled: boolean;
-  onChange: (v: boolean) => void;
-}
-
-function SuedeToggle({ enabled, onChange }: SuedeToggleProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className="group flex h-7 items-center gap-2 rounded-md border border-border bg-background/40 px-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
-    >
-      <span
-        className={`relative inline-flex h-3 w-6 items-center rounded-full transition-colors ${
-          enabled ? "bg-primary" : "bg-muted"
-        }`}
-      >
-        <span
-          className={`inline-block size-2.5 rounded-full bg-background shadow transition-transform ${
-            enabled ? "translate-x-3" : "translate-x-0.5"
-          }`}
-        />
-      </span>
-      <span className={enabled ? "text-foreground" : ""}>Suede</span>
-    </button>
-  );
-}
 
 function CanvasFrame({
   label,
@@ -492,7 +451,7 @@ function CanvasFrame({
 }) {
   return (
     <div
-      className={`relative flex min-h-0 flex-col bg-gradient-to-b from-background to-[oklch(0.06_0_0)] ${className ?? ""}`}
+      className={`relative flex min-h-0 flex-col bg-[#030610] ${className ?? ""}`}
     >
       <div className="pointer-events-none absolute left-4 top-3 z-10 flex items-center gap-2">
         <span className="size-1 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />

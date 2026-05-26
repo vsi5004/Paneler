@@ -13,13 +13,14 @@ import { fileURLToPath } from "node:url";
 import { NodeIO } from "@gltf-transform/core";
 
 import { PRESETS } from "@/lib/topology/presets";
-import { subdivideTopology } from "@/lib/mesh/subdivide";
+import { subdivideTopology, puffPanels } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { buildGlbDocument } from "@/lib/glb/build";
 import type { PanelShape, PanelTopology } from "@/lib/types";
 
 const SPHERE_RADIUS = 2;
 const TARGET_TOTAL_TRIANGLES = 30_000;
+const PANEL_PUFF = 0.06;
 
 interface ManifestEntry {
   slug: string;
@@ -47,6 +48,7 @@ async function main() {
     const level = Math.ceil(Math.sqrt(TARGET_TOTAL_TRIANGLES / fanTris));
     const subdivided = subdivideTopology(raw, level);
     projectToSphere(subdivided, SPHERE_RADIUS);
+    puffPanels(subdivided, SPHERE_RADIUS, PANEL_PUFF);
 
     const doc = buildGlbDocument(subdivided, { assetName: preset.id });
     const bytes = await io.writeBinary(doc);

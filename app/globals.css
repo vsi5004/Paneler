@@ -122,3 +122,19 @@
     );
   height: 1px;
 }
+
+/* Glowing green divider between canvas panes */
+.glow-divider {
+  background: #b5e853;
+  box-shadow: 0 0 6px #b5e853, 0 0 16px #b5e85380, 0 0 32px #b5e85340;
+  /* Horizontal by default (mobile: stacked) */
+  height: 1px;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .glow-divider {
+    height: auto;
+    width: 1px;
+    align-self: stretch;
+  }
+}

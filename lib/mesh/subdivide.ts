@@ -30,6 +30,11 @@ export function subdivideTopology(
 
   const newVertices: Vector3[] = topo.vertices.map((v) => v.clone());
 
+  // Per-vertex barycentric depth: 0 at panel boundary, 1 at centroid.
+  // Used by puffPanels() to inflate interior vertices outward.
+  // Absent entries default to 0 (boundary / edge vertices).
+  const vertexDepth = new Map<number, number>();
+
   // Cache vertices that live on a panel boundary edge — keyed by the canonical
   // edge (min,max) plus a step index along the edge. Adjacent panels share the
   // same boundary and must therefore share interior-edge vertex indices.
@@ -56,6 +61,7 @@ export function subdivideTopology(
       newVertices,
       computeCentroid(topo.vertices, panel.vertexIndices),
     );
+    vertexDepth.set(centroidIdx, 1);
 
     const boundaryLoop = panel.vertexIndices;
     for (let i = 0; i < boundaryLoop.length; i++) {
@@ -102,7 +108,9 @@ export function subdivideTopology(
           if (row === levels) {
             rowVerts.push(centroidIdx);
           } else {
-            rowVerts.push(addVertex(newVertices, interior));
+            const idx = addVertex(newVertices, interior);
+            vertexDepth.set(idx, t);
+            rowVerts.push(idx);
           }
         }
         rows.push(rowVerts);
@@ -117,6 +125,16 @@ export function subdivideTopology(
           if (s < lower.length - 1) {
             triangles.push([upper[s + 1], lower[s + 1], lower[s]]);
           }
+        }
+        // Row 0 (boundary) has 2 more points than row 1, so the strip
+        // above misses the last boundary vertex (bIdx corner). Add the
+        // closing triangle to prevent pinwheel gaps at panel vertices.
+        if (row === 0 && upper.length >= lower.length + 2) {
+          triangles.push([
+            upper[upper.length - 2],
+            upper[upper.length - 1],
+            lower[lower.length - 1],
+          ]);
         }
       }
     }
@@ -136,6 +154,7 @@ export function subdivideTopology(
   const result: PanelTopology & {
     _triangles?: Map<string, [number, number, number][]>;
     _boundaryArcs?: Map<string, number[]>;
+    _vertexDepth?: Map<number, number>;
   } = {
     vertices: newVertices,
     panels: newPanels,
@@ -146,6 +165,7 @@ export function subdivideTopology(
   // both — triangles for the panel surfaces, arcs for the seam lines.
   result._triangles = panelTriangles;
   result._boundaryArcs = boundaryArcs;
+  result._vertexDepth = vertexDepth;
   return result;
 }
 
@@ -195,6 +215,9 @@ function addVertex(pool: Vector3[], v: Vector3): number {
   pool.push(v);
   return pool.length - 1;
 }
+
+
+
 
 function lerp3(a: Vector3, b: Vector3, t: number): Vector3 {
   return a.clone().lerp(b, t);
@@ -262,4 +285,35 @@ export function getBoundaryArcs(
   return (topo as PanelTopology & {
     _boundaryArcs?: Map<string, number[]>;
   })._boundaryArcs;
+}
+
+/**
+ * Inflate panel interiors outward to create a beveled-edge puff.
+ * Vertices near the panel boundary ramp up steeply over the
+ * `bevelWidth` zone (0–1 fraction of the boundary-to-centroid depth),
+ * then plateau at full puff height across the interior.
+ *
+ * Must be called AFTER `projectToSphere` so vertices are already on
+ * the sphere. Mutates the topology in place.
+ */
+export function puffPanels(
+  topo: PanelTopology,
+  radius: number,
+  puff: number,
+  bevelWidth = 0.25,
+): PanelTopology {
+  const depthMap = (topo as PanelTopology & {
+    _vertexDepth?: Map<number, number>;
+  })._vertexDepth;
+  if (!depthMap || puff === 0) return topo;
+
+  for (let i = 0; i < topo.vertices.length; i++) {
+    const depth = depthMap.get(i) ?? 0;
+    if (depth <= 0) continue;
+    // Ramp from 0→1 within the bevel zone, then flat at 1 for the interior
+    const t = Math.min(depth / bevelWidth, 1);
+    const s = 1 - (1 - t) * (1 - t); // convex quarter-circle profile
+    topo.vertices[i].setLength(radius * (1 + puff * s));
+  }
+  return topo;
 }
