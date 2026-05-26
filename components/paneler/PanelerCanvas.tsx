@@ -5,8 +5,10 @@ import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { TrackballControls } from "@react-three/drei";
 import {
   Color,
+  EdgesGeometry,
   Group,
-  type LineSegments,
+  LineBasicMaterial,
+  LineSegments,
   type Mesh,
   type MeshStandardMaterial,
   type Texture,
@@ -186,6 +188,7 @@ function PanelGroup({
 }) {
   // Track pointer-down origin so we can distinguish click from camera drag.
   const downRef = useRef<{ x: number; y: number } | null>(null);
+  const outlineRef = useRef<LineSegments | null>(null);
 
   // Sync per-panel material colors from React state.
   useEffect(() => {
@@ -205,9 +208,8 @@ function PanelGroup({
     });
   }, [group, panelColors]);
 
-  // Highlight the selected panel by lifting its material emissive a touch.
-  // Avoids carrying separate outline meshes per panel; the seam network
-  // already lives in the GLB.
+  // Highlight the selected panel with a tinted emissive boost (preserves
+  // the panel's own color instead of washing to white) and a border outline.
   useEffect(() => {
     group.traverse((obj) => {
       const mesh = obj as Mesh;
@@ -217,12 +219,32 @@ function PanelGroup({
       const mat = mesh.material as MeshStandardMaterial | undefined;
       if (!mat || Array.isArray(mat) || !("emissive" in mat)) return;
       if (panelId === selectedPanelId) {
-        mat.emissive.setRGB(0.25, 0.25, 0.25);
+        mat.emissive.copy(mat.color).multiplyScalar(0.3);
+
+        // Border outline from the panel boundary edges. EdgesGeometry with
+        // a 30° threshold picks up only the panel boundary (no adjacent face)
+        // and skips smooth interior subdivision edges.
+        const edges = new EdgesGeometry(mesh.geometry, 30);
+        const lineMat = new LineBasicMaterial({ color: 0xffffff });
+        const outline = new LineSegments(edges, lineMat);
+        outline.raycast = () => {};
+        outline.scale.setScalar(1.005);
+        mesh.add(outline);
+        outlineRef.current = outline;
       } else {
         mat.emissive.setRGB(0, 0, 0);
       }
     });
-  }, [group, selectedPanelId]);
+
+    return () => {
+      if (outlineRef.current) {
+        outlineRef.current.geometry.dispose();
+        (outlineRef.current.material as LineBasicMaterial).dispose();
+        outlineRef.current.removeFromParent();
+        outlineRef.current = null;
+      }
+    };
+  }, [group, selectedPanelId, panelColors]);
 
   // Sync suede normal/roughness maps onto every panel material — skipping the
   // baked seam mesh, which doesn't shade like fabric.

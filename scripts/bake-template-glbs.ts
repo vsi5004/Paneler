@@ -16,10 +16,10 @@ import { PRESETS } from "@/lib/topology/presets";
 import { subdivideTopology } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { buildGlbDocument } from "@/lib/glb/build";
-import type { PanelShape } from "@/lib/types";
+import type { PanelShape, PanelTopology } from "@/lib/types";
 
 const SPHERE_RADIUS = 2;
-const SUBDIVISION_LEVELS = 6;
+const TARGET_TOTAL_TRIANGLES = 30_000;
 
 interface ManifestEntry {
   slug: string;
@@ -27,6 +27,10 @@ interface ManifestEntry {
   glbPath: string;
   panelCount: number;
   shapeSignature: string;
+}
+
+function totalFanTriangles(topo: PanelTopology): number {
+  return topo.panels.reduce((sum, p) => sum + p.vertexIndices.length, 0);
 }
 
 async function main() {
@@ -39,7 +43,9 @@ async function main() {
 
   for (const preset of PRESETS) {
     const raw = preset.topology(1);
-    const subdivided = subdivideTopology(raw, SUBDIVISION_LEVELS);
+    const fanTris = totalFanTriangles(raw);
+    const level = Math.ceil(Math.sqrt(TARGET_TOTAL_TRIANGLES / fanTris));
+    const subdivided = subdivideTopology(raw, level);
     projectToSphere(subdivided, SPHERE_RADIUS);
 
     const doc = buildGlbDocument(subdivided, { assetName: preset.id });
