@@ -11,7 +11,8 @@ const isStaticExport = process.env.STATIC_EXPORT === "1";
 // Read the session here (server side) and pass identity + a logout
 // server-action handle down to the designer header.
 export default async function DesignerPage() {
-  const session = isStaticExport ? null : await auth();
+  const session =
+    isStaticExport || !process.env.AUTH_SECRET ? null : await auth();
   const user = session?.user ?? null;
 
   // dbEnabled drives the left-nav design list. When DATABASE_URL is set we

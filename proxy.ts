@@ -17,14 +17,15 @@ import { auth } from "@/lib/auth";
 const authDisabled =
   process.env.AUTH_DISABLED === "true" || !process.env.AUTH_SECRET;
 
-export default auth((req) => {
-  if (authDisabled) return;
-  if (req.auth) return;
-  // Unauthed → bounce to the landing for sign-in. Bypass basePath because
-  // the landing is a SEPARATE service mounted at /, not under the app's
-  // /app basePath.
-  return NextResponse.redirect(new URL("/", req.nextUrl.origin));
-});
+export default authDisabled
+  ? () => {}
+  : auth((req) => {
+      if (req.auth) return;
+      // Unauthed → bounce to the landing for sign-in. Bypass basePath because
+      // the landing is a SEPARATE service mounted at /, not under the app's
+      // /app basePath.
+      return NextResponse.redirect(new URL("/", req.nextUrl.origin));
+    });
 
 export const config = {
   // Matcher is relative to basePath; with basePath="/app" this matches

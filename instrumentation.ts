@@ -10,6 +10,7 @@
 // references pg. The static-export branch of next.config.ts also aliases
 // @/lib/db/migrate to a no-op stub — belt and suspenders.
 export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.STATIC_EXPORT === "1") return;
   if (!process.env.DATABASE_URL) return;
   const { startMigration } = await import("@/lib/db/migrate");
