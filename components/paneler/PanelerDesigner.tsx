@@ -19,9 +19,10 @@ import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 
 import { Button } from "@/components/ui/button";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
+import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
-
+import { DesignNav } from "./DesignNav";
 import PanelerFlatView from "./PanelerFlatView";
 
 interface AuthUser {
@@ -64,6 +65,7 @@ const PRESETS_BASE = (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + "/presets";
 export function PanelerDesigner({
   user,
   logoutAction,
+  dbEnabled,
 }: PanelerDesignerProps) {
   const [templates, setTemplates] = useState<TemplateEntry[]>([]);
   const [activeTemplateSlug, setActiveTemplateSlug] = useState<string | null>(null);
@@ -89,6 +91,34 @@ export function PanelerDesigner({
     loadFromBytes,
     setPanelColors,
   } = design;
+
+  // Design nav + persistence (DB mode only).
+  const ds = useDesigns({ enabled: dbEnabled });
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  const toggleNav = useCallback(() => setNavCollapsed((v) => !v), []);
+
+  const handleLoadDesign = useCallback(
+    async (id: string) => {
+      const row = await ds.load(id);
+      if (!row) return;
+      // Fetch the GLB bytes from R2 and load into the editor
+      const glbBytes = await ds.fetchGlb(id);
+      setActiveTemplateSlug(null);
+      setUploadedName(row.name);
+      setSelectedPanelId(null);
+      await loadFromBytes(glbBytes);
+    },
+    [ds, loadFromBytes],
+  );
+
+  const handleCreateDesign = useCallback(async () => {
+    if (!activeTemplateSlug) return;
+    await ds.createFromTemplate({
+      name: "Untitled",
+      templateSlug: activeTemplateSlug,
+      panelCount: topology?.panels.length,
+    });
+  }, [ds, activeTemplateSlug, topology]);
 
   // One-shot template manifest fetch. The bake script writes
   // public/presets/index.json next to the GLBs.
@@ -179,16 +209,29 @@ export function PanelerDesigner({
   const handleSave = useCallback(async () => {
     setSaveState("saving");
     try {
-      const bytes = await design.serialize();
-      if (!bytes) {
+      const serialized = await design.serialize();
+      if (!serialized) {
         setSaveState("idle");
         return;
       }
-      const suggested =
-        uploadedName ??
-        (activeTemplateSlug ? `${activeTemplateSlug}.glb` : "design.glb");
-      const handle = await saveGlb(bytes, suggested, fileHandleRef.current);
-      if (handle) fileHandleRef.current = handle;
+      if (dbEnabled && ds.currentId) {
+        // Save to DB/R2
+        await ds.saveBytes(ds.currentId, { bytes: serialized });
+      } else if (dbEnabled) {
+        // Create new design in DB
+        await ds.createFromUpload({
+          name: uploadedName ?? activeTemplateSlug ?? "Untitled",
+          bytes: serialized,
+          panelCount: topology?.panels.length,
+        });
+      } else {
+        // File-based save
+        const suggested =
+          uploadedName ??
+          (activeTemplateSlug ? `${activeTemplateSlug}.glb` : "design.glb");
+        const handle = await saveGlb(serialized, suggested, fileHandleRef.current);
+        if (handle) fileHandleRef.current = handle;
+      }
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 1500);
     } catch (err) {
@@ -196,7 +239,7 @@ export function PanelerDesigner({
       setSaveState("error");
       window.setTimeout(() => setSaveState("idle"), 2500);
     }
-  }, [design, uploadedName, activeTemplateSlug]);
+  }, [design, uploadedName, activeTemplateSlug, dbEnabled, ds, topology]);
 
   const handleResetSelected = useCallback(() => {
     if (!selectedPanelId) return;
@@ -220,6 +263,21 @@ export function PanelerDesigner({
 
   return (
     <div className="flex flex-1 overflow-hidden">
+      {dbEnabled && (
+        <DesignNav
+          designs={ds.designs}
+          currentId={ds.currentId}
+          loading={ds.loading}
+          collapsed={navCollapsed}
+          onToggleCollapsed={toggleNav}
+          onCreate={handleCreateDesign}
+          onLoad={handleLoadDesign}
+          onRename={ds.rename}
+          onToggleStarred={ds.toggleStarred}
+          onTogglePublished={ds.togglePublished}
+          onDelete={ds.remove}
+        />
+      )}
       <div className="flex flex-1 flex-col">
       {/* Identity strip — thin, low-density. Brand + account. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
