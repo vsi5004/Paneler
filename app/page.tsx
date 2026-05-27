@@ -7,17 +7,21 @@ import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 // no-op stub so the "use server" file never enters the build graph.
 const isStaticExport = process.env.STATIC_EXPORT === "1";
 
+// Ensure env vars (DATABASE_URL, AUTH_SECRET) are read at request time,
+// not baked at build time when they aren't available.
+export const dynamic = "force-dynamic";
+
 // Mounted at basePath /app, so this renders at paneler.app/app.
 // Read the session here (server side) and pass identity + a logout
 // server-action handle down to the designer header.
 export default async function DesignerPage() {
-  const session = isStaticExport ? null : await auth();
+  const dbEnabled = isDbEnabled();
+
+  // Auth is only used in DB mode (k8s deploy). Local dev and GH Pages
+  // don't have AUTH_SECRET and don't need auth.
+  const session = dbEnabled ? await auth() : null;
   const user = session?.user ?? null;
 
-  // dbEnabled drives the left-nav design list. When DATABASE_URL is set we
-  // require an identity (real OIDC session, or AUTH_DISABLED=true dev mode);
-  // anonymous DB writes would share a "public" scope and aren't desirable.
-  const dbEnabled = isDbEnabled();
   if (dbEnabled && !getCurrentUserSub(session)) {
     return (
       <main className="flex flex-1 items-center justify-center">
@@ -32,7 +36,7 @@ export default async function DesignerPage() {
     <main className="flex flex-1 flex-col">
       <PanelerDesigner
         user={user}
-        logoutAction={isStaticExport ? undefined : logout}
+        logoutAction={dbEnabled ? logout : undefined}
         dbEnabled={dbEnabled}
       />
     </main>
