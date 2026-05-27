@@ -7,6 +7,10 @@ import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 // no-op stub so the "use server" file never enters the build graph.
 const isStaticExport = process.env.STATIC_EXPORT === "1";
 
+// Force dynamic rendering so runtime env vars (DATABASE_URL, AUTH_SECRET)
+// are read at request time, not baked in at build time.
+export const dynamic = "force-dynamic";
+
 // Mounted at basePath /app, so this renders at paneler.app/app.
 // Read the session here (server side) and pass identity + a logout
 // server-action handle down to the designer header.
