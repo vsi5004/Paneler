@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 
 // Next.js 16 renamed `middleware.ts` to `proxy.ts`. This file gates the
 // `/app/*` routes when auth is enabled, and passes everything through when
-// it isn't.
+// it isn't. Proxy always runs on Node.js runtime in Next.js 16, so
+// process.env reads happen at request time.
 //
 // Matcher paths are RELATIVE to basePath. The Next config sets
 // basePath="/app", so matcher: ["/:path*"] resolves to /app/:path* — every
@@ -12,7 +13,12 @@ import type { NextRequest } from "next/server";
 // Optimistic cookie check only — no crypto, no env vars baked at build time.
 // The real JWT verification happens in page.tsx / API routes via auth().
 export function proxy(request: NextRequest) {
-  const authDisabled = process.env.AUTH_DISABLED === "true";
+  // Auth-off mode (gate is bypassed) when EITHER:
+  //   - AUTH_DISABLED=true is set explicitly, OR
+  //   - AUTH_SECRET is unset (local dev with no auth configured — there
+  //     is no landing page to redirect to and no session cookie to check)
+  const authDisabled =
+    process.env.AUTH_DISABLED === "true" || !process.env.AUTH_SECRET;
   if (authDisabled) return NextResponse.next();
 
   const hasSession = request.cookies.has(
@@ -45,5 +51,5 @@ export const config = {
   //     loads, often before any cookie roundtrip resolves. Add any
   //     future top-level public assets (robots.txt, manifest.json,
   //     apple-touch-icon.png, etc.) to this list as they're introduced.
-  matcher: ["/((?!api/health|_next/|textures/|icon\\.svg).*)"],
+  matcher: ["/((?!api/health|_next/|textures/|presets/|icon\\.svg).*)"],
 };

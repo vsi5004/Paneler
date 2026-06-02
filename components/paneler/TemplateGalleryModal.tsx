@@ -43,19 +43,28 @@ export function TemplateGalleryModal({
           </p>
         </DialogHeader>
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {templates.map((t, i) => (
-              <SpecimenCard
-                key={t.slug}
-                index={i}
-                template={t}
-                onSelect={() => {
-                  onSelect(t.slug);
-                  onOpenChange(false);
-                }}
-              />
-            ))}
-          </div>
+          {templates.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-12">
+              <span className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_10px_var(--primary)]" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground/70">
+                Loading specimens…
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {templates.map((t, i) => (
+                <SpecimenCard
+                  key={t.slug}
+                  index={i}
+                  template={t}
+                  onSelect={() => {
+                    onSelect(t.slug);
+                    onOpenChange(false);
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
