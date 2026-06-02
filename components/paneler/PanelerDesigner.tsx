@@ -295,6 +295,15 @@ export function PanelerDesigner({
           <Button
             variant="ghost"
             size="sm"
+            onClick={handleOpenGallery}
+            className="h-7 gap-1.5 rounded-md border border-primary/50 bg-primary/10 px-2 font-mono text-[11px] uppercase tracking-[0.12em] text-primary transition-colors hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_12px_oklch(0.89_0.22_128/30%)]"
+          >
+            <NewIcon />
+            New
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => fileInputRef.current?.click()}
             className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
           >
@@ -428,7 +437,7 @@ export function PanelerDesigner({
                     </CanvasFrame>
                   </div>
                 </div>
-                <aside className="hidden w-80 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
+                <aside className="hidden w-72 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 md:flex lg:w-80">
                   {/* Palette */}
                   <section>
                     <div className="mb-3 flex items-baseline justify-between">
@@ -521,6 +530,16 @@ function CanvasFrame({
       </div>
       <div className="flex flex-1 flex-col">{children}</div>
     </div>
+  );
+}
+
+function NewIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="7" x2="12" y2="17" />
+      <line x1="7" y1="12" x2="17" y2="12" />
+    </svg>
   );
 }
 
