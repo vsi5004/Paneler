@@ -1,0 +1,129 @@
+{
+  "slug": "trionda",
+  "label": "Trionda 2026",
+  "source": {
+    "meshes": 1,
+    "primitives": 1,
+    "rawVerts": 20028,
+    "weldedVerts": 3340,
+    "triangles": 6676,
+    "hasUvs": true,
+    "hadNormals": true
+  },
+  "preprocessing": {
+    "source": {
+      "components": 1,
+      "keptComponentVerts": 20028,
+      "droppedComponentVerts": 0
+    },
+    "originalCenter": [
+      0.0002207234501838684,
+      0.00021598488092422485,
+      0.00002906098961830139
+    ],
+    "bestFitRadius": 0.11232155100092028,
+    "radiusDistribution": [
+      0.9870861591091641,
+      0.9882566120432972,
+      0.9999999999999999,
+      1.0072562487253856,
+      1.0078048705271117
+    ],
+    "sphericityOk": true
+  },
+  "extraction": {
+    "modeUsed": "uv-seams",
+    "modeNotes": [
+      "Auto-detect tried primitives → uv-seams",
+      "Mode primitives produced no usable seam graph",
+      "Using mode=uv-seams: 4 junctions found",
+      "294 seam edges, 292 seam verts"
+    ],
+    "seamEdges": 294,
+    "seamVerts": 292,
+    "junctions": 4,
+    "junctionDegrees": [
+      {
+        "degree": 3,
+        "count": 4
+      }
+    ],
+    "curveSegments": 6,
+    "curveSamplesPre": [
+      50,
+      50,
+      50,
+      50,
+      50,
+      50
+    ],
+    "curveSamplesPost": [
+      28,
+      29,
+      28,
+      30,
+      28,
+      30
+    ]
+  },
+  "topology": {
+    "panelCount": 4,
+    "boundarySizes": [
+      84,
+      83,
+      82,
+      85
+    ],
+    "perimeter": {
+      "min": 11.7728841368865,
+      "max": 11.828894190554417,
+      "mean": 11.799843874689763
+    },
+    "solidAngle": {
+      "min": 3.129507619039807,
+      "max": 3.148165642084259,
+      "mean": 3.141592659481171,
+      "total": 12.566370637924685
+    },
+    "eulerCharacteristic": 2,
+    "uniqueVertices": 165,
+    "uniqueEdges": 167
+  },
+  "checks": [
+    {
+      "name": "Sphericity (input mesh)",
+      "pass": true,
+      "detail": "95% of source verts within [0.92, 1.08] after best-fit scaling. p5=0.988 p95=1.007"
+    },
+    {
+      "name": "Every panel has ≥ 3 vertices",
+      "pass": true,
+      "detail": "0 panel(s) have fewer than 3 vertices"
+    },
+    {
+      "name": "All panel boundaries are simple loops",
+      "pass": true,
+      "detail": "0 panel(s) have repeated vertices"
+    },
+    {
+      "name": "Every edge shared by exactly 2 panels",
+      "pass": true,
+      "detail": "0 edges have wrong panel-share count"
+    },
+    {
+      "name": "Sphere closure (Σ solid angles = 4π ± 1.0%)",
+      "pass": true,
+      "detail": "total=12.5664 expected=12.5664 err=0.000%"
+    },
+    {
+      "name": "Panel area variance < 30%",
+      "pass": true,
+      "detail": "(max - min) / mean = 0.59%"
+    },
+    {
+      "name": "Euler characteristic V − E + F = 2",
+      "pass": true,
+      "detail": "V=165 E=167 F=4 χ=2"
+    }
+  ]
+}

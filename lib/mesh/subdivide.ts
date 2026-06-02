@@ -30,6 +30,20 @@ export function subdivideTopology(
 
   const newVertices: Vector3[] = topo.vertices.map((v) => v.clone());
 
+  // Count how many panels each vertex appears in — used by the centroid
+  // helper to find "junctions" (verts where ≥3 panels meet, i.e. true
+  // corner points on the sphere). Densely-sampled wavy boundaries
+  // (Trionda's 147-vert panels) have most verts on just 2 panels, with
+  // only the true corners shared across 3+. The junction centroid is
+  // much closer to the panel's geometric center than the mean of all
+  // 147 boundary samples.
+  const vertexPanelCount = new Map<number, number>();
+  for (const p of topo.panels) {
+    for (const v of p.vertexIndices) {
+      vertexPanelCount.set(v, (vertexPanelCount.get(v) ?? 0) + 1);
+    }
+  }
+
   // Per-vertex barycentric depth: 0 at panel boundary, 1 at centroid.
   // Used by puffPanels() to inflate interior vertices outward.
   // Absent entries default to 0 (boundary / edge vertices).
@@ -59,7 +73,7 @@ export function subdivideTopology(
     // edge becomes a parent triangle (centroid, corner_i, corner_i+1).
     const centroidIdx = addVertex(
       newVertices,
-      computeCentroid(topo.vertices, panel.vertexIndices),
+      computeCentroid(topo.vertices, panel.vertexIndices, vertexPanelCount),
     );
     vertexDepth.set(centroidIdx, 1);
 
@@ -177,25 +191,46 @@ function cloneTopology(topo: PanelTopology): PanelTopology {
   };
 }
 
-function computeCentroid(vertices: Vector3[], indices: readonly number[]): Vector3 {
-  // Arithmetic average works for convex panels on the sphere (Goldberg /
-  // Platonic faces): the average vector points well inside the panel and has
-  // a magnitude close to the sphere radius.
+function computeCentroid(
+  vertices: Vector3[],
+  indices: readonly number[],
+  vertexPanelCount?: ReadonlyMap<number, number>,
+): Vector3 {
+  const radius = vertices[indices[0]].length() || 1;
+
+  // If we know which verts are junctions (≥3 panels), prefer their mean.
+  // For densely-sampled wavy panels (Trionda's 147-vert boundary, only 3
+  // of which are true tetrahedral corners), this gives the actual
+  // geometric center of the spherical triangle. The mean-of-all-boundary
+  // approach is biased by sampling density along the wavy curves.
+  if (vertexPanelCount) {
+    const junctions: number[] = [];
+    for (const idx of indices) {
+      if ((vertexPanelCount.get(idx) ?? 0) >= 3) junctions.push(idx);
+    }
+    if (junctions.length >= 3) {
+      const c = new Vector3();
+      for (const idx of junctions) c.add(vertices[idx]);
+      c.divideScalar(junctions.length).normalize().multiplyScalar(radius);
+      return c;
+    }
+  }
+
+  // Arithmetic average of boundary corners. For panels that fully circle
+  // the sphere (e.g. Baseball's wavy seam, whose ±latitude swings cancel
+  // out), this collapses to ≈ 0 and we need a different approach below.
   const naive = new Vector3();
   for (const idx of indices) naive.add(vertices[idx]);
   naive.divideScalar(indices.length);
 
-  // For non-convex or great-circle-ish boundaries (e.g. the Baseball
-  // template's wavy seam, whose ±latitude swings cancel out), the arithmetic
-  // average collapses toward the sphere center. Fan-triangulation from
-  // origin spikes every parent triangle through the ball's interior and
-  // projectToSphere refuses to normalize the zero-length vertex, so the
-  // panel renders as garbage. Fall back to the signed-area vector
-  // (Σ vᵢ × vᵢ₊₁), which always points to the panel's interior hemisphere
-  // regardless of boundary shape — for a CCW-from-outside boundary it's the
-  // outward face normal at the panel center.
   if (naive.lengthSq() < 0.04) {
-    const radius = vertices[indices[0]].length() || 1;
+    // Fan-triangulation from origin would spike every parent triangle
+    // through the ball's interior and projectToSphere refuses to normalize
+    // the zero-length vertex, so the panel renders as garbage. Fall back
+    // to the signed-area vector (Σ vᵢ × vᵢ₊₁), which always points to the
+    // panel's interior hemisphere regardless of boundary shape — for a
+    // CCW-from-outside boundary it's the outward face normal at the
+    // panel center.
     const areaVec = new Vector3();
     const cross = new Vector3();
     for (let i = 0; i < indices.length; i++) {
@@ -208,7 +243,16 @@ function computeCentroid(vertices: Vector3[], indices: readonly number[]): Vecto
       return areaVec.normalize().multiplyScalar(radius);
     }
   }
-  return naive;
+
+  // Project the mean direction onto the sphere surface. Without this, the
+  // centroid sits INSIDE the sphere (magnitude 0.3–0.7 for big panels),
+  // and the chord-lerp from boundary verts to centroid is heavily biased
+  // toward the boundary side after re-projection — interior subdivision
+  // points cluster near the seam and adjacent radial slivers overshoot
+  // into neighboring panels. With the centroid on the sphere, both
+  // endpoints of the chord are unit-radius and the lerp traces a clean
+  // great-circle arc.
+  return naive.normalize().multiplyScalar(radius);
 }
 
 function addVertex(pool: Vector3[], v: Vector3): number {

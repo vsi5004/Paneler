@@ -7,6 +7,13 @@
     "shapeSignature": "2g"
   },
   {
+    "slug": "trionda",
+    "label": "Trionda 2026",
+    "glbPath": "/presets/trionda.glb",
+    "panelCount": 4,
+    "shapeSignature": "4g"
+  },
+  {
     "slug": "tetra",
     "label": "Tetrahedron",
     "glbPath": "/presets/tetra.glb",

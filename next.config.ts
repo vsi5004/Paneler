@@ -72,7 +72,10 @@ const nextConfig: NextConfig = {
               // data: covers any small inline images Next.js emits.
               "img-src 'self' data: blob: https://*.googleusercontent.com https://*.ggpht.com",
               "font-src 'self' data:",
-              "connect-src 'self'",
+              // R2 presigned URLs for GLB upload/download go directly from
+              // the browser to Cloudflare R2 (bypassing our pod). They use
+              // the bucket-specific subdomain `*.r2.cloudflarestorage.com`.
+              "connect-src 'self' https://*.r2.cloudflarestorage.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "object-src 'none'",

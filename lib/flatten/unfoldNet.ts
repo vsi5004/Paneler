@@ -184,27 +184,57 @@ function flattenPanelLocal(
   circumradius: number,
 ): PanelFlat {
   const n = panel.vertexIndices.length;
-  // All panels share the same circumradius so a hexagon and an adjacent
-  // pentagon look like the same visual size. Edges DO end up at slightly
-  // different lengths across shape types (a pentagon's side is wider for
-  // the same circumradius than a hexagon's), which mirrors how those
-  // panels appear on the sphere anyway.
-  const corners: Vec2[] = [];
-  for (let i = 0; i < n; i++) {
-    // Top corner at -π/2 (will be rotated outward when placed in a ring).
-    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-    corners.push({
-      x: circumradius * Math.cos(angle),
-      y: circumradius * Math.sin(angle),
-    });
+  const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
+
+  // Project the panel's actual 3D boundary into a 2D tangent plane at
+  // its spherical centroid. This preserves the real panel shape — wavy
+  // panels (Baseball, Trionda) look wavy in the net; regular polygons
+  // (Goldberg / Platonic faces) look like regular polygons.
+  //
+  // Without this, panels with many densely sampled boundary vertices
+  // (Trionda has 147 per panel) collapsed to plain circles.
+  const centroid3D = new Vector3();
+  for (const vi of panel.vertexIndices) centroid3D.add(topo.vertices[vi]);
+  centroid3D.divideScalar(n).normalize().multiplyScalar(sphereRadius);
+
+  // Tangent basis at the centroid. Pick a stable helper to avoid the
+  // degenerate case where the centroid is collinear with +Y.
+  const normal = centroid3D.clone().normalize();
+  const helper =
+    Math.abs(normal.dot(new Vector3(0, 1, 0))) < 0.9
+      ? new Vector3(0, 1, 0)
+      : new Vector3(1, 0, 0);
+  const tanU = new Vector3().crossVectors(normal, helper).normalize();
+  const tanV = new Vector3().crossVectors(normal, tanU).normalize();
+
+  // Project each boundary vertex onto the tangent plane.
+  const projected: Vec2[] = [];
+  let maxR = 0;
+  for (const vi of panel.vertexIndices) {
+    const v = topo.vertices[vi];
+    const rel = v.clone().sub(centroid3D);
+    const x = rel.dot(tanU);
+    const y = rel.dot(tanV);
+    projected.push({ x, y });
+    const r = Math.hypot(x, y);
+    if (r > maxR) maxR = r;
   }
 
+  // Scale so the panel's max-radius corner sits on the target circumradius
+  // (consistent visual sizing across all panels in the net).
+  const scale = maxR > 0 ? circumradius / maxR : 1;
+  const corners: Vec2[] = projected.map((p) => ({
+    x: p.x * scale,
+    // SVG Y axis points down; tangent-plane Y points "up". Flip so the
+    // panel reads right-side-up in the 2D view.
+    y: -p.y * scale,
+  }));
+
   // Per-edge sagitta-to-chord ratio for the original spherical arc:
-  //   ratio = tan(θ/2) / 2, where θ is the half-angle of the great
-  //   circle subtended by the 3D chord.
-  // Tetrahedron faces span ~109° of the sphere → big bulge.
-  // 32-panel soccer ball faces span ~29° → subtle.
-  const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
+  //   ratio = tan(θ/2) / 2, where θ is the half-angle of the great circle
+  //   subtended by the 3D chord. Tetrahedron faces span ~109° of the
+  //   sphere → big bulge. Dense-sample wavy panels (Trionda) span tiny
+  //   angles per edge → near-zero bulge, which is correct.
   const sagittaRatios: number[] = [];
   for (let i = 0; i < n; i++) {
     const a = topo.vertices[panel.vertexIndices[i]];
