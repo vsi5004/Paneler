@@ -3,10 +3,6 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group";
 import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
 import {
   applyColor,
@@ -23,6 +19,8 @@ import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
+import { EmptyDesignState } from "./EmptyDesignState";
+import { TemplateGalleryModal } from "./TemplateGalleryModal";
 import PanelerFlatView from "./PanelerFlatView";
 
 interface AuthUser {
@@ -59,7 +57,6 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
   ),
 });
 
-const DEFAULT_TEMPLATE = "soccer";
 const PRESETS_BASE = (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + "/presets";
 
 export function PanelerDesigner({
@@ -97,6 +94,9 @@ export function PanelerDesigner({
   const [navCollapsed, setNavCollapsed] = useState(false);
   const toggleNav = useCallback(() => setNavCollapsed((v) => !v), []);
 
+  // Gallery modal — shown when user clicks "New Design" anywhere.
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
   const handleLoadDesign = useCallback(
     async (id: string) => {
       const row = await ds.load(id);
@@ -111,17 +111,52 @@ export function PanelerDesigner({
     [ds, loadFromBytes],
   );
 
-  const handleCreateDesign = useCallback(async () => {
-    if (!activeTemplateSlug) return;
-    await ds.createFromTemplate({
-      name: "Untitled",
-      templateSlug: activeTemplateSlug,
-      panelCount: topology?.panels.length,
-    });
-  }, [ds, activeTemplateSlug, topology]);
+  // Open the gallery — the actual creation happens after the user picks a template.
+  const handleOpenGallery = useCallback(() => {
+    setGalleryOpen(true);
+  }, []);
+
+  // Create a new design from a gallery selection. In DB mode this writes
+  // a new row + uploads the template bytes; in files-only mode it just
+  // loads the template into the editor.
+  const handleSelectTemplate = useCallback(
+    async (slug: string) => {
+      const entry = templates.find((t) => t.slug === slug);
+      if (!entry) return;
+      const url = PRESETS_BASE + entry.glbPath.replace(/^\/presets/, "");
+
+      if (dbEnabled) {
+        // Fetch the template bytes, then create a new design row
+        // backed by those bytes in R2.
+        const res = await fetch(url);
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const row = await ds.createFromUpload({
+          name: entry.label,
+          bytes,
+          panelCount: entry.panelCount,
+          shapeSignature: entry.shapeSignature,
+        });
+        if (row) {
+          setActiveTemplateSlug(null);
+          setUploadedName(row.name);
+          setSelectedPanelId(null);
+          await loadFromBytes(bytes);
+        }
+      } else {
+        setActiveTemplateSlug(slug);
+        setUploadedName(null);
+        setSelectedPanelId(null);
+        await loadFromUrl(url);
+      }
+    },
+    [templates, dbEnabled, ds, loadFromBytes, loadFromUrl],
+  );
 
   // One-shot template manifest fetch. The bake script writes
-  // public/presets/index.json next to the GLBs.
+  // public/presets/index.json next to the GLBs. We no longer auto-load
+  // any template on mount — the EmptyDesignState overlay prompts the
+  // user to pick a starting point explicitly.
   useEffect(() => {
     let cancelled = false;
     void fetch(`${PRESETS_BASE}/index.json`)
@@ -129,12 +164,6 @@ export function PanelerDesigner({
       .then((list) => {
         if (cancelled) return;
         setTemplates(list);
-        // Pick a sensible starting template; load it.
-        const initial = list.find((t) => t.slug === DEFAULT_TEMPLATE) ?? list[0];
-        if (initial) {
-          setActiveTemplateSlug(initial.slug);
-          void loadFromUrl(PRESETS_BASE + initial.glbPath.replace(/^\/presets/, ""));
-        }
       })
       .catch(() => {
         // Manifest fetch can fail in non-deployed test contexts; UI handles
@@ -143,7 +172,7 @@ export function PanelerDesigner({
     return () => {
       cancelled = true;
     };
-  }, [loadFromUrl]);
+  }, []);
 
   const allPanelIds = useMemo(
     () => topology?.panels.map((p) => p.id) ?? [],
@@ -158,17 +187,6 @@ export function PanelerDesigner({
     [selectedColor, setPanelColors],
   );
 
-  const handleTemplateChange = useCallback(
-    (slug: string) => {
-      const entry = templates.find((t) => t.slug === slug);
-      if (!entry) return;
-      setActiveTemplateSlug(slug);
-      setUploadedName(null);
-      setSelectedPanelId(null);
-      void loadFromUrl(PRESETS_BASE + entry.glbPath.replace(/^\/presets/, ""));
-    },
-    [templates, loadFromUrl],
-  );
 
   const handleGlbUpload = useCallback(
     async (file: File) => {
@@ -262,24 +280,8 @@ export function PanelerDesigner({
   }, [allPanelIds, selectedColor, setPanelColors]);
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      {dbEnabled && (
-        <DesignNav
-          designs={ds.designs}
-          currentId={ds.currentId}
-          loading={ds.loading}
-          collapsed={navCollapsed}
-          onToggleCollapsed={toggleNav}
-          onCreate={handleCreateDesign}
-          onLoad={handleLoadDesign}
-          onRename={ds.rename}
-          onToggleStarred={ds.toggleStarred}
-          onTogglePublished={ds.togglePublished}
-          onDelete={ds.remove}
-        />
-      )}
-      <div className="flex flex-1 flex-col">
-      {/* Identity strip — thin, low-density. Brand + account. */}
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Identity strip — title bar spans the full width above the drawer. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
         <div className="flex items-center gap-3">
           <Sigil />
@@ -289,39 +291,7 @@ export function PanelerDesigner({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {user && <UserMenu user={user} logoutAction={logoutAction} />}
-        </div>
-      </div>
-
-      {/* Workspace toolbar — primary controls in a single comfortable row. */}
-      <div className="workshop-slab flex flex-wrap items-center justify-between gap-4 border-b px-5 py-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <PresetLabel />
-          <ToggleGroup
-            value={activeTemplateSlug ? [activeTemplateSlug] : []}
-            onValueChange={(v) => v[0] && handleTemplateChange(v[0])}
-            variant="outline"
-            size="sm"
-            className="rounded-md border border-border bg-background/40 p-0.5"
-          >
-            {templates.map((t) => (
-              <ToggleGroupItem
-                key={t.slug}
-                value={t.slug}
-                aria-label={t.label}
-                className="h-7 gap-1.5 rounded-sm border-0 px-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-              >
-                <span className="text-foreground/90 data-[state=on]:text-primary-foreground">
-                  {t.label}
-                </span>
-                <span className="font-mono text-[10px] opacity-70">
-                  {t.panelCount}
-                </span>
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <span className="h-5 w-px bg-border" aria-hidden />
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -329,7 +299,7 @@ export function PanelerDesigner({
             className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
           >
             <UploadGlyph />
-            Upload GLB
+            Import
           </Button>
           <input
             ref={fileInputRef}
@@ -342,27 +312,6 @@ export function PanelerDesigner({
               e.target.value = "";
             }}
           />
-          {uploadedName && (
-            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-primary/90">
-              <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-              {uploadedName}
-              {topology && (
-                <>
-                  <span className="text-muted-foreground/70">·</span>
-                  <span className="text-muted-foreground">
-                    {topology.panels.length} panels
-                  </span>
-                </>
-              )}
-            </span>
-          )}
-          {uploadError && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-destructive">
-              {uploadError}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -390,73 +339,134 @@ export function PanelerDesigner({
                   ? "Save failed"
                   : "Save"}
           </Button>
+          <span className="h-5 w-px bg-border" aria-hidden />
+          {user && <UserMenu user={user} logoutAction={logoutAction} />}
         </div>
       </div>
 
-      {/* Canvas stage + sidebar. */}
       <div className="flex flex-1 overflow-hidden">
+        {dbEnabled && (
+          <DesignNav
+            designs={ds.designs}
+            currentId={ds.currentId}
+            loading={ds.loading}
+            collapsed={navCollapsed}
+            onToggleCollapsed={toggleNav}
+            onCreate={handleOpenGallery}
+            onLoad={handleLoadDesign}
+            onRename={ds.rename}
+            onToggleStarred={ds.toggleStarred}
+            onTogglePublished={ds.togglePublished}
+            onDelete={ds.remove}
+          />
+        )}
         <div className="flex flex-1 flex-col">
-          <div className="flex flex-1 flex-col md:flex-row">
-            <CanvasFrame label="3D · Sphere" className="flex-1">
-              <PanelerCanvas
-                glbBytes={bytes}
-                panelColors={panelColors}
-                selectedPanelId={selectedPanelId}
-                suedeEnabled={suedeEnabled}
-                onPanelClick={handlePanelClick}
-              />
-            </CanvasFrame>
-            <div className="glow-divider" />
-            <CanvasFrame
-              label="2D · Flat net"
-              className="flex-1"
-            >
-              {topology ? (
-                <PanelerFlatView
-                  topology={topology}
-                  panelColors={panelColors}
-                  selectedPanelId={selectedPanelId}
-                  onPanelClick={handlePanelClick}
-                />
-              ) : (
-                <div className="flex flex-1 items-center justify-center">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
-                    Loading…
-                  </span>
-                </div>
-              )}
-            </CanvasFrame>
-          </div>
-        </div>
-        <aside className="hidden w-80 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
-          {/* Palette */}
-          <section>
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
-                Palette
-              </h2>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                21 fabrics
-              </span>
-            </div>
-            <ColorPalette
-              selected={selectedColor}
-              onSelect={setSelectedColor}
+          {!bytes ? (
+            <EmptyDesignState
+              dbEnabled={dbEnabled}
+              onNew={handleOpenGallery}
+              onOpen={() => void handleOpen()}
+              onImport={() => fileInputRef.current?.click()}
             />
-          </section>
-          <div className="workshop-hairline mt-5" />
-          {topology && (
-            <div className="mt-5 flex flex-1 flex-col overflow-hidden">
-              <ColorSummary
-                topology={topology}
-                panelColors={panelColors}
-                onSwatchClick={setSelectedColor}
-              />
-            </div>
+          ) : (
+            <>
+              {/* Active file status strip — slim, mono, no controls. */}
+              <div className="workshop-slab flex flex-wrap items-center gap-3 border-b px-5 py-2.5">
+                {uploadedName && (
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em] text-primary/90">
+                    <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+                    {uploadedName}
+                    {topology && (
+                      <>
+                        <span className="text-muted-foreground/70">·</span>
+                        <span className="text-muted-foreground">
+                          {topology.panels.length} panels
+                        </span>
+                      </>
+                    )}
+                  </span>
+                )}
+                {uploadError && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-destructive">
+                    {uploadError}
+                  </span>
+                )}
+              </div>
+
+              {/* Canvas stage + sidebar. */}
+              <div className="flex flex-1 overflow-hidden">
+                <div className="flex flex-1 flex-col">
+                  <div className="flex flex-1 flex-col md:flex-row">
+                    <CanvasFrame label="3D · Sphere" className="flex-1">
+                      <PanelerCanvas
+                        glbBytes={bytes}
+                        panelColors={panelColors}
+                        selectedPanelId={selectedPanelId}
+                        suedeEnabled={suedeEnabled}
+                        onPanelClick={handlePanelClick}
+                      />
+                    </CanvasFrame>
+                    <div className="glow-divider" />
+                    <CanvasFrame
+                      label="2D · Flat net"
+                      className="flex-1"
+                    >
+                      {topology ? (
+                        <PanelerFlatView
+                          topology={topology}
+                          panelColors={panelColors}
+                          selectedPanelId={selectedPanelId}
+                          onPanelClick={handlePanelClick}
+                        />
+                      ) : (
+                        <div className="flex flex-1 items-center justify-center">
+                          <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+                            Loading…
+                          </span>
+                        </div>
+                      )}
+                    </CanvasFrame>
+                  </div>
+                </div>
+                <aside className="hidden w-80 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 lg:flex">
+                  {/* Palette */}
+                  <section>
+                    <div className="mb-3 flex items-baseline justify-between">
+                      <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
+                        Palette
+                      </h2>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                        21 fabrics
+                      </span>
+                    </div>
+                    <ColorPalette
+                      selected={selectedColor}
+                      onSelect={setSelectedColor}
+                    />
+                  </section>
+                  <div className="workshop-hairline mt-5" />
+                  {topology && (
+                    <div className="mt-5 flex flex-1 flex-col overflow-hidden">
+                      <ColorSummary
+                        topology={topology}
+                        panelColors={panelColors}
+                        onSwatchClick={setSelectedColor}
+                      />
+                    </div>
+                  )}
+                </aside>
+              </div>
+            </>
           )}
-        </aside>
+        </div>
       </div>
-      </div>
+
+      <TemplateGalleryModal
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        templates={templates}
+        onSelect={handleSelectTemplate}
+      />
     </div>
   );
 }
@@ -485,14 +495,6 @@ function Sigil() {
         <polygon points="19.88,33 25.08,36 25.08,42 19.88,45 14.68,42 14.68,36" />
         <polygon points="19.88,19 25.08,22 25.08,28 19.88,31 14.68,28 14.68,22" />
       </svg>
-    </span>
-  );
-}
-
-function PresetLabel() {
-  return (
-    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-      Topology
     </span>
   );
 }
