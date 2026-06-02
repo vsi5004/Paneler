@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-
-import { auth } from "@/lib/auth";
+import type { NextRequest } from "next/server";
 
 // Next.js 16 renamed `middleware.ts` to `proxy.ts`. This file gates the
 // `/app/*` routes when auth is enabled, and passes everything through when
@@ -10,22 +9,24 @@ import { auth } from "@/lib/auth";
 // basePath="/app", so matcher: ["/:path*"] resolves to /app/:path* — every
 // app route is gated.
 //
-// Auth-off mode (the gate is bypassed) is active when EITHER:
-//   - AUTH_DISABLED=true is set explicitly, OR
-//   - AUTH_SECRET is unset (the proxy has no key to decode sessions
-//     with anyway, so demanding auth would be infinite-loop-prone)
-const authDisabled =
-  process.env.AUTH_DISABLED === "true" || !process.env.AUTH_SECRET;
+// Optimistic cookie check only — no crypto, no env vars baked at build time.
+// The real JWT verification happens in page.tsx / API routes via auth().
+export function middleware(request: NextRequest) {
+  const authDisabled = process.env.AUTH_DISABLED === "true";
+  if (authDisabled) return NextResponse.next();
 
-export default authDisabled
-  ? () => {}
-  : auth((req) => {
-      if (req.auth) return;
-      // Unauthed → bounce to the landing for sign-in. Bypass basePath because
-      // the landing is a SEPARATE service mounted at /, not under the app's
-      // /app basePath.
-      return NextResponse.redirect(new URL("/", req.nextUrl.origin));
-    });
+  const hasSession = request.cookies.has(
+    process.env.NODE_ENV === "production"
+      ? "__Secure-authjs.session-token"
+      : "authjs.session-token",
+  );
+
+  if (!hasSession) {
+    return NextResponse.redirect(new URL("/", request.nextUrl.origin));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   // Matcher is relative to basePath; with basePath="/app" this matches
