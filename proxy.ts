@@ -11,7 +11,7 @@ import type { NextRequest } from "next/server";
 //
 // Optimistic cookie check only — no crypto, no env vars baked at build time.
 // The real JWT verification happens in page.tsx / API routes via auth().
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const authDisabled = process.env.AUTH_DISABLED === "true";
   if (authDisabled) return NextResponse.next();
 
