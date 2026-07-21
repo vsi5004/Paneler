@@ -187,17 +187,25 @@ function flattenPanelLocal(
   const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
 
   // Project the panel's actual 3D boundary into 2D about its spherical
-  // centroid using an azimuthal equidistant projection: radius = angular
-  // distance from the panel center, direction = azimuth in the tangent
-  // plane. This preserves the real panel shape — wavy panels (Baseball,
-  // Trionda) look wavy in the net; regular polygons (Goldberg / Platonic
-  // faces) look like regular polygons.
+  // centroid using a Lambert azimuthal equal-area projection: radius =
+  // 2·sin(angularDistance/2), direction = azimuth in the tangent plane.
+  // This preserves the real panel shape — wavy panels (Baseball, Trionda)
+  // look wavy in the net; regular polygons (Goldberg / Platonic faces)
+  // look like regular polygons.
   //
-  // Equidistant rather than a straight tangent-plane (orthographic)
-  // projection because panels can span more than 90° of the sphere — the
-  // Baseball panels wrap past the equator, and orthographic folds the far
-  // side back over the near side (the outline read as a diamond with
-  // overlapping petals instead of the classic waisted baseball panel).
+  // Why this projection:
+  //  - Orthographic (plain tangent-plane) folds the far side back over the
+  //    near side for panels spanning more than 90° — the Baseball panels
+  //    wrap past the equator and rendered as diamonds with overlapping
+  //    petals instead of the classic waisted shape.
+  //  - Azimuthal equidistant fixes the folding but inflates tangential
+  //    distances far from the center (×3+ at 135°), so the Baseball lobes
+  //    bloated to ~1.5× their true area and the net visibly mismatched
+  //    the 3D ball.
+  //  - Equal-area keeps every panel's flat area equal to its spherical
+  //    area (radius strictly increases with angular distance, so it still
+  //    cannot fold) and agrees with the other projections to 2nd order
+  //    for small panels, leaving polyhedral nets unchanged.
   const normal = panelCenterDirection(panel, topo);
   const helper =
     Math.abs(normal.dot(new Vector3(0, 1, 0))) < 0.9
@@ -206,8 +214,8 @@ function flattenPanelLocal(
   const tanU = new Vector3().crossVectors(normal, helper).normalize();
   const tanV = new Vector3().crossVectors(normal, tanU).normalize();
 
-  // Project each boundary vertex: angular distance from the center for
-  // the radius, tangent-plane azimuth for the direction.
+  // Project each boundary vertex: equal-area radius from the angular
+  // distance to the center, tangent-plane azimuth for the direction.
   const projected: Vec2[] = [];
   let maxR = 0;
   for (const vi of panel.vertexIndices) {
@@ -219,7 +227,7 @@ function flattenPanelLocal(
     // the center (angDist 0) — the radius is 0 there, so direction is moot.
     const az = unit.sub(normal.clone().multiplyScalar(cosDist));
     const azLen = az.length();
-    const r = angDist * sphereRadius;
+    const r = 2 * Math.sin(angDist / 2) * sphereRadius;
     const x = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
     const y = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
     projected.push({ x, y });
