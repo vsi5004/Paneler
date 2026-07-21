@@ -248,12 +248,12 @@ export const PRESETS: PresetEntry[] = [
       {
         // Percent of the way from the equator to the poles: 0% = straight
         // equator seam (two hemispheres), 50% = classic baseball (π/4).
-        // Capped at 80%: beyond that the seam nears the poles — the panels'
-        // fan centers — and the subdivision mesh folds into shards.
+        // Capped at 60%: above that the narrowing panel waists distort the
+        // rendered ball (and near the poles the fan subdivision degrades).
         key: "seamAmplitude",
         label: "Seam amplitude",
         min: 0,
-        max: 80,
+        max: 60,
         step: 1,
         defaultValue: 50,
         unit: "%",
