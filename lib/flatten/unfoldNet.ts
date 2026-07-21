@@ -186,26 +186,30 @@ function flattenPanelLocal(
   const n = panel.vertexIndices.length;
   const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
 
-  // Project the panel's actual 3D boundary into 2D about its spherical
-  // centroid using a Lambert azimuthal equal-area projection: radius =
-  // 2·sin(angularDistance/2), direction = azimuth in the tangent plane.
-  // This preserves the real panel shape — wavy panels (Baseball, Trionda)
-  // look wavy in the net; regular polygons (Goldberg / Platonic faces)
-  // look like regular polygons.
+  // Project the panel's actual 3D boundary into 2D. This preserves the
+  // real panel shape — wavy panels (Baseball, Trionda) look wavy in the
+  // net; regular polygons (Goldberg / Platonic faces) look like regular
+  // polygons.
   //
-  // Why this projection:
-  //  - Orthographic (plain tangent-plane) folds the far side back over the
-  //    near side for panels spanning more than 90° — the Baseball panels
-  //    wrap past the equator and rendered as diamonds with overlapping
-  //    petals instead of the classic waisted shape.
-  //  - Azimuthal equidistant fixes the folding but inflates tangential
-  //    distances far from the center (×3+ at 135°), so the Baseball lobes
-  //    bloated to ~1.5× their true area and the net visibly mismatched
-  //    the 3D ball.
-  //  - Equal-area keeps every panel's flat area equal to its spherical
-  //    area (radius strictly increases with angular distance, so it still
-  //    cannot fold) and agrees with the other projections to 2nd order
-  //    for small panels, leaving polyhedral nets unchanged.
+  // Two regimes, chosen by how far the boundary wraps around the sphere:
+  //
+  //  - Compact panels (every boundary point within ~90° of the center):
+  //    Lambert azimuthal equal-area about the center, r = 2·sin(d/2).
+  //    Flat area equals spherical area, it cannot fold back, and it agrees
+  //    with a plain tangent-plane projection to 2nd order — polyhedral
+  //    nets look unchanged.
+  //
+  //  - Wrap-around panels (the Baseball hemispheres): every azimuthal
+  //    projection distorts most in its far field, which is exactly where
+  //    these panels' visually salient lobes live — pointiness there got
+  //    scrambled or even inverted relative to the 3D seam. Instead,
+  //    unroll about the panel's SPINE: the great circle through the
+  //    center and the farthest boundary point (the lobe tip). In a frame
+  //    where that spine is the equator, the flatten is plain
+  //    longitude/latitude (equirectangular) — exact along the whole
+  //    spine, including the lobe tips, so tip roundness tracks the 3D
+  //    model. Distortion (east-west stretch, sec(lat)) concentrates on
+  //    the panel's side edges, bounded by the panel half-width.
   const normal = panelCenterDirection(panel, topo);
   const helper =
     Math.abs(normal.dot(new Vector3(0, 1, 0))) < 0.9
@@ -214,24 +218,64 @@ function flattenPanelLocal(
   const tanU = new Vector3().crossVectors(normal, helper).normalize();
   const tanV = new Vector3().crossVectors(normal, tanU).normalize();
 
-  // Project each boundary vertex: equal-area radius from the angular
-  // distance to the center, tangent-plane azimuth for the direction.
+  const units = panel.vertexIndices.map((vi) =>
+    topo.vertices[vi].clone().normalize(),
+  );
+  let maxAngDist = 0;
+  let farthest = units[0];
+  for (const unit of units) {
+    const d = Math.acos(Math.min(1, Math.max(-1, unit.dot(normal))));
+    if (d > maxAngDist) {
+      maxAngDist = d;
+      farthest = unit;
+    }
+  }
+
   const projected: Vec2[] = [];
   let maxR = 0;
-  for (const vi of panel.vertexIndices) {
-    const unit = topo.vertices[vi].clone().normalize();
-    const cosDist = Math.min(1, Math.max(-1, unit.dot(normal)));
-    const angDist = Math.acos(cosDist);
-    // Azimuth direction = the vertex's component perpendicular to the
-    // center direction. Degenerate only when the vertex sits exactly on
-    // the center (angDist 0) — the radius is 0 there, so direction is moot.
-    const az = unit.sub(normal.clone().multiplyScalar(cosDist));
-    const azLen = az.length();
-    const r = 2 * Math.sin(angDist / 2) * sphereRadius;
-    const x = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
-    const y = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
-    projected.push({ x, y });
-    if (r > maxR) maxR = r;
+  if (maxAngDist <= Math.PI * 0.55) {
+    // Compact panel: Lambert azimuthal equal-area about the center.
+    for (const unit of units) {
+      const cosDist = Math.min(1, Math.max(-1, unit.dot(normal)));
+      const angDist = Math.acos(cosDist);
+      // Azimuth direction = the vertex's component perpendicular to the
+      // center direction. Degenerate only when the vertex sits exactly on
+      // the center (angDist 0) — the radius is 0 there, so direction is moot.
+      const az = unit.clone().sub(normal.clone().multiplyScalar(cosDist));
+      const azLen = az.length();
+      const r = 2 * Math.sin(angDist / 2) * sphereRadius;
+      const x = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
+      const y = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
+      projected.push({ x, y });
+      if (r > maxR) maxR = r;
+    }
+  } else {
+    // Wrap-around panel: equirectangular unroll about the spine through
+    // the center and the farthest boundary point. Frame: spineX = lobe
+    // direction (tangential part of the farthest point), spineY = panel
+    // center, spineN = spine-plane normal. Longitude λ = atan2(·spineX,
+    // ·spineY) is 0 at the center and ±(maxAngDist) at the tips — the
+    // boundary stays within |λ| < π for any non-self-covering panel, so
+    // there is no wrap seam. Latitude φ = asin(·spineN).
+    const spineY = normal;
+    const spineX = farthest
+      .clone()
+      .sub(spineY.clone().multiplyScalar(farthest.dot(spineY)))
+      .normalize();
+    const spineN = new Vector3().crossVectors(spineX, spineY).normalize();
+    for (const unit of units) {
+      const lat = Math.asin(Math.min(1, Math.max(-1, unit.dot(spineN))));
+      const inPlane = unit.clone().sub(spineN.clone().multiplyScalar(unit.dot(spineN)));
+      const lon =
+        inPlane.lengthSq() > 1e-24
+          ? Math.atan2(inPlane.dot(spineX), inPlane.dot(spineY))
+          : 0;
+      const x = lon * sphereRadius;
+      const y = lat * sphereRadius;
+      projected.push({ x, y });
+      const r = Math.hypot(x, y);
+      if (r > maxR) maxR = r;
+    }
   }
 
   // Scale so the panel's max-radius corner sits on the target circumradius

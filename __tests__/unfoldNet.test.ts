@@ -139,8 +139,13 @@ describe("unfoldNet", () => {
     for (const flat of layout.values()) {
       const xs = flat.corners.map((c) => c.x);
       const ys = flat.corners.map((c) => c.y);
-      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.1);
-      expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.1);
+      const xExt = Math.max(...xs) - Math.min(...xs);
+      const yExt = Math.max(...ys) - Math.min(...ys);
+      // Non-degenerate in absolute terms and not collapsed to a line.
+      expect(Math.max(xExt, yExt)).toBeGreaterThan(0.01);
+      expect(Math.min(xExt, yExt)).toBeGreaterThan(0.1 * Math.max(xExt, yExt));
+      // Spine-unrolled wrap-around panels read as elongated dog-bones.
+      expect(Math.max(xExt, yExt) / Math.min(xExt, yExt)).toBeGreaterThan(2);
     }
   });
 });
