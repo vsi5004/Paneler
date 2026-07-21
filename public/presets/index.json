@@ -71,7 +71,18 @@
     "label": "Soccer Ball",
     "glbPath": "/presets/soccer.glb",
     "panelCount": 32,
-    "shapeSignature": "12p+20h"
+    "shapeSignature": "12p+20h",
+    "params": [
+      {
+        "key": "shortEdge",
+        "label": "Short edge",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "gp2",

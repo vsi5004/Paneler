@@ -1,9 +1,12 @@
 import type { PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
-import { goldberg11, goldbergClassI } from "./goldberg";
+import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { trionda } from "./trionda";
-import { truncatedOctahedronFamily } from "./truncatedOcta";
+import {
+  truncatedIcosahedronFamily,
+  truncatedOctahedronFamily,
+} from "./truncationFamily";
 
 // -----------------------------------------------------------------------------
 // Presets
@@ -81,7 +84,7 @@ export function octahedron(radius = 1): PanelTopology {
 export function cuboctahedron(radius = 1): PanelTopology {
   // 12 vertices at midpoints of cube edges, 8 triangle + 6 square faces (14
   // total). The degenerate (shortEdge = 0) member of the octahedron truncation
-  // family — see truncatedOcta.ts.
+  // family — see truncationFamily.ts.
   return truncatedOctahedronFamily(radius, 0);
 }
 
@@ -264,7 +267,27 @@ export const PRESETS: PresetEntry[] = [
       truncatedOctahedronFamily(radius, (params?.shortEdge ?? 0) / 100),
   },
   { id: "icosa", label: "Icosahedron", panels: 20, topology: icosahedron },
-  { id: "soccer", label: "Soccer Ball", panels: 32, topology: goldberg11 },
+  {
+    id: "soccer",
+    label: "Soccer Ball",
+    panels: 32,
+    params: [
+      {
+        // Percent of the hexagons' long edge: 100% = classic soccer ball
+        // (truncated icosahedron, all edges equal), 0% = icosidodecahedron
+        // (hexagons collapse to triangles).
+        key: "shortEdge",
+        label: "Short edge",
+        min: 0,
+        max: 100,
+        step: 1,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      truncatedIcosahedronFamily(radius, (params?.shortEdge ?? 100) / 100),
+  },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
   { id: "gp3", label: "GP(3,0)", panels: 92, topology: (r?: number) => goldbergClassI(3, r) },
   { id: "gp4", label: "GP(4,0)", panels: 162, topology: (r?: number) => goldbergClassI(4, r) },

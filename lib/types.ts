@@ -38,7 +38,7 @@ export function shapeForVertexCount(n: number): PanelShape {
 
 /**
  * NOTE: the shape suffix is cosmetic/grouping only — never rebuild a panel's
- * id from its current `shape`. Parameterized presets (see truncatedOcta.ts)
+ * id from its current `shape`. Parameterized presets (see truncationFamily.ts)
  * freeze ids to the default shape so painted colors survive shape-parameter
  * changes even when a panel's true shape morphs (e.g. triangle → hexagon).
  */

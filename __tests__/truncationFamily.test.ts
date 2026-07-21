@@ -4,8 +4,9 @@ import { Vector3 } from "three";
 import {
   shortEdgeRatioToT,
   tToShortEdgeRatio,
+  truncatedIcosahedronFamily,
   truncatedOctahedronFamily,
-} from "@/lib/topology/truncatedOcta";
+} from "@/lib/topology/truncationFamily";
 import {
   cuboctahedron,
   presetById,
@@ -19,22 +20,25 @@ function euler(t: PanelTopology): number {
   return t.vertices.length - t.edges.length + t.panels.length;
 }
 
-/** Hex-hex edges — between two triangle-suffixed (frozen) face-panel ids. */
-function shortEdges(t: PanelTopology) {
+/**
+ * Hex-hex edges — between two face-panel ids (frozen suffix: "_triangle" for
+ * the octa family, "_hexagon" for the icosa family).
+ */
+function shortEdges(t: PanelTopology, faceSuffix: string) {
   return t.edges.filter(
     (e) =>
-      e.panelA.endsWith("_triangle") &&
+      e.panelA.endsWith(faceSuffix) &&
       e.panelB !== null &&
-      e.panelB.endsWith("_triangle"),
+      e.panelB.endsWith(faceSuffix),
   );
 }
 
-/** Hex-square edges — the hexagons' long edges. */
-function longEdges(t: PanelTopology) {
+/** Face-panel ↔ vertex-panel edges — the hexagons' long edges. */
+function longEdges(t: PanelTopology, faceSuffix: string) {
   return t.edges.filter(
     (e) =>
       e.panelB !== null &&
-      e.panelA.endsWith("_triangle") !== e.panelB.endsWith("_triangle"),
+      e.panelA.endsWith(faceSuffix) !== e.panelB.endsWith(faceSuffix),
   );
 }
 
@@ -89,8 +93,8 @@ describe("truncatedOctahedronFamily", () => {
   it("realizes the requested short/long edge ratio on the sphere", () => {
     for (const r of [0.05, 0.25, 0.5, 0.75, 1]) {
       const t = truncatedOctahedronFamily(1, r);
-      const short = shortEdges(t);
-      const long = longEdges(t);
+      const short = shortEdges(t, "_triangle");
+      const long = longEdges(t, "_triangle");
       expect(short).toHaveLength(12); // one per original octahedron edge
       expect(long).toHaveLength(24); // one per hexagon corner cut
       const longLen = edgeChord(t, long[0]);
@@ -113,7 +117,7 @@ describe("truncatedOctahedronFamily", () => {
 
   it("keeps the hex-hex edges the short ones within the slider range", () => {
     const t = truncatedOctahedronFamily(1, 0.4);
-    const shortLen = edgeChord(t, shortEdges(t)[0]);
+    const shortLen = edgeChord(t, shortEdges(t, "_triangle")[0]);
     for (const e of t.edges) {
       expect(edgeChord(t, e)).toBeGreaterThanOrEqual(shortLen - 1e-9);
     }
@@ -177,11 +181,110 @@ describe("truncatedOctahedronFamily", () => {
   });
 });
 
+describe("truncatedIcosahedronFamily", () => {
+  it("is the classic soccer ball at ratio 1 (the default)", () => {
+    const t = truncatedIcosahedronFamily(1);
+    expect(t.panels).toHaveLength(32);
+    expect(t.panels.filter((p) => p.shape === "hexagon")).toHaveLength(20);
+    expect(t.panels.filter((p) => p.shape === "pentagon")).toHaveLength(12);
+    expect(t.vertices).toHaveLength(60);
+    expect(t.edges).toHaveLength(90);
+    expect(euler(t)).toBe(2);
+    // Regular truncation: all edges equal on the sphere.
+    const first = edgeChord(t, t.edges[0]);
+    for (const e of t.edges) {
+      expect(edgeChord(t, e)).toBeCloseTo(first, 9);
+      expect(e.panelB).not.toBeNull();
+    }
+  });
+
+  it("degenerates to the icosidodecahedron at ratio 0", () => {
+    const t = truncatedIcosahedronFamily(1, 0);
+    expect(t.panels).toHaveLength(32);
+    expect(t.panels.filter((p) => p.shape === "triangle")).toHaveLength(20);
+    expect(t.panels.filter((p) => p.shape === "pentagon")).toHaveLength(12);
+    expect(t.vertices).toHaveLength(30);
+    expect(t.edges).toHaveLength(60);
+    expect(euler(t)).toBe(2);
+    for (const e of t.edges) {
+      expect(e.panelB).not.toBeNull();
+    }
+  });
+
+  it("realizes the requested short/long edge ratio on the sphere", () => {
+    for (const r of [0.25, 0.5, 0.75]) {
+      const t = truncatedIcosahedronFamily(1, r);
+      const short = shortEdges(t, "_hexagon");
+      const long = longEdges(t, "_hexagon");
+      expect(short).toHaveLength(30); // one per original icosahedron edge
+      expect(long).toHaveLength(60); // one per hexagon corner cut
+      const longLen = edgeChord(t, long[0]);
+      for (const e of long) {
+        expect(edgeChord(t, e)).toBeCloseTo(longLen, 9);
+      }
+      for (const e of short) {
+        expect(edgeChord(t, e) / longLen).toBeCloseTo(r, 9);
+      }
+    }
+  });
+
+  it("keeps panel ids frozen to the regular shapes across the range", () => {
+    const idSets = [0, 0.3, 0.7, 1].map((s) =>
+      truncatedIcosahedronFamily(1, s)
+        .panels.map((p) => p.id)
+        .sort()
+        .join(","),
+    );
+    for (const set of idSets) {
+      expect(set).toBe(idSets[0]);
+    }
+    // The frozen suffix reflects the ratio-1 shape, not the current one.
+    const collapsed = truncatedIcosahedronFamily(1, 0);
+    for (const p of collapsed.panels) {
+      if (p.shape === "triangle") expect(p.id).toMatch(/_hexagon$/);
+      if (p.shape === "pentagon") expect(p.id).toMatch(/_pentagon$/);
+    }
+  });
+
+  it("keeps each frozen id on the same physical panel across the range", () => {
+    const centroids = (s: number) => {
+      const t = truncatedIcosahedronFamily(1, s);
+      const map = new Map<string, Vector3>();
+      for (const p of t.panels) {
+        const c = new Vector3();
+        for (const vi of p.vertexIndices) c.add(t.vertices[vi]);
+        map.set(p.id, c.normalize());
+      }
+      return map;
+    };
+    const at1 = centroids(1);
+    const at0 = centroids(0);
+    for (const [id, dir] of at1) {
+      expect(at0.get(id)!.dot(dir)).toBeGreaterThan(0.99);
+    }
+  });
+
+  it("survives the subdivide → project → puff pipeline without NaNs", () => {
+    for (const s of [0.01, 0.5]) {
+      const sub = subdivideTopology(truncatedIcosahedronFamily(1, s), 2);
+      projectToSphere(sub, 2);
+      puffPanels(sub, 2, 0.06);
+      expect(sub.panels).toHaveLength(32);
+      for (const v of sub.vertices) {
+        expect(Number.isFinite(v.x + v.y + v.z)).toBe(true);
+      }
+    }
+  });
+});
+
 describe("resolvePresetParams", () => {
   const cubocta = presetById("cubocta")!;
 
   it("falls back to declared defaults", () => {
     expect(resolvePresetParams(cubocta)).toEqual({ shortEdge: 0 });
+    expect(resolvePresetParams(presetById("soccer")!)).toEqual({
+      shortEdge: 100,
+    });
   });
 
   it("keeps saved in-range values and clamps out-of-range ones", () => {
