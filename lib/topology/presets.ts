@@ -240,7 +240,27 @@ export function presetById(id: string): PresetEntry | undefined {
 }
 
 export const PRESETS: PresetEntry[] = [
-  { id: "baseball", label: "Baseball", panels: 2, topology: baseball },
+  {
+    id: "baseball",
+    label: "Baseball",
+    panels: 2,
+    params: [
+      {
+        // Percent of the way from the equator to the poles: 0% = straight
+        // equator seam (two hemispheres), 50% = classic baseball (π/4),
+        // capped at 90% before the seam humps pinch the poles.
+        key: "seamAmplitude",
+        label: "Seam amplitude",
+        min: 0,
+        max: 90,
+        step: 1,
+        defaultValue: 50,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      baseball(radius, ((params?.seamAmplitude ?? 50) / 100) * (Math.PI / 2)),
+  },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },
   { id: "cube", label: "Cube", panels: 6, topology: cube },

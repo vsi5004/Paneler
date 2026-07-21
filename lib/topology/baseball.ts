@@ -14,11 +14,11 @@ import {
 // doesn't blow up the per-panel triangle count.
 const SEAM_SAMPLES = 60;
 
-// Latitude amplitude of the seam wave, in radians. The seam oscillates
-// between ±SEAM_AMPLITUDE around the equator twice per revolution
+// Default latitude amplitude of the seam wave, in radians. The seam
+// oscillates between ±amplitude around the equator twice per revolution
 // (frequency = 2 → two "humps", classic baseball/tennis-ball shape).
 // π/4 ≈ 0.785 puts each hump roughly halfway to a pole.
-const SEAM_AMPLITUDE = Math.PI / 4;
+const DEFAULT_SEAM_AMPLITUDE = Math.PI / 4;
 
 /**
  * "Baseball" — two-panel cover separated by a wavy seam. Each panel has a
@@ -30,7 +30,13 @@ const SEAM_AMPLITUDE = Math.PI / 4;
  *
  * Seam parameterization (on the unit sphere):
  *   longitude(t) = 2π·t                       for t ∈ [0,1)
- *   latitude(t)  = A·sin(2·longitude(t))      A = SEAM_AMPLITUDE
+ *   latitude(t)  = A·sin(2·longitude(t))      A = seamAmplitude
+ *
+ * `seamAmplitude` is a shape param (radians, [0, π/2)): 0 gives a straight
+ * equator seam (two hemispheres); π/4 the classic baseball. The latitude is
+ * single-valued per longitude, so the seam never self-intersects for any
+ * amplitude below π/2. At 0 the subdivider's signed-area centroid fallback
+ * places each panel's fan center on its hemisphere pole (see computeCentroid).
  *
  * Panel A (call it "north") walks the seam in ascending t (CCW from outside
  * the +Y hemisphere as seen looking down −Y). Panel B ("south") walks it in
@@ -38,11 +44,14 @@ const SEAM_AMPLITUDE = Math.PI / 4;
  * topology has one edge per consecutive pair, with panelA/panelB set so
  * adjacency works for the unfold BFS.
  */
-export function baseball(radius = 1): PanelTopology {
+export function baseball(
+  radius = 1,
+  seamAmplitude = DEFAULT_SEAM_AMPLITUDE,
+): PanelTopology {
   const vertices: Vector3[] = [];
   for (let i = 0; i < SEAM_SAMPLES; i++) {
     const theta = (i / SEAM_SAMPLES) * 2 * Math.PI;
-    const phi = SEAM_AMPLITUDE * Math.sin(2 * theta);
+    const phi = seamAmplitude * Math.sin(2 * theta);
     const x = Math.cos(phi) * Math.cos(theta);
     const y = Math.cos(phi) * Math.sin(theta);
     const z = Math.sin(phi);
