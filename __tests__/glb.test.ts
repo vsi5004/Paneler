@@ -115,12 +115,12 @@ describe("design extras (shape params)", () => {
     projectToSphere(sub, 1);
     const doc = buildGlbDocument(sub, {
       assetName: "cube",
-      design: { presetId: "cubocta", params: { shortEdge: 0.3 } },
+      design: { presetId: "cubocta", params: { shortEdge: 30 } },
     });
     const parsed = await parseGlb(await serializeDocument(doc));
     expect(parsed.design).toEqual({
       presetId: "cubocta",
-      params: { shortEdge: 0.3 },
+      params: { shortEdge: 30 },
     });
   });
 
@@ -134,13 +134,13 @@ describe("design extras (shape params)", () => {
   });
 
   it("survives color mutation + re-serialize (the save path)", async () => {
-    const doc = generateTemplateDocument("cubocta", { shortEdge: 0.2 });
+    const doc = generateTemplateDocument("cubocta", { shortEdge: 20 });
     const parsed = await parseGlb(await serializeDocument(doc));
     setMaterialColor(parsed.document, parsed.topology.panels[0].id, "#ff0033");
     const round = await parseGlb(await serializeDocument(parsed.document));
     expect(round.design).toEqual({
       presetId: "cubocta",
-      params: { shortEdge: 0.2 },
+      params: { shortEdge: 20 },
     });
   });
 
@@ -163,7 +163,7 @@ describe("design extras (shape params)", () => {
 
     const morphed = generateTemplateDocument(
       "cubocta",
-      { shortEdge: 0.4 },
+      { shortEdge: 40 },
       { [paintedId]: "#33aa55" },
     );
     const morphedParsed = await parseGlb(await serializeDocument(morphed));

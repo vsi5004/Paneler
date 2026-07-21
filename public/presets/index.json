@@ -50,11 +50,12 @@
     "params": [
       {
         "key": "shortEdge",
-        "label": "Short edge length",
+        "label": "Short edge",
         "min": 0,
-        "max": 0.63,
-        "step": 0.01,
-        "defaultValue": 0
+        "max": 100,
+        "step": 1,
+        "defaultValue": 0,
+        "unit": "%"
       }
     ]
   },

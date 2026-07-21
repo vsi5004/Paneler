@@ -4,7 +4,8 @@ import { topologyFromFaces } from "./fromFaces";
 
 /**
  * The octahedron truncation family: octahedron → truncated octahedron →
- * cuboctahedron, parameterized by the length of the hexagons' short edges.
+ * cuboctahedron, parameterized by the length of the hexagons' short edges
+ * relative to their long edges.
  *
  * Truncate each octahedron edge (a, b) at `lerp(a, b, t)` and `lerp(a, b, 1-t)`:
  * every octa face becomes a hexagon (alternating long/short edges) and every
@@ -13,34 +14,35 @@ import { topologyFromFaces } from "./fromFaces";
  * both truncation points meet at the edge midpoint, the short edges vanish, and
  * the hexagons degenerate into the cuboctahedron's triangles.
  *
- * The parameter is the short edge's chord length on the *unit* sphere, so it is
- * scale-free and reads directly as a length in the UI. Derivation: the two
- * truncation points sit at fractions t and 1-t of an octa edge, separated by
- * `u = 1 - 2t` of the edge. Unit octa vertices are `√2` apart, and each point's
- * distance from the origin is `sqrt(1 - 2t + 2t²) = sqrt((1 + u²)/2)`, so after
- * projection onto the unit sphere the chord is `u√2 / sqrt((1+u²)/2)`:
+ * The parameter is the short/long edge length ratio, which reads naturally in
+ * the UI as a percent. Derivation: with `u = 1 - 2t`, the two truncation
+ * points of one octa edge are `u√2` apart (short edge) and the corner-cut
+ * segment near a vertex spans `t√2` (long edge). Both endpoints of either
+ * segment sit at the same distance from the origin, so projecting onto the
+ * sphere scales both chords equally and the ratio is simply:
  *
- *   s = 2u / sqrt(u² + 1)        u = s / sqrt(4 - s²)        t = (1 - u) / 2
+ *   r = u / t = 2u / (1 - u)        u = r / (2 + r)        t = (1 - u) / 2
  *
- * Anchors: t=1/2 → s=0 (cuboctahedron), t=1/3 → s=2/√10 ≈ 0.632 (regular
- * truncated octahedron, all edges equal), t=0 → s=√2 (octahedron, squares
- * degenerate). Beyond s ≈ 0.632 the hex-hex edge is no longer the short one.
+ * Anchors: t=1/2 → r=0 (cuboctahedron), t=1/3 → r=1 (regular truncated
+ * octahedron, all edges equal — 100%), t=0 → r=∞ (octahedron limit, squares
+ * degenerate). The slider range [0, 1] covers cuboctahedron → regular
+ * truncated octahedron; beyond r=1 the "short" edge would be the long one.
  */
 
-/** Short-edge chord length on the unit sphere → truncation fraction t ∈ (0, 1/2]. */
-export function shortEdgeToT(shortEdge: number): number {
-  const u = shortEdge / Math.sqrt(4 - shortEdge * shortEdge);
+/** Short/long edge ratio → truncation fraction t ∈ (0, 1/2]. */
+export function shortEdgeRatioToT(ratio: number): number {
+  const u = ratio / (2 + ratio);
   return (1 - u) / 2;
 }
 
-/** Truncation fraction t → short-edge chord length on the unit sphere. */
-export function tToShortEdge(t: number): number {
+/** Truncation fraction t → short/long edge ratio. */
+export function tToShortEdgeRatio(t: number): number {
   const u = 1 - 2 * t;
-  return (2 * u) / Math.sqrt(u * u + 1);
+  return (2 * u) / (1 - u);
 }
 
-/** Below this, truncation points are merged and hexagons collapse to triangles. */
-const DEGENERATE_SHORT_EDGE = 1e-6;
+/** Below this ratio, truncation points are merged and hexagons collapse to triangles. */
+const DEGENERATE_RATIO = 1e-6;
 
 // Mirrors octahedron() in presets.ts — duplicated here (6 verts, 8 faces) so
 // this module doesn't import from presets.ts, which imports us back.
@@ -79,10 +81,10 @@ const FROZEN_SHAPES = [
 
 export function truncatedOctahedronFamily(
   radius = 1,
-  shortEdge = 0,
+  shortEdgeRatio = 0,
 ): PanelTopology {
-  const t = shortEdgeToT(shortEdge);
-  const degenerate = shortEdge < DEGENERATE_SHORT_EDGE;
+  const t = shortEdgeRatioToT(shortEdgeRatio);
+  const degenerate = shortEdgeRatio < DEGENERATE_RATIO;
   const octa = OCTA_VERTS.map(([x, y, z]) => new Vector3(x, y, z));
 
   const rawVertices: [number, number, number][] = [];

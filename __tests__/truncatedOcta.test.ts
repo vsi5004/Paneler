@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 
 import {
-  shortEdgeToT,
-  tToShortEdge,
+  shortEdgeRatioToT,
+  tToShortEdgeRatio,
   truncatedOctahedronFamily,
 } from "@/lib/topology/truncatedOcta";
 import {
@@ -19,7 +19,7 @@ function euler(t: PanelTopology): number {
   return t.vertices.length - t.edges.length + t.panels.length;
 }
 
-/** Ids of the "face" panels — always the triangle-suffixed ids (frozen). */
+/** Hex-hex edges — between two triangle-suffixed (frozen) face-panel ids. */
 function shortEdges(t: PanelTopology) {
   return t.edges.filter(
     (e) =>
@@ -29,16 +29,30 @@ function shortEdges(t: PanelTopology) {
   );
 }
 
-describe("shortEdge ↔ truncation conversions", () => {
+/** Hex-square edges — the hexagons' long edges. */
+function longEdges(t: PanelTopology) {
+  return t.edges.filter(
+    (e) =>
+      e.panelB !== null &&
+      e.panelA.endsWith("_triangle") !== e.panelB.endsWith("_triangle"),
+  );
+}
+
+function edgeChord(t: PanelTopology, e: PanelTopology["edges"][number]) {
+  return t.vertices[e.vertexA].distanceTo(t.vertices[e.vertexB]);
+}
+
+describe("shortEdgeRatio ↔ truncation conversions", () => {
   it("hits the family's anchor points", () => {
-    expect(shortEdgeToT(0)).toBeCloseTo(0.5, 12); // cuboctahedron
-    expect(tToShortEdge(1 / 3)).toBeCloseTo(2 / Math.sqrt(10), 12); // regular trunc-octa
-    expect(tToShortEdge(0)).toBeCloseTo(Math.SQRT2, 12); // octahedron limit
+    expect(shortEdgeRatioToT(0)).toBeCloseTo(0.5, 12); // cuboctahedron
+    expect(shortEdgeRatioToT(1)).toBeCloseTo(1 / 3, 12); // regular trunc-octa
+    expect(tToShortEdgeRatio(1 / 3)).toBeCloseTo(1, 12);
+    expect(tToShortEdgeRatio(0)).toBe(Infinity); // octahedron limit
   });
 
   it("round-trips across the slider range", () => {
-    for (let s = 0; s <= 0.63; s += 0.01) {
-      expect(tToShortEdge(shortEdgeToT(s))).toBeCloseTo(s, 12);
+    for (let r = 0; r <= 1; r += 0.01) {
+      expect(tToShortEdgeRatio(shortEdgeRatioToT(r))).toBeCloseTo(r, 12);
     }
   });
 });
@@ -59,7 +73,7 @@ describe("truncatedOctahedronFamily", () => {
     );
   });
 
-  it("produces 8 hexagons + 6 quads for shortEdge > 0", () => {
+  it("produces 8 hexagons + 6 quads for shortEdgeRatio > 0", () => {
     const t = truncatedOctahedronFamily(1, 0.4);
     expect(t.panels).toHaveLength(14);
     expect(t.panels.filter((p) => p.shape === "hexagon")).toHaveLength(8);
@@ -72,31 +86,41 @@ describe("truncatedOctahedronFamily", () => {
     }
   });
 
-  it("realizes the requested short-edge chord length on the unit sphere", () => {
-    for (const s of [0.05, 0.2, 0.4, 0.63]) {
-      const t = truncatedOctahedronFamily(1, s);
+  it("realizes the requested short/long edge ratio on the sphere", () => {
+    for (const r of [0.05, 0.25, 0.5, 0.75, 1]) {
+      const t = truncatedOctahedronFamily(1, r);
       const short = shortEdges(t);
+      const long = longEdges(t);
       expect(short).toHaveLength(12); // one per original octahedron edge
-      for (const e of short) {
-        const chord = t.vertices[e.vertexA].distanceTo(t.vertices[e.vertexB]);
-        expect(chord).toBeCloseTo(s, 9);
+      expect(long).toHaveLength(24); // one per hexagon corner cut
+      const longLen = edgeChord(t, long[0]);
+      for (const e of long) {
+        expect(edgeChord(t, e)).toBeCloseTo(longLen, 9);
       }
+      for (const e of short) {
+        expect(edgeChord(t, e) / longLen).toBeCloseTo(r, 9);
+      }
+    }
+  });
+
+  it("makes all edges equal at 100% (regular truncated octahedron)", () => {
+    const t = truncatedOctahedronFamily(1, 1);
+    const first = edgeChord(t, t.edges[0]);
+    for (const e of t.edges) {
+      expect(edgeChord(t, e)).toBeCloseTo(first, 9);
     }
   });
 
   it("keeps the hex-hex edges the short ones within the slider range", () => {
     const t = truncatedOctahedronFamily(1, 0.4);
-    const shortLen = t.vertices[shortEdges(t)[0].vertexA].distanceTo(
-      t.vertices[shortEdges(t)[0].vertexB],
-    );
+    const shortLen = edgeChord(t, shortEdges(t)[0]);
     for (const e of t.edges) {
-      const len = t.vertices[e.vertexA].distanceTo(t.vertices[e.vertexB]);
-      expect(len).toBeGreaterThanOrEqual(shortLen - 1e-9);
+      expect(edgeChord(t, e)).toBeGreaterThanOrEqual(shortLen - 1e-9);
     }
   });
 
   it("keeps panel ids frozen to the degenerate shapes across the range", () => {
-    const idSets = [0, 0.1, 0.4, 0.63].map((s) =>
+    const idSets = [0, 0.1, 0.4, 1].map((s) =>
       truncatedOctahedronFamily(1, s)
         .panels.map((p) => p.id)
         .sort()
@@ -161,11 +185,11 @@ describe("resolvePresetParams", () => {
   });
 
   it("keeps saved in-range values and clamps out-of-range ones", () => {
-    expect(resolvePresetParams(cubocta, { shortEdge: 0.4 })).toEqual({
-      shortEdge: 0.4,
+    expect(resolvePresetParams(cubocta, { shortEdge: 40 })).toEqual({
+      shortEdge: 40,
     });
-    expect(resolvePresetParams(cubocta, { shortEdge: 9 })).toEqual({
-      shortEdge: 0.63,
+    expect(resolvePresetParams(cubocta, { shortEdge: 250 })).toEqual({
+      shortEdge: 100,
     });
     expect(resolvePresetParams(cubocta, { shortEdge: -1 })).toEqual({
       shortEdge: 0,

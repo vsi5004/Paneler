@@ -40,7 +40,8 @@ export function ShapeParamsPanel({
                   {def.label}
                 </label>
                 <span className="font-mono text-[10px] tabular-nums text-foreground">
-                  {value.toFixed(2)}
+                  {value.toFixed(def.step >= 1 ? 0 : 2)}
+                  {def.unit ?? ""}
                 </span>
               </div>
               <Slider

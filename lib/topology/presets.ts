@@ -196,6 +196,8 @@ export interface PresetParamDef {
   max: number;
   step: number;
   defaultValue: number;
+  /** Display suffix for the value, e.g. "%". Purely cosmetic. */
+  unit?: string;
 }
 
 export type PresetParams = Record<string, number>;
@@ -247,16 +249,19 @@ export const PRESETS: PresetEntry[] = [
     panels: 14,
     params: [
       {
+        // Percent of the hexagons' long edge: 0% = cuboctahedron (triangles),
+        // 100% = regular truncated octahedron (all edges equal).
         key: "shortEdge",
-        label: "Short edge length",
+        label: "Short edge",
         min: 0,
-        max: 0.63, // ≈ regular truncated octahedron; beyond it the "short" edge is the long one
-        step: 0.01,
+        max: 100,
+        step: 1,
         defaultValue: 0,
+        unit: "%",
       },
     ],
     topology: (radius?: number, params?: PresetParams) =>
-      truncatedOctahedronFamily(radius, params?.shortEdge ?? 0),
+      truncatedOctahedronFamily(radius, (params?.shortEdge ?? 0) / 100),
   },
   { id: "icosa", label: "Icosahedron", panels: 20, topology: icosahedron },
   { id: "soccer", label: "Soccer Ball", panels: 32, topology: goldberg11 },
