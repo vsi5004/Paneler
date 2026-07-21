@@ -36,6 +36,12 @@ export function shapeForVertexCount(n: number): PanelShape {
   return "polygon";
 }
 
+/**
+ * NOTE: the shape suffix is cosmetic/grouping only — never rebuild a panel's
+ * id from its current `shape`. Parameterized presets (see truncatedOcta.ts)
+ * freeze ids to the default shape so painted colors survive shape-parameter
+ * changes even when a panel's true shape morphs (e.g. triangle → hexagon).
+ */
 export function panelId(index: number, shape: PanelShape): string {
   return `panel_${String(index + 1).padStart(3, "0")}_${shape}`;
 }

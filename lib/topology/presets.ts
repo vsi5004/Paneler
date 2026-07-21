@@ -1,64 +1,9 @@
-import { Vector3 } from "three";
-import {
-  type PanelEdge,
-  type PanelTopology,
-  panelId,
-  shapeForVertexCount,
-} from "@/lib/types";
+import type { PanelTopology } from "@/lib/types";
+import { topologyFromFaces } from "./fromFaces";
 import { goldberg11, goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { trionda } from "./trionda";
-
-/**
- * Build a PanelTopology from raw vertex coordinates and face index loops.
- * Vertices are normalized onto a sphere of the given radius (default 1) so
- * the rest of the pipeline can rely on `|v| === radius` for every vertex.
- */
-function topologyFromFaces(
-  rawVertices: ReadonlyArray<readonly [number, number, number]>,
-  faces: ReadonlyArray<ReadonlyArray<number>>,
-  radius = 1,
-): PanelTopology {
-  const vertices = rawVertices.map(([x, y, z]) => {
-    const v = new Vector3(x, y, z);
-    v.setLength(radius);
-    return v;
-  });
-
-  const panels = faces.map((vertexIndices, idx) => {
-    const shape = shapeForVertexCount(vertexIndices.length);
-    return {
-      id: panelId(idx, shape),
-      vertexIndices: [...vertexIndices],
-      shape,
-    };
-  });
-
-  // Build edges by walking each panel's boundary. Each undirected edge appears
-  // in at most two panels; we record both sides.
-  const edgeMap = new Map<string, PanelEdge>();
-  for (const panel of panels) {
-    const loop = panel.vertexIndices;
-    for (let i = 0; i < loop.length; i++) {
-      const a = loop[i];
-      const b = loop[(i + 1) % loop.length];
-      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-      const existing = edgeMap.get(key);
-      if (existing) {
-        existing.panelB = panel.id;
-      } else {
-        edgeMap.set(key, {
-          vertexA: Math.min(a, b),
-          vertexB: Math.max(a, b),
-          panelA: panel.id,
-          panelB: null,
-        });
-      }
-    }
-  }
-
-  return { vertices, panels, edges: [...edgeMap.values()] };
-}
+import { truncatedOctahedronFamily } from "./truncatedOcta";
 
 // -----------------------------------------------------------------------------
 // Presets
@@ -134,42 +79,10 @@ export function octahedron(radius = 1): PanelTopology {
 }
 
 export function cuboctahedron(radius = 1): PanelTopology {
-  // 12 vertices at midpoints of cube edges, 8 triangle + 6 square faces (14 total).
-  return topologyFromFaces(
-    [
-      [1, 1, 0], // 0
-      [1, -1, 0], // 1
-      [-1, -1, 0], // 2
-      [-1, 1, 0], // 3
-      [1, 0, 1], // 4
-      [1, 0, -1], // 5
-      [-1, 0, -1], // 6
-      [-1, 0, 1], // 7
-      [0, 1, 1], // 8
-      [0, 1, -1], // 9
-      [0, -1, -1], // 10
-      [0, -1, 1], // 11
-    ],
-    [
-      // 8 triangles (one per cube corner)
-      [0, 8, 4],
-      [0, 5, 9],
-      [1, 4, 11],
-      [1, 10, 5],
-      [2, 11, 7],
-      [2, 6, 10],
-      [3, 7, 8],
-      [3, 9, 6],
-      // 6 squares (one per cube face)
-      [0, 4, 1, 5],
-      [2, 7, 3, 6],
-      [0, 9, 3, 8],
-      [1, 11, 2, 10],
-      [4, 8, 7, 11],
-      [5, 10, 6, 9],
-    ],
-    radius,
-  );
+  // 12 vertices at midpoints of cube edges, 8 triangle + 6 square faces (14
+  // total). The degenerate (shortEdge = 0) member of the octahedron truncation
+  // family — see truncatedOcta.ts.
+  return truncatedOctahedronFamily(radius, 0);
 }
 
 export function icosahedron(radius = 1): PanelTopology {
@@ -271,11 +184,54 @@ export function dodecahedron(radius = 1): PanelTopology {
 // Registry
 // -----------------------------------------------------------------------------
 
+/**
+ * A shape degree of freedom a preset exposes as a slider. Values are plain
+ * numbers keyed by `key`; the resolved values for a design live in its GLB's
+ * asset extras (`asset.extras.paneler.params`) so they travel with the file.
+ */
+export interface PresetParamDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+}
+
+export type PresetParams = Record<string, number>;
+
 export interface PresetEntry {
   id: string;
   label: string;
   panels: number;
-  topology: (radius?: number) => PanelTopology;
+  /** Shape parameters this preset supports. Absent → no Shape sliders. */
+  params?: PresetParamDef[];
+  topology: (radius?: number, params?: PresetParams) => PanelTopology;
+}
+
+/**
+ * Merge a preset's declared defaults with saved values (e.g. read from a GLB's
+ * extras), clamping to each def's [min, max] so hand-edited GLBs can't produce
+ * out-of-range geometry. Unknown keys in `saved` are dropped.
+ */
+export function resolvePresetParams(
+  entry: PresetEntry,
+  saved?: PresetParams,
+): PresetParams {
+  const resolved: PresetParams = {};
+  for (const def of entry.params ?? []) {
+    const value = saved?.[def.key];
+    resolved[def.key] =
+      typeof value === "number" && Number.isFinite(value)
+        ? Math.min(def.max, Math.max(def.min, value))
+        : def.defaultValue;
+  }
+  return resolved;
+}
+
+/** Look up a preset by id; undefined for custom/unknown designs. */
+export function presetById(id: string): PresetEntry | undefined {
+  return PRESETS.find((p) => p.id === id);
 }
 
 export const PRESETS: PresetEntry[] = [
@@ -285,7 +241,23 @@ export const PRESETS: PresetEntry[] = [
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
-  { id: "cubocta", label: "Cuboctahedron", panels: 14, topology: cuboctahedron },
+  {
+    id: "cubocta",
+    label: "Cuboctahedron",
+    panels: 14,
+    params: [
+      {
+        key: "shortEdge",
+        label: "Short edge length",
+        min: 0,
+        max: 0.63, // ≈ regular truncated octahedron; beyond it the "short" edge is the long one
+        step: 0.01,
+        defaultValue: 0,
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      truncatedOctahedronFamily(radius, params?.shortEdge ?? 0),
+  },
   { id: "icosa", label: "Icosahedron", panels: 20, topology: icosahedron },
   { id: "soccer", label: "Soccer Ball", panels: 32, topology: goldberg11 },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
