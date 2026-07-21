@@ -28,15 +28,25 @@ const DEFAULT_SEAM_AMPLITUDE = Math.PI / 4;
  * which is the point of including this template: it exercises the
  * curved-edge path through the renderer + flat unfold.
  *
- * Seam parameterization (on the unit sphere):
- *   longitude(t) = 2π·t                       for t ∈ [0,1)
- *   latitude(t)  = A·sin(2·longitude(t))      A = seamAmplitude
+ * Seam parameterization — the classical tennis-ball curve (Fourier form):
  *
- * `seamAmplitude` is a shape param (radians, [0, π/2)): 0 gives a straight
- * equator seam (two hemispheres); π/4 the classic baseball. The latitude is
- * single-valued per longitude, so the seam never self-intersects for any
- * amplitude below π/2. At 0 the subdivider's signed-area centroid fallback
- * places each panel's fan center on its hemisphere pole (see computeCentroid).
+ *   x = a·cos t + b·cos 3t
+ *   y = a·sin t − b·sin 3t      with a + b = 1, t ∈ [0, 2π)
+ *   z = 2√(ab)·sin 2t
+ *
+ * The curve lies exactly on the unit sphere: x² + y² + z² = (a + b)² = 1.
+ * Compared to the earlier `latitude = A·sin(2·longitude)` wave, its lobes
+ * stay round at high amplitude instead of sharpening into cusps (meridians
+ * converge near the poles, so a sine wave in lat/long space gets pointier
+ * the higher it swings).
+ *
+ * `seamAmplitude` is the maximum latitude the seam reaches (radians,
+ * [0, π/2)). The peak of z is 2√(ab), so sin(amplitude) = 2√(ab) with
+ * a + b = 1 gives the closed form a = cos²(amplitude/2), b = sin²(amplitude/2).
+ * 0 → equator seam (two hemispheres, b = 0); π/4 → classic baseball; π/2
+ * would pinch at the poles (a = b), so the preset caps below it. At 0 the
+ * subdivider's signed-area centroid fallback places each panel's fan center
+ * on its hemisphere pole (see computeCentroid).
  *
  * Panel A (call it "north") walks the seam in ascending t (CCW from outside
  * the +Y hemisphere as seen looking down −Y). Panel B ("south") walks it in
@@ -48,13 +58,15 @@ export function baseball(
   radius = 1,
   seamAmplitude = DEFAULT_SEAM_AMPLITUDE,
 ): PanelTopology {
+  const a = Math.cos(seamAmplitude / 2) ** 2;
+  const b = Math.sin(seamAmplitude / 2) ** 2;
+  const zScale = 2 * Math.sqrt(a * b);
   const vertices: Vector3[] = [];
   for (let i = 0; i < SEAM_SAMPLES; i++) {
-    const theta = (i / SEAM_SAMPLES) * 2 * Math.PI;
-    const phi = seamAmplitude * Math.sin(2 * theta);
-    const x = Math.cos(phi) * Math.cos(theta);
-    const y = Math.cos(phi) * Math.sin(theta);
-    const z = Math.sin(phi);
+    const t = (i / SEAM_SAMPLES) * 2 * Math.PI;
+    const x = a * Math.cos(t) + b * Math.cos(3 * t);
+    const y = a * Math.sin(t) - b * Math.sin(3 * t);
+    const z = zScale * Math.sin(2 * t);
     const v = new Vector3(x, y, z);
     v.setLength(radius);
     vertices.push(v);
