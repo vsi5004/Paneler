@@ -54,9 +54,26 @@ describe("baseball seam amplitude", () => {
     }
   });
 
-  it("declares the preset param with a 50% default", () => {
+  it("declares the preset params with their defaults", () => {
     expect(resolvePresetParams(presetById("baseball")!)).toEqual({
       seamAmplitude: 50,
+      seamRoundness: 60,
     });
+  });
+
+  it("roundness plateaus the peaks without changing the peak latitude", () => {
+    const amplitude = Math.PI / 4;
+    const pointy = baseball(1, amplitude, 0);
+    const round = baseball(1, amplitude, 1);
+    const maxZ = (t: ReturnType<typeof baseball>) =>
+      Math.max(...t.vertices.map((v) => v.z));
+    // Same peak latitude either way.
+    expect(maxZ(pointy)).toBeCloseTo(Math.sin(amplitude), 9);
+    expect(maxZ(round)).toBeCloseTo(Math.sin(amplitude), 9);
+    // The rounder wave hugs its extreme latitude for more of the seam:
+    // more samples sit near the peak.
+    const nearPeak = (t: ReturnType<typeof baseball>) =>
+      t.vertices.filter((v) => Math.abs(v.z) > 0.9 * Math.sin(amplitude)).length;
+    expect(nearPeak(round)).toBeGreaterThan(nearPeak(pointy) * 2);
   });
 });

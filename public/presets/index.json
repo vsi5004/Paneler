@@ -14,6 +14,15 @@
         "step": 1,
         "defaultValue": 50,
         "unit": "%"
+      },
+      {
+        "key": "seamRoundness",
+        "label": "Seam roundness",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 60,
+        "unit": "%"
       }
     ]
   },
