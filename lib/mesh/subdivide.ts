@@ -77,6 +77,14 @@ export function subdivideTopology(
     );
     vertexDepth.set(centroidIdx, 1);
 
+    // Interior vertices along each fan line (corner → centroid) are shared
+    // between the two fan sectors flanking that corner. Without this cache
+    // both sectors emitted their own copies at identical positions — the
+    // mesh looked watertight but carried duplicated vertices, which wasted
+    // memory, split vertex normals along every fan line (faint shading
+    // creases), and broke index-based open-edge detection.
+    const fanLineCache = new Map<string, number>();
+
     const boundaryLoop = panel.vertexIndices;
     for (let i = 0; i < boundaryLoop.length; i++) {
       const aIdx = boundaryLoop[i];
@@ -112,6 +120,25 @@ export function subdivideTopology(
         const t = row / levels; // 0 at boundary, 1 at centroid
         const segCount = levels - row + 1; // points in this row
         for (let s = 0; s < segCount; s++) {
+          if (row === levels) {
+            rowVerts.push(centroidIdx);
+            continue;
+          }
+          // First/last points of a row sit on the fan line of aIdx/bIdx —
+          // shared with the neighbouring fan sector via the cache.
+          const fanKey =
+            s === 0
+              ? `${aIdx}-${row}`
+              : s === segCount - 1
+                ? `${bIdx}-${row}`
+                : null;
+          if (fanKey !== null) {
+            const cached = fanLineCache.get(fanKey);
+            if (cached !== undefined) {
+              rowVerts.push(cached);
+              continue;
+            }
+          }
           const along = segCount === 1 ? 0.5 : s / (segCount - 1);
           const edgePoint = lerp3(
             newVertices[aIdx],
@@ -119,13 +146,10 @@ export function subdivideTopology(
             along,
           );
           const interior = lerp3(edgePoint, newVertices[centroidIdx], t);
-          if (row === levels) {
-            rowVerts.push(centroidIdx);
-          } else {
-            const idx = addVertex(newVertices, interior);
-            vertexDepth.set(idx, t);
-            rowVerts.push(idx);
-          }
+          const idx = addVertex(newVertices, interior);
+          vertexDepth.set(idx, t);
+          if (fanKey !== null) fanLineCache.set(fanKey, idx);
+          rowVerts.push(idx);
         }
         rows.push(rowVerts);
       }
