@@ -24,6 +24,12 @@ export interface ParsedGlb {
   materials: PanelMaterialRef[];
   /** The parsed gltf-transform Document — kept so save flow can mutate + re-serialize. */
   document: Document;
+  /**
+   * Preset provenance + shape param values from `asset.extras.paneler`, when
+   * the GLB was generated from a parameterized preset. Absent for custom
+   * (e.g. Blender-exported) GLBs — those get no Shape sliders.
+   */
+  design?: { presetId: string; params: Record<string, number> };
 }
 
 const CORNER_DEDUPE_EPSILON = 1e-4;
@@ -110,7 +116,29 @@ export function parseDocument(doc: Document): ParsedGlb {
     topology: { vertices: globalVertices, panels, edges },
     materials,
     document: doc,
+    design: parseDesignExtras(doc),
   };
+}
+
+/** Read `asset.extras.paneler` defensively — hand-edited GLBs may hold junk. */
+function parseDesignExtras(
+  doc: Document,
+): ParsedGlb["design"] {
+  const extras = doc.getRoot().getAsset().extras;
+  if (typeof extras !== "object" || extras === null) return undefined;
+  const paneler = (extras as Record<string, unknown>).paneler;
+  if (typeof paneler !== "object" || paneler === null) return undefined;
+  const { presetId, params } = paneler as Record<string, unknown>;
+  if (typeof presetId !== "string") return undefined;
+  const cleanParams: Record<string, number> = {};
+  if (typeof params === "object" && params !== null) {
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        cleanParams[key] = value;
+      }
+    }
+  }
+  return { presetId, params: cleanParams };
 }
 
 function dedupeVertex(

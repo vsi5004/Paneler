@@ -1,6 +1,7 @@
 import { Document } from "@gltf-transform/core";
 import { BufferAttribute, BufferGeometry, Vector3 } from "three";
 import type { PanelTopology } from "@/lib/types";
+import type { PresetParams } from "@/lib/topology/presets";
 import { getPanelTriangles, getBoundaryArcs } from "@/lib/mesh/subdivide";
 import { buildPanelUVArray } from "@/lib/mesh/panelUVs";
 
@@ -9,11 +10,25 @@ const SEAM_NODE_NAME = "__seams";
 
 const DEFAULT_BASE_COLOR: [number, number, number, number] = [0.92, 0.92, 0.92, 1];
 
+/**
+ * Provenance of a parameterized design, stored on `asset.extras.paneler` so it
+ * round-trips through every save path (file download, R2). Lets the designer
+ * re-run the preset generator with new param values — the Shape sliders.
+ */
+export interface DesignExtras {
+  presetId: string;
+  params: PresetParams;
+}
+
+const DESIGN_EXTRAS_VERSION = 1;
+
 export interface BuildOptions {
   /** Friendly name for the glTF asset (e.g. preset slug or design name). */
   assetName?: string;
   /** Per-panel sRGB hex colors, e.g. {"panel_001_pentagon": "#ff0033"}. */
   panelColors?: Record<string, string>;
+  /** Preset provenance + shape param values; written to asset extras. */
+  design?: DesignExtras;
 }
 
 /**
@@ -41,8 +56,19 @@ export function buildGlbDocument(
   const doc = new Document();
   const asset = doc.getRoot().getAsset();
   asset.generator = "paneler-bake";
+  const assetExtras: Record<string, unknown> = {};
   if (options.assetName) {
-    asset.extras = { name: options.assetName };
+    assetExtras.name = options.assetName;
+  }
+  if (options.design) {
+    assetExtras.paneler = {
+      version: DESIGN_EXTRAS_VERSION,
+      presetId: options.design.presetId,
+      params: { ...options.design.params },
+    };
+  }
+  if (Object.keys(assetExtras).length > 0) {
+    asset.extras = assetExtras;
   }
 
   const buffer = doc.createBuffer();
