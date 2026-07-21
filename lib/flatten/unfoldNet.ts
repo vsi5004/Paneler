@@ -186,15 +186,19 @@ function flattenPanelLocal(
   const n = panel.vertexIndices.length;
   const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
 
-  // Project the panel's actual 3D boundary into a 2D tangent plane at
-  // its spherical centroid. This preserves the real panel shape — wavy
-  // panels (Baseball, Trionda) look wavy in the net; regular polygons
-  // (Goldberg / Platonic faces) look like regular polygons.
+  // Project the panel's actual 3D boundary into 2D about its spherical
+  // centroid using an azimuthal equidistant projection: radius = angular
+  // distance from the panel center, direction = azimuth in the tangent
+  // plane. This preserves the real panel shape — wavy panels (Baseball,
+  // Trionda) look wavy in the net; regular polygons (Goldberg / Platonic
+  // faces) look like regular polygons.
   //
-  // Without this, panels with many densely sampled boundary vertices
-  // (Trionda has 147 per panel) collapsed to plain circles.
+  // Equidistant rather than a straight tangent-plane (orthographic)
+  // projection because panels can span more than 90° of the sphere — the
+  // Baseball panels wrap past the equator, and orthographic folds the far
+  // side back over the near side (the outline read as a diamond with
+  // overlapping petals instead of the classic waisted baseball panel).
   const normal = panelCenterDirection(panel, topo);
-  const centroid3D = normal.clone().multiplyScalar(sphereRadius);
   const helper =
     Math.abs(normal.dot(new Vector3(0, 1, 0))) < 0.9
       ? new Vector3(0, 1, 0)
@@ -202,16 +206,23 @@ function flattenPanelLocal(
   const tanU = new Vector3().crossVectors(normal, helper).normalize();
   const tanV = new Vector3().crossVectors(normal, tanU).normalize();
 
-  // Project each boundary vertex onto the tangent plane.
+  // Project each boundary vertex: angular distance from the center for
+  // the radius, tangent-plane azimuth for the direction.
   const projected: Vec2[] = [];
   let maxR = 0;
   for (const vi of panel.vertexIndices) {
-    const v = topo.vertices[vi];
-    const rel = v.clone().sub(centroid3D);
-    const x = rel.dot(tanU);
-    const y = rel.dot(tanV);
+    const unit = topo.vertices[vi].clone().normalize();
+    const cosDist = Math.min(1, Math.max(-1, unit.dot(normal)));
+    const angDist = Math.acos(cosDist);
+    // Azimuth direction = the vertex's component perpendicular to the
+    // center direction. Degenerate only when the vertex sits exactly on
+    // the center (angDist 0) — the radius is 0 there, so direction is moot.
+    const az = unit.sub(normal.clone().multiplyScalar(cosDist));
+    const azLen = az.length();
+    const r = angDist * sphereRadius;
+    const x = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
+    const y = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
     projected.push({ x, y });
-    const r = Math.hypot(x, y);
     if (r > maxR) maxR = r;
   }
 

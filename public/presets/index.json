@@ -10,7 +10,7 @@
         "key": "seamAmplitude",
         "label": "Seam amplitude",
         "min": 0,
-        "max": 90,
+        "max": 80,
         "step": 1,
         "defaultValue": 50,
         "unit": "%"
