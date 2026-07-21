@@ -9,7 +9,6 @@ import {
   BufferGeometry,
   Color,
   type DirectionalLight,
-  EdgesGeometry,
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
@@ -267,6 +266,69 @@ function useGlbGroup(bytes: Uint8Array | null): Group | null {
   return group;
 }
 
+/**
+ * Extract a panel mesh's boundary as line-segment geometry: the edges that
+ * belong to exactly one triangle. Vertices are welded by quantized position
+ * first — the subdivision grid duplicates interior fan-line vertices between
+ * adjacent fan sectors (coincident positions, distinct indices), so a purely
+ * index-based edge count would report every fan line as open and the outline
+ * would spray across the panel interior.
+ */
+function buildOpenEdgesGeometry(geom: BufferGeometry): BufferGeometry {
+  const pos = geom.getAttribute("position") as BufferAttribute;
+  const index = geom.getIndex();
+
+  // Weld by quantized position → representative vertex id.
+  const weld = new Map<string, number>();
+  const welded = new Array<number>(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
+    let id = weld.get(key);
+    if (id === undefined) {
+      id = i;
+      weld.set(key, id);
+    }
+    welded[i] = id;
+  }
+
+  // Triangle vertex ids after welding.
+  let ids: ArrayLike<number>;
+  if (index) {
+    const arr = index.array;
+    const mapped = new Array<number>(arr.length);
+    for (let i = 0; i < arr.length; i++) mapped[i] = welded[arr[i]];
+    ids = mapped;
+  } else {
+    ids = welded;
+  }
+
+  // Count occurrences per undirected edge; keep a representative (a, b).
+  const counts = new Map<string, { a: number; b: number; n: number }>();
+  for (let i = 0; i + 2 < ids.length; i += 3) {
+    const tri = [ids[i], ids[i + 1], ids[i + 2]];
+    for (let e = 0; e < 3; e++) {
+      const a = tri[e];
+      const b = tri[(e + 1) % 3];
+      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+      const entry = counts.get(key);
+      if (entry) entry.n++;
+      else counts.set(key, { a, b, n: 1 });
+    }
+  }
+
+  const positions: number[] = [];
+  for (const { a, b, n } of counts.values()) {
+    if (n !== 1) continue;
+    positions.push(
+      pos.getX(a), pos.getY(a), pos.getZ(a),
+      pos.getX(b), pos.getY(b), pos.getZ(b),
+    );
+  }
+  const out = new BufferGeometry();
+  out.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  return out;
+}
+
 function PanelGroup({
   group,
   panelColors,
@@ -313,10 +375,12 @@ function PanelGroup({
       const mat = mesh.material as MeshStandardMaterial | undefined;
       if (!mat || Array.isArray(mat) || !("emissive" in mat)) return;
       if (panelId === selectedPanelId) {
-        // Border outline from the panel boundary edges. EdgesGeometry with
-        // a 30° threshold picks up only the panel boundary (no adjacent face)
-        // and skips smooth interior subdivision edges.
-        const edges = new EdgesGeometry(mesh.geometry, 30);
+        // Border outline from the panel's OPEN edges (each panel is its own
+        // mesh, so its true border is exactly the edges with only one
+        // adjacent triangle). An angle-threshold EdgesGeometry broke here:
+        // steep puff-bevel walls on large panels exceeded any threshold and
+        // sprayed white lines across the panel interior.
+        const edges = buildOpenEdgesGeometry(mesh.geometry);
         const lineMat = new LineBasicMaterial({ color: 0xffffff });
         const outline = new LineSegments(edges, lineMat);
         outline.raycast = () => {};
