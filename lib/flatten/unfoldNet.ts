@@ -76,7 +76,7 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
   // around the root direction. Panels at similar 3D azimuths will end
   // up at similar 2D angles → neighbours-in-3D stay neighbours-in-2D.
   const rootCentroid = computeCentroid3D(rootPanel, topo);
-  const rootNormal = rootCentroid.clone().normalize();
+  const rootNormal = panelCenterDirection(rootPanel, topo);
   const helper =
     Math.abs(rootNormal.dot(new Vector3(0, 1, 0))) < 0.9
       ? new Vector3(0, 1, 0)
@@ -193,13 +193,8 @@ function flattenPanelLocal(
   //
   // Without this, panels with many densely sampled boundary vertices
   // (Trionda has 147 per panel) collapsed to plain circles.
-  const centroid3D = new Vector3();
-  for (const vi of panel.vertexIndices) centroid3D.add(topo.vertices[vi]);
-  centroid3D.divideScalar(n).normalize().multiplyScalar(sphereRadius);
-
-  // Tangent basis at the centroid. Pick a stable helper to avoid the
-  // degenerate case where the centroid is collinear with +Y.
-  const normal = centroid3D.clone().normalize();
+  const normal = panelCenterDirection(panel, topo);
+  const centroid3D = normal.clone().multiplyScalar(sphereRadius);
   const helper =
     Math.abs(normal.dot(new Vector3(0, 1, 0))) < 0.9
       ? new Vector3(0, 1, 0)
@@ -252,6 +247,33 @@ function computeCentroid3D(panel: Panel, topo: PanelTopology): Vector3 {
   for (const vi of panel.vertexIndices) c.add(topo.vertices[vi]);
   c.divideScalar(panel.vertexIndices.length);
   return c;
+}
+
+/**
+ * Unit direction from the sphere's center to the panel's center. For panels
+ * whose boundary wraps the whole sphere (the Baseball hemispheres), the naive
+ * boundary mean collapses to ~0 and normalizing it yields a zero tangent
+ * basis — every flattened corner would land on (0,0). Fall back to the
+ * signed-area vector (Σ vᵢ × vᵢ₊₁), which points at the panel's interior
+ * hemisphere for any CCW-from-outside boundary. Mirrors computeCentroid in
+ * lib/mesh/subdivide.ts.
+ */
+function panelCenterDirection(panel: Panel, topo: PanelTopology): Vector3 {
+  const sphereRadius = topo.vertices[panel.vertexIndices[0]].length() || 1;
+  const mean = computeCentroid3D(panel, topo);
+  if (mean.lengthSq() > 0.01 * sphereRadius * sphereRadius) {
+    return mean.normalize();
+  }
+  const areaVec = new Vector3();
+  const cross = new Vector3();
+  const loop = panel.vertexIndices;
+  for (let i = 0; i < loop.length; i++) {
+    const a = topo.vertices[loop[i]];
+    const b = topo.vertices[loop[(i + 1) % loop.length]];
+    cross.crossVectors(a, b);
+    areaVec.add(cross);
+  }
+  return areaVec.lengthSq() > 0 ? areaVec.normalize() : mean.normalize();
 }
 
 function estimateAvgCircumradius(topo: PanelTopology): number {
