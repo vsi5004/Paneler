@@ -333,9 +333,17 @@ export function getBoundaryArcs(
 
 /**
  * Inflate panel interiors outward to create a beveled-edge puff.
- * Vertices near the panel boundary ramp up steeply over the
- * `bevelWidth` zone (0–1 fraction of the boundary-to-centroid depth),
- * then plateau at full puff height across the interior.
+ * Vertices ramp up over a bevel zone next to the panel boundary, then
+ * plateau at full puff height across the interior.
+ *
+ * The bevel is driven by each vertex's TRUE angular distance to its
+ * panel's (subdivided) boundary, with the bevel width scaled to
+ * `bevelWidth` × the panel's inradius (the deepest interior distance).
+ * The earlier fraction-of-fan-line depth broke on large wavy panels: a
+ * fan line from the centroid can pass right next to a boundary segment
+ * it doesn't terminate on, so fully-puffed vertices landed within a
+ * degree of the seam and the seams read as knife-slit trenches (visible
+ * as a distorted silhouette on the high-amplitude Baseball).
  *
  * Must be called AFTER `projectToSphere` so vertices are already on
  * the sphere. Mutates the topology in place.
@@ -346,18 +354,93 @@ export function puffPanels(
   puff: number,
   bevelWidth = 0.25,
 ): PanelTopology {
-  const depthMap = (topo as PanelTopology & {
-    _vertexDepth?: Map<number, number>;
-  })._vertexDepth;
-  if (!depthMap || puff === 0) return topo;
+  if (puff === 0) return topo;
+  const triLists = getPanelTriangles(topo);
+  const arcs = getBoundaryArcs(topo);
+  if (!triLists || !arcs) return topo;
 
-  for (let i = 0; i < topo.vertices.length; i++) {
-    const depth = depthMap.get(i) ?? 0;
-    if (depth <= 0) continue;
-    // Ramp from 0→1 within the bevel zone, then flat at 1 for the interior
-    const t = Math.min(depth / bevelWidth, 1);
-    const s = 1 - (1 - t) * (1 - t); // convex quarter-circle profile
-    topo.vertices[i].setLength(radius * (1 + puff * s));
+  // Flat unit-vector array for tight inner loops.
+  const count = topo.vertices.length;
+  const ux = new Float64Array(count);
+  const uy = new Float64Array(count);
+  const uz = new Float64Array(count);
+  for (let i = 0; i < count; i++) {
+    const v = topo.vertices[i];
+    const len = v.length() || 1;
+    ux[i] = v.x / len;
+    uy[i] = v.y / len;
+    uz[i] = v.z / len;
+  }
+
+  // Panel id → subdivided boundary vertex indices (all its edges' chains).
+  const boundaryOf = new Map<string, number[]>();
+  for (const edge of topo.edges) {
+    const lo = Math.min(edge.vertexA, edge.vertexB);
+    const hi = Math.max(edge.vertexA, edge.vertexB);
+    const chain = arcs.get(`${lo}-${hi}`) ?? [lo, hi];
+    for (const pid of [edge.panelA, edge.panelB]) {
+      if (!pid) continue;
+      let list = boundaryOf.get(pid);
+      if (!list) {
+        list = [];
+        boundaryOf.set(pid, list);
+      }
+      list.push(...chain);
+    }
+  }
+
+  for (const panel of topo.panels) {
+    const triangles = triLists.get(panel.id);
+    const boundary = boundaryOf.get(panel.id);
+    if (!triangles || !boundary || boundary.length === 0) continue;
+
+    const members = new Set<number>();
+    for (const tri of triangles) {
+      members.add(tri[0]);
+      members.add(tri[1]);
+      members.add(tri[2]);
+    }
+
+    // Max cosine to any boundary vertex = min angular distance.
+    const bn = boundary.length;
+    const bx = new Float64Array(bn);
+    const by = new Float64Array(bn);
+    const bz = new Float64Array(bn);
+    for (let j = 0; j < bn; j++) {
+      const idx = boundary[j];
+      bx[j] = ux[idx];
+      by[j] = uy[idx];
+      bz[j] = uz[idx];
+    }
+
+    const memberList = [...members];
+    const dists = new Float64Array(memberList.length);
+    let maxDist = 0;
+    for (let m = 0; m < memberList.length; m++) {
+      const vi = memberList[m];
+      const x = ux[vi];
+      const y = uy[vi];
+      const z = uz[vi];
+      let best = -1;
+      for (let j = 0; j < bn; j++) {
+        const d = x * bx[j] + y * by[j] + z * bz[j];
+        if (d > best) best = d;
+      }
+      const dist = Math.acos(Math.min(1, Math.max(-1, best)));
+      dists[m] = dist;
+      if (dist > maxDist) maxDist = dist;
+    }
+
+    if (maxDist <= 0) continue;
+    const bevelAngle = bevelWidth * maxDist;
+    for (let m = 0; m < memberList.length; m++) {
+      const dist = dists[m];
+      if (dist <= 0) continue;
+      // Ramp from 0→1 within the bevel zone, then flat at 1 for the interior
+      const t = Math.min(dist / bevelAngle, 1);
+      const s = 1 - (1 - t) * (1 - t); // convex quarter-circle profile
+      topo.vertices[memberList[m]].setLength(radius * (1 + puff * s));
+    }
   }
   return topo;
 }
