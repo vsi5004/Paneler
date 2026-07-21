@@ -348,6 +348,9 @@ export function getBoundaryArcs(
  * Must be called AFTER `projectToSphere` so vertices are already on
  * the sphere. Mutates the topology in place.
  */
+/** Widest the puff's edge bevel gets, regardless of panel size (radians). */
+const MAX_BEVEL_ANGLE = 0.12; // ≈ 6.9°
+
 export function puffPanels(
   topo: PanelTopology,
   radius: number,
@@ -432,7 +435,12 @@ export function puffPanels(
     }
 
     if (maxDist <= 0) continue;
-    const bevelAngle = bevelWidth * maxDist;
+    // Cap the bevel at an absolute angular width. Proportional-only sizing
+    // breaks on giant panels (the Baseball covers half the sphere): 25% of
+    // its inradius is a ~15° soft shoulder, which turns the ball into
+    // pillowy lobe domes instead of a sphere with stitched grooves. With
+    // the cap, everything beyond the groove sits at uniform full puff.
+    const bevelAngle = Math.min(bevelWidth * maxDist, MAX_BEVEL_ANGLE);
     for (let m = 0; m < memberList.length; m++) {
       const dist = dists[m];
       if (dist <= 0) continue;

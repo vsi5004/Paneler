@@ -11,8 +11,14 @@ import type { PanelColors, PanelTopology } from "@/lib/types";
 
 export const SPHERE_RADIUS = 2;
 export const TARGET_TOTAL_TRIANGLES = 30_000;
-/** Coarser mesh used while a Shape slider is being dragged. */
-export const DRAFT_TOTAL_TRIANGLES = 6_000;
+/**
+ * Mesh budget while a Shape slider is being dragged. Full quality: giant
+ * fan-triangulated panels (the Baseball's hemispheres) show chord-sag
+ * creases at reduced resolution, and a lumpy mid-drag state reads as a
+ * bug. Full regen + reload measures ~100ms — acceptable behind the drag
+ * debounce. Lower this again if a preset ever makes dragging stutter.
+ */
+export const DRAFT_TOTAL_TRIANGLES = TARGET_TOTAL_TRIANGLES;
 export const PANEL_PUFF = 0.06;
 
 export interface GenerateOptions {
