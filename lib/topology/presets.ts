@@ -258,24 +258,9 @@ export const PRESETS: PresetEntry[] = [
         defaultValue: 50,
         unit: "%",
       },
-      {
-        // Flattens the seam wave's peaks: 0% = pure sine (pointy lobes at
-        // high amplitude), 100% = square-ish plateaus (fat round lobes).
-        key: "seamRoundness",
-        label: "Seam roundness",
-        min: 0,
-        max: 100,
-        step: 1,
-        defaultValue: 60,
-        unit: "%",
-      },
     ],
     topology: (radius?: number, params?: PresetParams) =>
-      baseball(
-        radius,
-        ((params?.seamAmplitude ?? 50) / 100) * (Math.PI / 2),
-        (params?.seamRoundness ?? 60) / 100,
-      ),
+      baseball(radius, ((params?.seamAmplitude ?? 50) / 100) * (Math.PI / 2)),
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },

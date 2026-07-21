@@ -54,26 +54,36 @@ describe("baseball seam amplitude", () => {
     }
   });
 
-  it("declares the preset params with their defaults", () => {
+  it("declares the preset param with its default", () => {
     expect(resolvePresetParams(presetById("baseball")!)).toEqual({
       seamAmplitude: 50,
-      seamRoundness: 60,
     });
   });
 
-  it("roundness plateaus the peaks without changing the peak latitude", () => {
-    const amplitude = Math.PI / 4;
-    const pointy = baseball(1, amplitude, 0);
-    const round = baseball(1, amplitude, 1);
-    const maxZ = (t: ReturnType<typeof baseball>) =>
-      Math.max(...t.vertices.map((v) => v.z));
-    // Same peak latitude either way.
-    expect(maxZ(pointy)).toBeCloseTo(Math.sin(amplitude), 9);
-    expect(maxZ(round)).toBeCloseTo(Math.sin(amplitude), 9);
-    // The rounder wave hugs its extreme latitude for more of the seam:
-    // more samples sit near the peak.
-    const nearPeak = (t: ReturnType<typeof baseball>) =>
-      t.vertices.filter((v) => Math.abs(v.z) > 0.9 * Math.sin(amplitude)).length;
-    expect(nearPeak(round)).toBeGreaterThan(nearPeak(pointy) * 2);
+  it("keeps the seam's turning radius round at every amplitude", () => {
+    // The equidistant construction should never produce cusps: measure the
+    // sharpest interior angle along the sampled seam and require it to stay
+    // wide (a cusp approaches 0°). The turn tightens as the panel waist
+    // narrows at high amplitude — geometric necessity — so the floor scales.
+    const cases: Array<[number, number]> = [
+      [Math.PI / 8, Math.PI * 0.75], // ≥ 135°
+      [Math.PI / 4, Math.PI * 0.75],
+      [0.45 * Math.PI, Math.PI * 0.5], // ≥ 90° even near the cap
+    ];
+    for (const [a, floor] of cases) {
+      const t = baseball(1, a);
+      const n = t.vertices.length;
+      let sharpest = Math.PI;
+      for (let i = 0; i < n; i++) {
+        const prev = t.vertices[(i - 1 + n) % n];
+        const cur = t.vertices[i];
+        const next = t.vertices[(i + 1) % n];
+        const v1 = prev.clone().sub(cur).normalize();
+        const v2 = next.clone().sub(cur).normalize();
+        const angle = Math.acos(Math.min(1, Math.max(-1, v1.dot(v2))));
+        if (angle < sharpest) sharpest = angle;
+      }
+      expect(sharpest).toBeGreaterThan(floor);
+    }
   });
 });
