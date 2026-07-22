@@ -1,4 +1,5 @@
 import { Vector3 } from "three";
+import { Point as CdtPoint, SweepContext } from "poly2tri";
 import {
   type Panel,
   type PanelEdge,
@@ -6,9 +7,23 @@ import {
   shapeForVertexCount,
 } from "@/lib/types";
 
+/** poly2tri Point carrying the global vertex index it corresponds to. */
+class MeshPoint extends CdtPoint {
+  globalIndex: number | null;
+
+  constructor(x: number, y: number, globalIndex: number | null = null) {
+    super(x, y);
+    this.globalIndex = globalIndex;
+  }
+}
+
 /**
  * Subdivide each panel face by:
- *   1. Fan-triangulating from the panel centroid.
+ *   1. Triangulating the panel — fan-triangulation from the panel centroid
+ *      when the panel is star-shaped about it; ear-clipping in a tangent-plane
+ *      projection otherwise (concave pinwheel panels like Trionda's, whose fan
+ *      lines would reach across their hooked arms into neighbouring panels
+ *      and produce overlapping surfaces).
  *   2. Subdividing each resulting triangle into a barycentric grid of `levels`
  *      sub-triangles per edge.
  *
@@ -69,13 +84,41 @@ export function subdivideTopology(
   for (const panel of topo.panels) {
     const triangles: [number, number, number][] = [];
 
+    const centroid = computeCentroid(
+      topo.vertices,
+      panel.vertexIndices,
+      vertexPanelCount,
+    );
+
+    // Fan triangulation is only valid when the panel is star-shaped about
+    // the centroid — otherwise fan lines exit the panel and the surface
+    // overlaps its neighbours. Concave panels take the ear-clipping path.
+    if (!isStarShapedAbout(newVertices, panel.vertexIndices, centroid)) {
+      subdivideConcavePanel({
+        pool: newVertices,
+        loop: panel.vertexIndices,
+        center: centroid,
+        levels,
+        edgeVertexCache,
+        boundaryArcs,
+        triangles,
+      });
+      panelTriangles.set(panel.id, triangles);
+      continue;
+    }
+
     // Fan-triangulate from the panel centroid: each (corner_i, corner_i+1)
     // edge becomes a parent triangle (centroid, corner_i, corner_i+1).
-    const centroidIdx = addVertex(
-      newVertices,
-      computeCentroid(topo.vertices, panel.vertexIndices, vertexPanelCount),
-    );
+    const centroidIdx = addVertex(newVertices, centroid);
     vertexDepth.set(centroidIdx, 1);
+
+    // Interior vertices along each fan line (corner → centroid) are shared
+    // between the two fan sectors flanking that corner. Without this cache
+    // both sectors emitted their own copies at identical positions — the
+    // mesh looked watertight but carried duplicated vertices, which wasted
+    // memory, split vertex normals along every fan line (faint shading
+    // creases), and broke index-based open-edge detection.
+    const fanLineCache = new Map<string, number>();
 
     const boundaryLoop = panel.vertexIndices;
     for (let i = 0; i < boundaryLoop.length; i++) {
@@ -112,6 +155,25 @@ export function subdivideTopology(
         const t = row / levels; // 0 at boundary, 1 at centroid
         const segCount = levels - row + 1; // points in this row
         for (let s = 0; s < segCount; s++) {
+          if (row === levels) {
+            rowVerts.push(centroidIdx);
+            continue;
+          }
+          // First/last points of a row sit on the fan line of aIdx/bIdx —
+          // shared with the neighbouring fan sector via the cache.
+          const fanKey =
+            s === 0
+              ? `${aIdx}-${row}`
+              : s === segCount - 1
+                ? `${bIdx}-${row}`
+                : null;
+          if (fanKey !== null) {
+            const cached = fanLineCache.get(fanKey);
+            if (cached !== undefined) {
+              rowVerts.push(cached);
+              continue;
+            }
+          }
           const along = segCount === 1 ? 0.5 : s / (segCount - 1);
           const edgePoint = lerp3(
             newVertices[aIdx],
@@ -119,13 +181,10 @@ export function subdivideTopology(
             along,
           );
           const interior = lerp3(edgePoint, newVertices[centroidIdx], t);
-          if (row === levels) {
-            rowVerts.push(centroidIdx);
-          } else {
-            const idx = addVertex(newVertices, interior);
-            vertexDepth.set(idx, t);
-            rowVerts.push(idx);
-          }
+          const idx = addVertex(newVertices, interior);
+          vertexDepth.set(idx, t);
+          if (fanKey !== null) fanLineCache.set(fanKey, idx);
+          rowVerts.push(idx);
         }
         rows.push(rowVerts);
       }
@@ -260,6 +319,444 @@ function addVertex(pool: Vector3[], v: Vector3): number {
   return pool.length - 1;
 }
 
+/**
+ * Is the panel star-shaped about `center` (as seen on the sphere)? True iff
+ * the boundary's azimuth around the center direction winds monotonically —
+ * fan lines from the center then stay inside the panel. Pinwheel-arm panels
+ * reverse azimuth dozens of times and need real triangulation instead.
+ */
+function isStarShapedAbout(
+  pool: Vector3[],
+  loop: readonly number[],
+  center: Vector3,
+): boolean {
+  const n = center.clone().normalize();
+  if (n.lengthSq() === 0) return true; // degenerate center; fan fallback
+  const helper =
+    Math.abs(n.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+  const e1 = helper.clone().sub(n.clone().multiplyScalar(helper.dot(n))).normalize();
+  const e2 = n.clone().cross(e1);
+
+  let windSign = 0;
+  let prevAz: number | null = null;
+  for (let i = 0; i <= loop.length; i++) {
+    const v = pool[loop[i % loop.length]];
+    const az = Math.atan2(v.dot(e2), v.dot(e1));
+    if (prevAz !== null) {
+      let delta = az - prevAz;
+      if (delta > Math.PI) delta -= 2 * Math.PI;
+      if (delta < -Math.PI) delta += 2 * Math.PI;
+      const sign = Math.abs(delta) > 1e-12 ? Math.sign(delta) : 0;
+      if (sign !== 0) {
+        if (windSign === 0) windSign = sign;
+        else if (sign !== windSign) return false;
+      }
+    }
+    prevAz = az;
+  }
+  return true;
+}
+
+/**
+ * Ear-clip a simple 2D polygon (indices into `pts`). Returns triangles as
+ * index triples with the polygon's own winding. O(n²) — panels have at most
+ * a few hundred corners.
+ */
+function earClip2D(
+  pts: ReadonlyArray<{ x: number; y: number }>,
+): [number, number, number][] {
+  const cross = (
+    o: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+  ) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  let area = 0;
+  let scale = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    area += a.x * b.y - b.x * a.y;
+    scale += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  // Cross-product epsilon proportional to the squared average edge length —
+  // fixed epsilons misclassify the near-collinear corner runs of densely
+  // sampled boundaries.
+  const avgEdge = scale / pts.length;
+  const eps = avgEdge * avgEdge * 1e-6;
+
+  // Work CCW and EMIT CCW: the caller relies on counter-clockwise output
+  // (in a right-handed tangent basis, planar CCW = outward-facing on the
+  // sphere). Per-triangle 3D orientation checks are noise for sliver ears.
+  const idx = [...Array(pts.length).keys()];
+  if (area < 0) idx.reverse();
+
+  const tris: [number, number, number][] = [];
+  const emit = (a: number, b: number, c: number) => tris.push([a, b, c]);
+
+  while (idx.length > 3) {
+    let clipped = false;
+    for (let i = 0; i < idx.length; i++) {
+      const ip = idx[(i - 1 + idx.length) % idx.length];
+      const ic = idx[i];
+      const inx = idx[(i + 1) % idx.length];
+      const A = pts[ip];
+      const B = pts[ic];
+      const C = pts[inx];
+      if (cross(A, B, C) < -eps) continue; // true reflex corner
+      let contains = false;
+      for (const j of idx) {
+        if (j === ip || j === ic || j === inx) continue;
+        const P = pts[j];
+        // Only STRICTLY interior points block an ear — collinear boundary
+        // neighbours sitting exactly on an ear edge are fine to clip past.
+        if (
+          cross(A, B, P) > eps &&
+          cross(B, C, P) > eps &&
+          cross(C, A, P) > eps
+        ) {
+          contains = true;
+          break;
+        }
+      }
+      if (contains) continue;
+      emit(ip, ic, inx);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) {
+      // Numerical stalemate (nearly-collinear runs): clip the most convex
+      // corner anyway rather than looping forever.
+      let best = 0;
+      let bestCross = -Infinity;
+      for (let i = 0; i < idx.length; i++) {
+        const c = cross(
+          pts[idx[(i - 1 + idx.length) % idx.length]],
+          pts[idx[i]],
+          pts[idx[(i + 1) % idx.length]],
+        );
+        if (c > bestCross) {
+          bestCross = c;
+          best = i;
+        }
+      }
+      emit(
+        idx[(best - 1 + idx.length) % idx.length],
+        idx[best],
+        idx[(best + 1) % idx.length],
+      );
+      idx.splice(best, 1);
+    }
+  }
+  emit(idx[0], idx[1], idx[2]);
+  return tris;
+}
+
+/**
+ * Subdivide a concave panel in a Lambert azimuthal plane at the panel
+ * center and map the result back through the inverse projection — a valid
+ * planar mesh mapped through a bijection cannot fold, so the panel cannot
+ * overlap its neighbours.
+ *
+ * Primary path: constrained Delaunay triangulation (poly2tri) of the
+ * FULL-RESOLUTION boundary polyline (every subdivided chain vertex, so the
+ * mesh conforms to neighbouring panels vertex-for-vertex) with a uniform
+ * hex lattice of interior Steiner points. Uniform point spacing gives
+ * uniformly sized triangles — ear-based meshing left huge flat facets on
+ * big ears that rendered as ridges across the panel.
+ *
+ * Fallback path (if poly2tri rejects the polygon): ear-clip the corner
+ * polygon and refine each ear as a planar barycentric grid.
+ */
+function subdivideConcavePanel({
+  pool,
+  loop,
+  center,
+  levels,
+  edgeVertexCache,
+  boundaryArcs,
+  triangles,
+}: {
+  pool: Vector3[];
+  loop: readonly number[];
+  center: Vector3;
+  levels: number;
+  edgeVertexCache: Map<string, number>;
+  boundaryArcs: Map<string, number[]>;
+  triangles: [number, number, number][];
+}): void {
+  const sphereRadius = pool[loop[0]].length() || 1;
+
+  // Subdivide + record all boundary edges first (shared with neighbours).
+  for (let i = 0; i < loop.length; i++) {
+    const aIdx = loop[i];
+    const bIdx = loop[(i + 1) % loop.length];
+    const chain = subdivideEdge(pool, edgeVertexCache, aIdx, bIdx, levels);
+    const arcKey = `${Math.min(aIdx, bIdx)}-${Math.max(aIdx, bIdx)}`;
+    if (!boundaryArcs.has(arcKey)) {
+      boundaryArcs.set(
+        arcKey,
+        aIdx < bIdx ? [...chain] : [...chain].reverse(),
+      );
+    }
+  }
+
+  // Lambert azimuthal projection of the corner loop about the center.
+  const n = center.clone().normalize();
+  const helper =
+    Math.abs(n.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+  const e1 = helper.clone().sub(n.clone().multiplyScalar(helper.dot(n))).normalize();
+  const e2 = n.clone().cross(e1);
+  const pts = loop.map((vi) => {
+    const u = pool[vi].clone().normalize();
+    const cosD = Math.min(1, Math.max(-1, u.dot(n)));
+    const az = u.clone().sub(n.clone().multiplyScalar(cosD));
+    const azLen = az.length();
+    const r = 2 * Math.sin(Math.acos(cosD) / 2);
+    return {
+      x: azLen > 1e-12 ? (r * az.dot(e1)) / azLen : 0,
+      y: azLen > 1e-12 ? (r * az.dot(e2)) / azLen : 0,
+    };
+  });
+
+  // Inverse Lambert: planar point → point on the sphere (at sphereRadius).
+  const toSphere = (x: number, y: number): Vector3 => {
+    const r = Math.hypot(x, y);
+    if (r < 1e-12) return n.clone().multiplyScalar(sphereRadius);
+    const d = 2 * Math.asin(Math.min(1, r / 2));
+    return n
+      .clone()
+      .multiplyScalar(Math.cos(d))
+      .addScaledVector(e1, (Math.sin(d) * x) / r)
+      .addScaledVector(e2, (Math.sin(d) * y) / r)
+      .multiplyScalar(sphereRadius);
+  };
+
+  // ---------------------------------------------------------------------
+  // Primary path: constrained Delaunay with uniform interior points.
+  // ---------------------------------------------------------------------
+  try {
+    // Full-resolution contour: every chain vertex of every boundary edge,
+    // each exactly once (chains share their endpoints).
+    const contourGlobal: number[] = [];
+    for (let i = 0; i < loop.length; i++) {
+      const chain = subdivideEdge(
+        pool,
+        edgeVertexCache,
+        loop[i],
+        loop[(i + 1) % loop.length],
+        levels,
+      );
+      for (let k = 0; k < chain.length - 1; k++) contourGlobal.push(chain[k]);
+    }
+    const to2D = (gi: number): { x: number; y: number } => {
+      const u = pool[gi].clone().normalize();
+      const cosD = Math.min(1, Math.max(-1, u.dot(n)));
+      const az = u.clone().sub(n.clone().multiplyScalar(cosD));
+      const azLen = az.length();
+      const r = 2 * Math.sin(Math.acos(cosD) / 2);
+      return {
+        x: azLen > 1e-12 ? (r * az.dot(e1)) / azLen : 0,
+        y: azLen > 1e-12 ? (r * az.dot(e2)) / azLen : 0,
+      };
+    };
+    const contour = contourGlobal.map((gi) => {
+      const p = to2D(gi);
+      return new MeshPoint(p.x, p.y, gi);
+    });
+
+    // Lattice spacing targeting the same triangle budget as the fan path
+    // (≈ corners × (levels+1)² per panel).
+    let area2 = 0;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < contour.length; i++) {
+      const a = contour[i];
+      const b = contour[(i + 1) % contour.length];
+      area2 += a.x * b.y - b.x * a.y;
+      minX = Math.min(minX, a.x);
+      minY = Math.min(minY, a.y);
+      maxX = Math.max(maxX, a.x);
+      maxY = Math.max(maxY, a.y);
+    }
+    const area = Math.abs(area2) / 2;
+    const targetTris = loop.length * (levels + 1) * (levels + 1);
+    const h = Math.sqrt(area / (0.433 * Math.max(1, targetTris)));
+
+    // Interior Steiner points on a hex lattice, kept clear of the contour
+    // (closer than ~half a cell would make boundary slivers).
+    const cell = new Map<string, MeshPoint[]>();
+    const cellKey = (x: number, y: number) =>
+      `${Math.floor(x / h)}:${Math.floor(y / h)}`;
+    for (const p of contour) {
+      const k = cellKey(p.x, p.y);
+      if (!cell.has(k)) cell.set(k, []);
+      cell.get(k)!.push(p);
+    }
+    const clearOfContour = (x: number, y: number): boolean => {
+      const cx = Math.floor(x / h);
+      const cy = Math.floor(y / h);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = cell.get(`${cx + dx}:${cy + dy}`);
+          if (!bucket) continue;
+          for (const p of bucket) {
+            if (Math.hypot(p.x - x, p.y - y) < 0.5 * h) return false;
+          }
+        }
+      }
+      return true;
+    };
+    const insidePolygon = (x: number, y: number): boolean => {
+      let inside = false;
+      for (let i = 0, j = contour.length - 1; i < contour.length; j = i++) {
+        const pi = contour[i];
+        const pj = contour[j];
+        if (
+          pi.y > y !== pj.y > y &&
+          x < ((pj.x - pi.x) * (y - pi.y)) / (pj.y - pi.y) + pi.x
+        ) {
+          inside = !inside;
+        }
+      }
+      return inside;
+    };
+    const steiner: MeshPoint[] = [];
+    const rowStep = h * 0.866;
+    for (let row = 0, y = minY + rowStep / 2; y < maxY; y += rowStep, row++) {
+      const offset = row % 2 === 0 ? 0 : h / 2;
+      for (let x = minX + offset + h / 2; x < maxX; x += h) {
+        if (insidePolygon(x, y) && clearOfContour(x, y)) {
+          steiner.push(new MeshPoint(x, y));
+        }
+      }
+    }
+
+    const sweep = new SweepContext(contour);
+    for (const p of steiner) sweep.addPoint(p);
+    sweep.triangulate();
+
+    const indexOf = (p: MeshPoint): number => {
+      if (p.globalIndex === null) {
+        p.globalIndex = addVertex(pool, toSphere(p.x, p.y));
+      }
+      return p.globalIndex;
+    };
+    for (const tri of sweep.getTriangles()) {
+      const p0 = tri.getPoint(0) as MeshPoint;
+      const p1 = tri.getPoint(1) as MeshPoint;
+      const p2 = tri.getPoint(2) as MeshPoint;
+      // Outward winding straight from the robust 2D sign: CCW in the
+      // right-handed tangent basis faces outward on the sphere.
+      const ccw =
+        (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x) >= 0;
+      const a = indexOf(p0);
+      const b = indexOf(ccw ? p1 : p2);
+      const c = indexOf(ccw ? p2 : p1);
+      triangles.push([a, b, c]);
+    }
+    return;
+  } catch {
+    // poly2tri rejects some degenerate inputs — fall through to ear clipping.
+  }
+
+  // ---------------------------------------------------------------------
+  // Fallback path: ear clipping + planar barycentric grids.
+  // ---------------------------------------------------------------------
+  const posOfGlobal = new Map<number, number>();
+  loop.forEach((g, i) => posOfGlobal.set(g, i));
+
+  // Chains for ear edges. Boundary edges (consecutive loop corners) reuse
+  // the global 3D cache; internal ear edges are refined in the plane and
+  // cached per panel so both flanking ears share identical vertices.
+  const internalChains = new Map<string, number[]>();
+  const chainFor = (posA: number, posB: number): number[] => {
+    const gA = loop[posA];
+    const gB = loop[posB];
+    const nLoop = loop.length;
+    const consecutive =
+      posB === (posA + 1) % nLoop || posA === (posB + 1) % nLoop;
+    if (consecutive) {
+      return subdivideEdge(pool, edgeVertexCache, gA, gB, levels);
+    }
+    const lo = Math.min(gA, gB);
+    const hi = Math.max(gA, gB);
+    const key = `${lo}-${hi}`;
+    let chain = internalChains.get(key);
+    if (!chain) {
+      const a2 = pts[posOfGlobal.get(lo)!];
+      const b2 = pts[posOfGlobal.get(hi)!];
+      chain = [lo];
+      for (let s = 1; s <= levels; s++) {
+        const t = s / (levels + 1);
+        chain.push(
+          addVertex(pool, toSphere(a2.x + (b2.x - a2.x) * t, a2.y + (b2.y - a2.y) * t)),
+        );
+      }
+      chain.push(hi);
+      internalChains.set(key, chain);
+    }
+    return gA === lo ? chain : [...chain].reverse();
+  };
+
+  for (const ear of earClip2D(pts)) {
+    // earClip2D emits CCW in the plane; with the right-handed (e1, e2, n)
+    // basis that is outward-facing on the sphere, so the grid winding below
+    // is outward for every ear — including slivers, where a per-ear 3D
+    // normal check would be numerical noise.
+    const [pa, pb, pc] = ear;
+
+    const L = levels + 1; // segments per edge
+    const chainAB = chainFor(pa, pb);
+    const chainAC = chainFor(pa, pc);
+    const chainBC = chainFor(pb, pc);
+    const A2 = pts[pa];
+    const B2 = pts[pb];
+    const C2 = pts[pc];
+
+    // grid[r][s]: r rows toward C (row r has L - r + 1 points), s along A→B.
+    const grid: number[][] = [];
+    for (let r = 0; r <= L; r++) {
+      const row: number[] = [];
+      const width = L - r;
+      for (let s = 0; s <= width; s++) {
+        let idx: number;
+        if (r === 0) idx = chainAB[s];
+        else if (s === 0) idx = chainAC[r];
+        else if (s === width) idx = chainBC[r];
+        else {
+          const wa = (L - r - s) / L;
+          const wb = s / L;
+          const wc = r / L;
+          idx = addVertex(
+            pool,
+            toSphere(
+              wa * A2.x + wb * B2.x + wc * C2.x,
+              wa * A2.y + wb * B2.y + wc * C2.y,
+            ),
+          );
+        }
+        row.push(idx);
+      }
+      grid.push(row);
+    }
+
+    for (let r = 0; r < L; r++) {
+      const upper = grid[r];
+      const lower = grid[r + 1];
+      for (let s = 0; s < lower.length; s++) {
+        triangles.push([upper[s], upper[s + 1], lower[s]]);
+        if (s < lower.length - 1) {
+          triangles.push([upper[s + 1], lower[s + 1], lower[s]]);
+        }
+      }
+    }
+  }
+}
+
 
 
 
@@ -333,31 +830,122 @@ export function getBoundaryArcs(
 
 /**
  * Inflate panel interiors outward to create a beveled-edge puff.
- * Vertices near the panel boundary ramp up steeply over the
- * `bevelWidth` zone (0–1 fraction of the boundary-to-centroid depth),
- * then plateau at full puff height across the interior.
+ * Vertices ramp up over a bevel zone next to the panel boundary, then
+ * plateau at full puff height across the interior.
+ *
+ * The bevel is driven by each vertex's TRUE angular distance to its
+ * panel's (subdivided) boundary, with the bevel width scaled to
+ * `bevelWidth` × the panel's inradius (the deepest interior distance).
+ * The earlier fraction-of-fan-line depth broke on large wavy panels: a
+ * fan line from the centroid can pass right next to a boundary segment
+ * it doesn't terminate on, so fully-puffed vertices landed within a
+ * degree of the seam and the seams read as knife-slit trenches (visible
+ * as a distorted silhouette on the high-amplitude Baseball).
  *
  * Must be called AFTER `projectToSphere` so vertices are already on
  * the sphere. Mutates the topology in place.
  */
+/** Widest the puff's edge bevel gets, regardless of panel size (radians). */
+const MAX_BEVEL_ANGLE = 0.12; // ≈ 6.9°
+
 export function puffPanels(
   topo: PanelTopology,
   radius: number,
   puff: number,
   bevelWidth = 0.25,
 ): PanelTopology {
-  const depthMap = (topo as PanelTopology & {
-    _vertexDepth?: Map<number, number>;
-  })._vertexDepth;
-  if (!depthMap || puff === 0) return topo;
+  if (puff === 0) return topo;
+  const triLists = getPanelTriangles(topo);
+  const arcs = getBoundaryArcs(topo);
+  if (!triLists || !arcs) return topo;
 
-  for (let i = 0; i < topo.vertices.length; i++) {
-    const depth = depthMap.get(i) ?? 0;
-    if (depth <= 0) continue;
-    // Ramp from 0→1 within the bevel zone, then flat at 1 for the interior
-    const t = Math.min(depth / bevelWidth, 1);
-    const s = 1 - (1 - t) * (1 - t); // convex quarter-circle profile
-    topo.vertices[i].setLength(radius * (1 + puff * s));
+  // Flat unit-vector array for tight inner loops.
+  const count = topo.vertices.length;
+  const ux = new Float64Array(count);
+  const uy = new Float64Array(count);
+  const uz = new Float64Array(count);
+  for (let i = 0; i < count; i++) {
+    const v = topo.vertices[i];
+    const len = v.length() || 1;
+    ux[i] = v.x / len;
+    uy[i] = v.y / len;
+    uz[i] = v.z / len;
+  }
+
+  // Panel id → subdivided boundary vertex indices (all its edges' chains).
+  const boundaryOf = new Map<string, number[]>();
+  for (const edge of topo.edges) {
+    const lo = Math.min(edge.vertexA, edge.vertexB);
+    const hi = Math.max(edge.vertexA, edge.vertexB);
+    const chain = arcs.get(`${lo}-${hi}`) ?? [lo, hi];
+    for (const pid of [edge.panelA, edge.panelB]) {
+      if (!pid) continue;
+      let list = boundaryOf.get(pid);
+      if (!list) {
+        list = [];
+        boundaryOf.set(pid, list);
+      }
+      list.push(...chain);
+    }
+  }
+
+  for (const panel of topo.panels) {
+    const triangles = triLists.get(panel.id);
+    const boundary = boundaryOf.get(panel.id);
+    if (!triangles || !boundary || boundary.length === 0) continue;
+
+    const members = new Set<number>();
+    for (const tri of triangles) {
+      members.add(tri[0]);
+      members.add(tri[1]);
+      members.add(tri[2]);
+    }
+
+    // Max cosine to any boundary vertex = min angular distance.
+    const bn = boundary.length;
+    const bx = new Float64Array(bn);
+    const by = new Float64Array(bn);
+    const bz = new Float64Array(bn);
+    for (let j = 0; j < bn; j++) {
+      const idx = boundary[j];
+      bx[j] = ux[idx];
+      by[j] = uy[idx];
+      bz[j] = uz[idx];
+    }
+
+    const memberList = [...members];
+    const dists = new Float64Array(memberList.length);
+    let maxDist = 0;
+    for (let m = 0; m < memberList.length; m++) {
+      const vi = memberList[m];
+      const x = ux[vi];
+      const y = uy[vi];
+      const z = uz[vi];
+      let best = -1;
+      for (let j = 0; j < bn; j++) {
+        const d = x * bx[j] + y * by[j] + z * bz[j];
+        if (d > best) best = d;
+      }
+      const dist = Math.acos(Math.min(1, Math.max(-1, best)));
+      dists[m] = dist;
+      if (dist > maxDist) maxDist = dist;
+    }
+
+    if (maxDist <= 0) continue;
+    // Cap the bevel at an absolute angular width. Proportional-only sizing
+    // breaks on giant panels (the Baseball covers half the sphere): 25% of
+    // its inradius is a ~15° soft shoulder, which turns the ball into
+    // pillowy lobe domes instead of a sphere with stitched grooves. With
+    // the cap, everything beyond the groove sits at uniform full puff.
+    const bevelAngle = Math.min(bevelWidth * maxDist, MAX_BEVEL_ANGLE);
+    for (let m = 0; m < memberList.length; m++) {
+      const dist = dists[m];
+      if (dist <= 0) continue;
+      // Ramp from 0→1 within the bevel zone, then flat at 1 for the interior
+      const t = Math.min(dist / bevelAngle, 1);
+      const s = 1 - (1 - t) * (1 - t); // convex quarter-circle profile
+      topo.vertices[memberList[m]].setLength(radius * (1 + puff * s));
+    }
   }
   return topo;
 }

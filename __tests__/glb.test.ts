@@ -9,6 +9,7 @@ import {
   linearRgbaToHex,
 } from "@/lib/glb/build";
 import { setMaterialColor, serializeDocument } from "@/lib/glb/mutate";
+import { generateTemplateDocument } from "@/lib/glb/generate";
 import { subdivideTopology } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { cube, icosahedron } from "@/lib/topology/presets";
@@ -104,6 +105,74 @@ describe("setMaterialColor", () => {
       // Untouched panels still hold the default off-white (linear 0.92 → sRGB 0xf6).
       expect(linearRgbaToHex(m.baseColorLinear)).toBe("#f6f6f6");
     }
+  });
+});
+
+describe("design extras (shape params)", () => {
+  it("round-trips presetId + params through build → serialize → parse", async () => {
+    const raw = cube();
+    const sub = subdivideTopology(raw, 1);
+    projectToSphere(sub, 1);
+    const doc = buildGlbDocument(sub, {
+      assetName: "cube",
+      design: { presetId: "cubocta", params: { shortEdge: 30 } },
+    });
+    const parsed = await parseGlb(await serializeDocument(doc));
+    expect(parsed.design).toEqual({
+      presetId: "cubocta",
+      params: { shortEdge: 30 },
+    });
+  });
+
+  it("is absent for GLBs built without design provenance", async () => {
+    const raw = cube();
+    const sub = subdivideTopology(raw, 1);
+    projectToSphere(sub, 1);
+    const doc = buildGlbDocument(sub, { assetName: "cube" });
+    const parsed = await parseGlb(await serializeDocument(doc));
+    expect(parsed.design).toBeUndefined();
+  });
+
+  it("survives color mutation + re-serialize (the save path)", async () => {
+    const doc = generateTemplateDocument("cubocta", { shortEdge: 20 });
+    const parsed = await parseGlb(await serializeDocument(doc));
+    setMaterialColor(parsed.document, parsed.topology.panels[0].id, "#ff0033");
+    const round = await parseGlb(await serializeDocument(parsed.document));
+    expect(round.design).toEqual({
+      presetId: "cubocta",
+      params: { shortEdge: 20 },
+    });
+  });
+
+  it("generateTemplateDocument at defaults matches the legacy cubocta panels", async () => {
+    const doc = generateTemplateDocument("cubocta");
+    const parsed = await parseGlb(await serializeDocument(doc));
+    expect(parsed.topology.panels).toHaveLength(14);
+    const ids = parsed.topology.panels.map((p) => p.id).sort();
+    expect(ids.filter((id) => id.endsWith("_triangle"))).toHaveLength(8);
+    expect(ids.filter((id) => id.endsWith("_quad"))).toHaveLength(6);
+    expect(parsed.design).toEqual({ presetId: "cubocta", params: { shortEdge: 0 } });
+  });
+
+  it("regenerating at a new param keeps ids so colors carry over", async () => {
+    const flat = generateTemplateDocument("cubocta", { shortEdge: 0 });
+    const flatParsed = await parseGlb(await serializeDocument(flat));
+    const paintedId = flatParsed.topology.panels.find((p) =>
+      p.id.endsWith("_triangle"),
+    )!.id;
+
+    const morphed = generateTemplateDocument(
+      "cubocta",
+      { shortEdge: 40 },
+      { [paintedId]: "#33aa55" },
+    );
+    const morphedParsed = await parseGlb(await serializeDocument(morphed));
+    // The formerly-triangle panel is now a hexagon but keeps id and color.
+    const panel = morphedParsed.topology.panels.find((p) => p.id === paintedId);
+    expect(panel).toBeDefined();
+    expect(panel!.shape).toBe("hexagon");
+    const mat = morphedParsed.materials.find((m) => m.panelId === paintedId)!;
+    expect(linearRgbaToHex(mat.baseColorLinear)).toBe("#33aa55");
   });
 });
 

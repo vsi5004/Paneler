@@ -94,10 +94,42 @@ The preview shows an equirectangular (Plate Carrée) projection of the unit sphe
 
 ## Tuning `--rdp-tolerance`
 
-Default `0.5` degrees is calibrated to roughly match Goldberg GP(2,0) hexagon density (the densest Paneler shape that still renders smoothly without fan-pole artifacts).
+Default `0.5` degrees works for most balls. The tolerance now only affects
+boundary-curve fidelity and data-file size — NOT render quality:
 
-- **Raise** (1.0°, 2.0°) if extracted panels are still dense enough to cause visible "spoke" artifacts radiating from panel centers in the rendered ball. Each curve will have fewer samples → fewer fan triangles per panel → fewer rays of normal interpolation discontinuity at the centroid.
-- **Lower** (0.2°, 0.1°) if curves look obviously polygonal in the preview (visible corners where the source is smooth). Each curve will have more samples → smoother curves at the cost of more fan triangles.
+- **Lower** (0.2°, 0.1°) if curves look obviously polygonal in the preview
+  (visible corners where the source is smooth).
+- **Raise** (1.0°, 2.0°) only to shrink the generated `-data.ts` file for
+  very ornate balls.
+
+Don't worry about long straight runs after RDP: `importedBallTopology()`
+re-densifies any boundary edge longer than 3° with great-arc midpoints at
+load. (Historically, sparse corners folded the mesher's first grid rows
+inside-out and opened black gashes along seams — that's handled
+automatically now.) Likewise, "spoke" shading artifacts radiating from
+panel centers are gone: fan-line vertices are deduplicated, and concave
+panels don't use fan triangulation at all.
+
+## How imported panels get meshed
+
+Generated wrappers delegate to `lib/topology/importedBall.ts`
+(`importedBallTopology`), which normalizes vertices, re-densifies long
+boundary edges (shared between adjacent panels, so seams stay watertight),
+and builds the panel + edge lists.
+
+At subdivision time (`lib/mesh/subdivide.ts`), each panel is tested for
+star-shapedness about its centroid:
+
+- **Star-shaped** panels (regular polygons, most convex shapes) use fan
+  triangulation from the centroid.
+- **Concave** panels (pinwheel arms like the Trionda's) get a constrained
+  Delaunay triangulation (poly2tri) of the full-resolution boundary in a
+  Lambert tangent plane, seeded with a uniform interior point lattice, and
+  mapped back to the sphere. This is what keeps wavy imported panels from
+  overlapping their neighbours and from showing large flat facets.
+
+Neither path needs anything from the importer beyond a valid panel graph —
+if the verification report passes, the mesher handles the rest.
 
 ---
 

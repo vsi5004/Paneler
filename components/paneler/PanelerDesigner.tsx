@@ -12,6 +12,7 @@ import {
 } from "@/lib/designState";
 import type { PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
+import { presetById } from "@/lib/topology/presets";
 
 import { Button } from "@/components/ui/button";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
@@ -20,6 +21,7 @@ import { ColorPalette } from "./ColorPalette";
 import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
 import { EmptyDesignState } from "./EmptyDesignState";
+import { ShapeParamsPanel } from "./ShapeParamsPanel";
 import { TemplateGalleryModal } from "./TemplateGalleryModal";
 import PanelerFlatView from "./PanelerFlatView";
 
@@ -84,10 +86,19 @@ export function PanelerDesigner({
     bytes,
     topology,
     panelColors,
+    designInfo,
     loadFromUrl,
     loadFromBytes,
     setPanelColors,
+    setDesignParam,
   } = design;
+
+  // Shape param defs for the loaded design's preset, when it declares any.
+  const shapeParamDefs = useMemo(() => {
+    if (!designInfo) return null;
+    const defs = presetById(designInfo.presetId)?.params;
+    return defs && defs.length > 0 ? defs : null;
+  }, [designInfo]);
 
   // Design nav + persistence (DB mode only).
   const ds = useDesigns({ enabled: dbEnabled });
@@ -438,6 +449,16 @@ export function PanelerDesigner({
                   </div>
                 </div>
                 <aside className="hidden w-72 flex-col overflow-y-auto overflow-x-hidden border-l bg-[var(--sidebar)]/60 p-5 md:flex lg:w-80">
+                  {shapeParamDefs && designInfo && (
+                    <>
+                      <ShapeParamsPanel
+                        paramDefs={shapeParamDefs}
+                        values={designInfo.params}
+                        onChange={setDesignParam}
+                      />
+                      <div className="workshop-hairline my-5" />
+                    </>
+                  )}
                   {/* Palette */}
                   <section>
                     <div className="mb-3 flex items-baseline justify-between">

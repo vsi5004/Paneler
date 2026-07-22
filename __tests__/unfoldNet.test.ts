@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { unfoldNet } from "@/lib/flatten/unfoldNet";
 import { PRESETS } from "@/lib/topology/presets";
+import { baseball } from "@/lib/topology/baseball";
 import { goldberg11 } from "@/lib/topology/goldberg";
 
 
@@ -126,5 +127,25 @@ describe("unfoldNet", () => {
   it("returns empty layout for empty topology", () => {
     const layout = unfoldNet({ vertices: [], panels: [], edges: [] });
     expect(layout.size).toBe(0);
+  });
+
+  it("gives full-wrap panels (Baseball) a non-degenerate outline", () => {
+    // The baseball seam wraps the whole sphere, so the naive boundary mean
+    // collapses to ~0 — without the signed-area fallback both panels
+    // flatten to a single point and the viewBox degenerates (which also
+    // blew up the designer's page layout).
+    const layout = unfoldNet(baseball());
+    expect(layout.size).toBe(2);
+    for (const flat of layout.values()) {
+      const xs = flat.corners.map((c) => c.x);
+      const ys = flat.corners.map((c) => c.y);
+      const xExt = Math.max(...xs) - Math.min(...xs);
+      const yExt = Math.max(...ys) - Math.min(...ys);
+      // Non-degenerate in absolute terms and not collapsed to a line.
+      expect(Math.max(xExt, yExt)).toBeGreaterThan(0.01);
+      expect(Math.min(xExt, yExt)).toBeGreaterThan(0.1 * Math.max(xExt, yExt));
+      // Spine-unrolled wrap-around panels read as elongated dog-bones.
+      expect(Math.max(xExt, yExt) / Math.min(xExt, yExt)).toBeGreaterThan(2);
+    }
   });
 });

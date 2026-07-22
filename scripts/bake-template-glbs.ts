@@ -1,8 +1,10 @@
 /**
  * Build-time script: emit one .glb per template into public/presets/, plus an
- * index.json manifest. Templates are baked at the same subdivision level and
- * sphere radius the runtime would have generated, so loading a template glb
- * looks identical to picking the preset under the old code path.
+ * index.json manifest. Templates are baked through the same pipeline the
+ * runtime Shape sliders use (lib/glb/generate.ts), so loading a template glb
+ * is identical to generating the preset at its default param values — and the
+ * baked asset extras carry those defaults, making them editable by re-baking
+ * (or hand-editing) the GLB.
  *
  * Run: `npm run bake:glb`
  */
@@ -12,15 +14,10 @@ import { fileURLToPath } from "node:url";
 
 import { NodeIO } from "@gltf-transform/core";
 
-import { PRESETS } from "@/lib/topology/presets";
-import { subdivideTopology, puffPanels } from "@/lib/mesh/subdivide";
-import { projectToSphere } from "@/lib/mesh/projectToSphere";
-import { buildGlbDocument } from "@/lib/glb/build";
-import type { PanelShape, PanelTopology } from "@/lib/types";
-
-const SPHERE_RADIUS = 2;
-const TARGET_TOTAL_TRIANGLES = 30_000;
-const PANEL_PUFF = 0.06;
+import { PRESETS, type PresetParamDef } from "@/lib/topology/presets";
+import { generateTemplateDocument } from "@/lib/glb/generate";
+import { parseDocument } from "@/lib/topology/gltf";
+import type { PanelShape } from "@/lib/types";
 
 interface ManifestEntry {
   slug: string;
@@ -28,10 +25,8 @@ interface ManifestEntry {
   glbPath: string;
   panelCount: number;
   shapeSignature: string;
-}
-
-function totalFanTriangles(topo: PanelTopology): number {
-  return topo.panels.reduce((sum, p) => sum + p.vertexIndices.length, 0);
+  /** Shape param definitions, for gallery display; values live in the GLB. */
+  params?: PresetParamDef[];
 }
 
 async function main() {
@@ -43,15 +38,9 @@ async function main() {
   const manifest: ManifestEntry[] = [];
 
   for (const preset of PRESETS) {
-    const raw = preset.topology(1);
-    const fanTris = totalFanTriangles(raw);
-    const level = Math.ceil(Math.sqrt(TARGET_TOTAL_TRIANGLES / fanTris));
-    const subdivided = subdivideTopology(raw, level);
-    projectToSphere(subdivided, SPHERE_RADIUS);
-    puffPanels(subdivided, SPHERE_RADIUS, PANEL_PUFF);
-
-    const doc = buildGlbDocument(subdivided, { assetName: preset.id });
+    const doc = generateTemplateDocument(preset.id);
     const bytes = await io.writeBinary(doc);
+    const panels = parseDocument(doc).topology.panels;
 
     const filename = `${preset.id}.glb`;
     await writeFile(join(outDir, filename), bytes);
@@ -60,11 +49,12 @@ async function main() {
       slug: preset.id,
       label: preset.label,
       glbPath: `/presets/${filename}`,
-      panelCount: subdivided.panels.length,
-      shapeSignature: shapeSignature(subdivided.panels),
+      panelCount: panels.length,
+      shapeSignature: shapeSignature(panels),
+      ...(preset.params?.length ? { params: preset.params } : {}),
     });
 
-    console.log(`baked ${preset.id} (${subdivided.panels.length} panels, ${bytes.byteLength} bytes)`);
+    console.log(`baked ${preset.id} (${panels.length} panels, ${bytes.byteLength} bytes)`);
   }
 
   await writeFile(

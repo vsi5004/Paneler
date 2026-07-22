@@ -206,23 +206,30 @@ describe("subdivideTopology", () => {
     }
   });
 
-  it("shares boundary-edge vertices between adjacent panels (no T-junctions)", () => {
+  it("shares boundary-edge and fan-line vertices (no T-junctions, no dupes)", () => {
     // Icosahedron has 30 edges. With sharing, the 3 interior subdivision
-    // vertices on each edge are emitted once (90 total). Without sharing,
-    // each edge would be subdivided per-panel (20 panels × 3 edges × 3 = 180
-    // edge-interior vertices). The difference (90) is what sharing saves.
+    // vertices on each edge are emitted once (90 total). Within each panel,
+    // the interior fan-line vertices (corner → centroid) are shared between
+    // the two fan sectors flanking each corner.
     const sub = subdivideTopology(icosahedron(), 3);
     const baseVerts = 12;
     const centroidVerts = 20; // one per panel
     const sharedEdgeVerts = 30 * 3;
-    // Interior vertices inside each fan-triangle (rows 1 and 2 of the
-    // barycentric grid for levels=3): 3 fans per panel × (3 + 2) = 15 per panel.
-    const fanInteriorVerts = 20 * 15;
-    const expected = baseVerts + centroidVerts + sharedEdgeVerts + fanInteriorVerts;
+    // Per panel: 3 fan lines × 2 interior rows (rows 1..2 for levels=3)
+    // shared vertices, plus strictly-interior vertices per sector (row 1 has
+    // one non-fan-line point; row 2 has none) × 3 sectors.
+    const perPanelInterior = 3 * 2 + 3 * 1;
+    const expected =
+      baseVerts + centroidVerts + sharedEdgeVerts + 20 * perPanelInterior;
     expect(sub.vertices.length).toBe(expected);
 
-    // Sanity: must be strictly less than what un-shared edges would cost.
-    const naiveUnshared = expected + 30 * 3; // duplicate each edge's interior
-    expect(sub.vertices.length).toBeLessThan(naiveUnshared);
+    // No two distinct vertices may share a position (the old grid emitted
+    // duplicated fan-line vertices at identical coordinates).
+    const seen = new Set<string>();
+    for (const v of sub.vertices) {
+      const key = `${v.x.toFixed(9)},${v.y.toFixed(9)},${v.z.toFixed(9)}`;
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+    }
   });
 });

@@ -4,7 +4,18 @@
     "label": "Baseball",
     "glbPath": "/presets/baseball.glb",
     "panelCount": 2,
-    "shapeSignature": "2g"
+    "shapeSignature": "2g",
+    "params": [
+      {
+        "key": "seamAmplitude",
+        "label": "Seam amplitude",
+        "min": 0,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 50,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "trionda",
@@ -46,7 +57,18 @@
     "label": "Cuboctahedron",
     "glbPath": "/presets/cubocta.glb",
     "panelCount": 14,
-    "shapeSignature": "8t+6q"
+    "shapeSignature": "8t+6q",
+    "params": [
+      {
+        "key": "shortEdge",
+        "label": "Short edge",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 0,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "icosa",
@@ -60,7 +82,18 @@
     "label": "Soccer Ball",
     "glbPath": "/presets/soccer.glb",
     "panelCount": 32,
-    "shapeSignature": "12p+20h"
+    "shapeSignature": "12p+20h",
+    "params": [
+      {
+        "key": "shortEdge",
+        "label": "Short edge",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "gp2",

@@ -2,16 +2,39 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { parseGlb, type ParsedGlb } from "@/lib/topology/gltf";
+import { parseGlb, parseDocument, type ParsedGlb } from "@/lib/topology/gltf";
 import { setMaterialColor, serializeDocument } from "@/lib/glb/mutate";
 import { linearRgbaToHex } from "@/lib/glb/build";
+import {
+  generateTemplateDocument,
+  TARGET_TOTAL_TRIANGLES,
+  DRAFT_TOTAL_TRIANGLES,
+} from "@/lib/glb/generate";
+import { presetById, type PresetParams } from "@/lib/topology/presets";
 import type { PanelColors, PanelTopology } from "@/lib/types";
+
+/** Preset provenance + current shape param values for the loaded design. */
+export interface DesignInfo {
+  presetId: string;
+  params: PresetParams;
+}
+
+/** Draft = coarse mesh while a slider drags; full = final quality on release. */
+export type RegenQuality = "draft" | "full";
+
+const DRAFT_DEBOUNCE_MS = 100;
 
 export interface UseGlbDesignResult {
   /** Latest GLB bytes — kept so the renderer can pass them to GLTFLoader. */
   bytes: Uint8Array | null;
   topology: PanelTopology | null;
   panelColors: PanelColors;
+  /**
+   * Preset id + shape param values parsed from the GLB's asset extras, or null
+   * for custom uploads. Non-null only enables Shape sliders when the preset is
+   * known and declares params.
+   */
+  designInfo: DesignInfo | null;
   /** Bumps on every panelColors mutation so memoized derived state can invalidate. */
   version: number;
   loading: boolean;
@@ -28,6 +51,11 @@ export interface UseGlbDesignResult {
   setPanelColor: (panelId: string, hex: string) => void;
   /** Reset a panel back to its template default (the linear baseColor on the parsed material). */
   resetPanel: (panelId: string) => void;
+  /**
+   * Set one shape param and regenerate the design's geometry from its preset.
+   * Colors survive because panel ids are stable across param values.
+   */
+  setDesignParam: (key: string, value: number, quality: RegenQuality) => void;
   /** Serialize the current GLB document back to bytes (for save). */
   serialize: () => Promise<Uint8Array | null>;
   /** Clear loaded design. */
@@ -38,19 +66,42 @@ export function useGlbDesign(): UseGlbDesignResult {
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [parsed, setParsed] = useState<ParsedGlb | null>(null);
   const [panelColors, setPanelColorsState] = useState<PanelColors>({});
+  const [designInfo, setDesignInfo] = useState<DesignInfo | null>(null);
   const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Cache template defaults so resetPanel can recover them after edits.
   const defaultsRef = useRef<PanelColors>({});
+  // Latest panelColors, readable inside async regen callbacks.
+  const panelColorsRef = useRef<PanelColors>({});
+  // Latest designInfo so rapid setDesignParam calls compound before re-render.
+  const designInfoRef = useRef<DesignInfo | null>(null);
+  // When > 0, the bytes-parse effect skips a run: a param regen already set
+  // `parsed` from the freshly generated document, and re-parsing would clobber
+  // defaultsRef (template default colors) and reset panelColors from materials.
+  const skipParseRef = useRef(0);
+  // Trailing-debounce timer for draft-quality regens while a slider drags.
+  const regenTimerRef = useRef<number | null>(null);
+  // Monotonic counter; stale async regen completions are dropped.
+  const regenCounterRef = useRef(0);
+
+  useEffect(() => {
+    panelColorsRef.current = panelColors;
+  }, [panelColors]);
 
   // Parse bytes → topology + materials. Initialise panelColors from the
   // material's baseColorFactor so a freshly-loaded design starts at its
   // baked colors.
   useEffect(() => {
+    if (skipParseRef.current > 0) {
+      skipParseRef.current -= 1;
+      return;
+    }
     if (!bytes) {
       setParsed(null);
       setPanelColorsState({});
+      setDesignInfo(null);
+      designInfoRef.current = null;
       defaultsRef.current = {};
       return;
     }
@@ -65,6 +116,9 @@ export function useGlbDesign(): UseGlbDesignResult {
         defaultsRef.current = defaults;
         setParsed(p);
         setPanelColorsState(defaults);
+        const info = p.design ?? null;
+        setDesignInfo(info);
+        designInfoRef.current = info;
         setVersion((v) => v + 1);
         setError(null);
       })
@@ -87,16 +141,28 @@ export function useGlbDesign(): UseGlbDesignResult {
     }
   }, [panelColors, parsed]);
 
+  // Invalidate any in-flight or pending param regen (e.g. before loading a
+  // different design) so a stale completion can't clobber the new state.
+  const cancelRegen = useCallback(() => {
+    regenCounterRef.current += 1;
+    if (regenTimerRef.current !== null) {
+      window.clearTimeout(regenTimerRef.current);
+      regenTimerRef.current = null;
+    }
+  }, []);
+
   const loadFromBytes = useCallback(async (newBytes: Uint8Array) => {
+    cancelRegen();
     setLoading(true);
     setError(null);
     // Trigger the parse effect — actual parse is async there.
     setBytes(newBytes);
     setLoading(false);
-  }, []);
+  }, [cancelRegen]);
 
   const loadFromUrl = useCallback(
     async (url: string) => {
+      cancelRegen();
       setLoading(true);
       setError(null);
       try {
@@ -110,7 +176,7 @@ export function useGlbDesign(): UseGlbDesignResult {
         setLoading(false);
       }
     },
-    [],
+    [cancelRegen],
   );
 
   const setPanelColors = useCallback(
@@ -137,23 +203,94 @@ export function useGlbDesign(): UseGlbDesignResult {
     [setPanelColor],
   );
 
+  // Regenerate geometry from the preset at the given params, carrying the
+  // current colors over (panel ids are stable across param values). Replaces
+  // both `parsed` (topology/materials/document) and `bytes` (canvas) directly;
+  // the bytes-parse effect is skipped via skipParseRef.
+  const applyGenerated = useCallback(
+    async (info: DesignInfo, targetTriangles: number) => {
+      const generation = ++regenCounterRef.current;
+      try {
+        const doc = generateTemplateDocument(
+          info.presetId,
+          info.params,
+          panelColorsRef.current,
+          { targetTriangles },
+        );
+        const newBytes = await serializeDocument(doc);
+        if (generation !== regenCounterRef.current) return; // superseded
+        skipParseRef.current += 1;
+        setParsed(parseDocument(doc));
+        setBytes(newBytes);
+        setVersion((v) => v + 1);
+        setError(null);
+      } catch (err) {
+        if (generation !== regenCounterRef.current) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to regenerate design",
+        );
+      }
+    },
+    [],
+  );
+
+  const setDesignParam = useCallback(
+    (key: string, value: number, quality: RegenQuality) => {
+      const info = designInfoRef.current;
+      if (!info || !presetById(info.presetId)) return;
+      const next: DesignInfo = {
+        presetId: info.presetId,
+        params: { ...info.params, [key]: value },
+      };
+      designInfoRef.current = next;
+      setDesignInfo(next);
+
+      if (regenTimerRef.current !== null) {
+        window.clearTimeout(regenTimerRef.current);
+        regenTimerRef.current = null;
+      }
+      if (quality === "full") {
+        void applyGenerated(next, TARGET_TOTAL_TRIANGLES);
+      } else {
+        regenTimerRef.current = window.setTimeout(() => {
+          regenTimerRef.current = null;
+          void applyGenerated(next, DRAFT_TOTAL_TRIANGLES);
+        }, DRAFT_DEBOUNCE_MS);
+      }
+    },
+    [applyGenerated],
+  );
+
+  // Drop any pending draft regen on unmount.
+  useEffect(() => {
+    return () => {
+      if (regenTimerRef.current !== null) {
+        window.clearTimeout(regenTimerRef.current);
+      }
+    };
+  }, []);
+
   const serialize = useCallback(async () => {
     if (!parsed) return null;
     return serializeDocument(parsed.document);
   }, [parsed]);
 
   const reset = useCallback(() => {
+    cancelRegen();
     setBytes(null);
     setParsed(null);
     setPanelColorsState({});
+    setDesignInfo(null);
+    designInfoRef.current = null;
     defaultsRef.current = {};
     setError(null);
-  }, []);
+  }, [cancelRegen]);
 
   return {
     bytes,
     topology: parsed?.topology ?? null,
     panelColors,
+    designInfo,
     version,
     loading,
     error,
@@ -162,6 +299,7 @@ export function useGlbDesign(): UseGlbDesignResult {
     setPanelColors,
     setPanelColor,
     resetPanel,
+    setDesignParam,
     serialize,
     reset,
   };
