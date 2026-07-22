@@ -8,7 +8,11 @@ import {
 
 /**
  * Subdivide each panel face by:
- *   1. Fan-triangulating from the panel centroid.
+ *   1. Triangulating the panel — fan-triangulation from the panel centroid
+ *      when the panel is star-shaped about it; ear-clipping in a tangent-plane
+ *      projection otherwise (concave pinwheel panels like Trionda's, whose fan
+ *      lines would reach across their hooked arms into neighbouring panels
+ *      and produce overlapping surfaces).
  *   2. Subdividing each resulting triangle into a barycentric grid of `levels`
  *      sub-triangles per edge.
  *
@@ -69,12 +73,32 @@ export function subdivideTopology(
   for (const panel of topo.panels) {
     const triangles: [number, number, number][] = [];
 
+    const centroid = computeCentroid(
+      topo.vertices,
+      panel.vertexIndices,
+      vertexPanelCount,
+    );
+
+    // Fan triangulation is only valid when the panel is star-shaped about
+    // the centroid — otherwise fan lines exit the panel and the surface
+    // overlaps its neighbours. Concave panels take the ear-clipping path.
+    if (!isStarShapedAbout(newVertices, panel.vertexIndices, centroid)) {
+      subdivideConcavePanel({
+        pool: newVertices,
+        loop: panel.vertexIndices,
+        center: centroid,
+        levels,
+        edgeVertexCache,
+        boundaryArcs,
+        triangles,
+      });
+      panelTriangles.set(panel.id, triangles);
+      continue;
+    }
+
     // Fan-triangulate from the panel centroid: each (corner_i, corner_i+1)
     // edge becomes a parent triangle (centroid, corner_i, corner_i+1).
-    const centroidIdx = addVertex(
-      newVertices,
-      computeCentroid(topo.vertices, panel.vertexIndices, vertexPanelCount),
-    );
+    const centroidIdx = addVertex(newVertices, centroid);
     vertexDepth.set(centroidIdx, 1);
 
     // Interior vertices along each fan line (corner → centroid) are shared
@@ -282,6 +306,310 @@ function computeCentroid(
 function addVertex(pool: Vector3[], v: Vector3): number {
   pool.push(v);
   return pool.length - 1;
+}
+
+/**
+ * Is the panel star-shaped about `center` (as seen on the sphere)? True iff
+ * the boundary's azimuth around the center direction winds monotonically —
+ * fan lines from the center then stay inside the panel. Pinwheel-arm panels
+ * reverse azimuth dozens of times and need real triangulation instead.
+ */
+function isStarShapedAbout(
+  pool: Vector3[],
+  loop: readonly number[],
+  center: Vector3,
+): boolean {
+  const n = center.clone().normalize();
+  if (n.lengthSq() === 0) return true; // degenerate center; fan fallback
+  const helper =
+    Math.abs(n.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+  const e1 = helper.clone().sub(n.clone().multiplyScalar(helper.dot(n))).normalize();
+  const e2 = n.clone().cross(e1);
+
+  let windSign = 0;
+  let prevAz: number | null = null;
+  for (let i = 0; i <= loop.length; i++) {
+    const v = pool[loop[i % loop.length]];
+    const az = Math.atan2(v.dot(e2), v.dot(e1));
+    if (prevAz !== null) {
+      let delta = az - prevAz;
+      if (delta > Math.PI) delta -= 2 * Math.PI;
+      if (delta < -Math.PI) delta += 2 * Math.PI;
+      const sign = Math.abs(delta) > 1e-12 ? Math.sign(delta) : 0;
+      if (sign !== 0) {
+        if (windSign === 0) windSign = sign;
+        else if (sign !== windSign) return false;
+      }
+    }
+    prevAz = az;
+  }
+  return true;
+}
+
+/**
+ * Ear-clip a simple 2D polygon (indices into `pts`). Returns triangles as
+ * index triples with the polygon's own winding. O(n²) — panels have at most
+ * a few hundred corners.
+ */
+function earClip2D(
+  pts: ReadonlyArray<{ x: number; y: number }>,
+): [number, number, number][] {
+  const cross = (
+    o: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+  ) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    area += a.x * b.y - b.x * a.y;
+  }
+  // Work CCW; remember if we flipped so output keeps input winding.
+  const flipped = area < 0;
+  const idx = [...Array(pts.length).keys()];
+  if (flipped) idx.reverse();
+
+  const tris: [number, number, number][] = [];
+  const emit = (a: number, b: number, c: number) =>
+    tris.push(flipped ? [c, b, a] : [a, b, c]);
+
+  while (idx.length > 3) {
+    let clipped = false;
+    for (let i = 0; i < idx.length; i++) {
+      const ip = idx[(i - 1 + idx.length) % idx.length];
+      const ic = idx[i];
+      const inx = idx[(i + 1) % idx.length];
+      const A = pts[ip];
+      const B = pts[ic];
+      const C = pts[inx];
+      if (cross(A, B, C) <= 1e-12) continue; // reflex or degenerate corner
+      let contains = false;
+      for (const j of idx) {
+        if (j === ip || j === ic || j === inx) continue;
+        const P = pts[j];
+        if (
+          cross(A, B, P) >= -1e-12 &&
+          cross(B, C, P) >= -1e-12 &&
+          cross(C, A, P) >= -1e-12
+        ) {
+          contains = true;
+          break;
+        }
+      }
+      if (contains) continue;
+      emit(ip, ic, inx);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) {
+      // Numerical stalemate (nearly-collinear runs): clip the most convex
+      // corner anyway rather than looping forever.
+      let best = 0;
+      let bestCross = -Infinity;
+      for (let i = 0; i < idx.length; i++) {
+        const c = cross(
+          pts[idx[(i - 1 + idx.length) % idx.length]],
+          pts[idx[i]],
+          pts[idx[(i + 1) % idx.length]],
+        );
+        if (c > bestCross) {
+          bestCross = c;
+          best = i;
+        }
+      }
+      emit(
+        idx[(best - 1 + idx.length) % idx.length],
+        idx[best],
+        idx[(best + 1) % idx.length],
+      );
+      idx.splice(best, 1);
+    }
+  }
+  emit(idx[0], idx[1], idx[2]);
+  return tris;
+}
+
+/**
+ * Subdivide a concave panel: project its corner loop onto a Lambert
+ * azimuthal plane at the panel center, ear-clip the resulting simple
+ * polygon, refine every ear as a barycentric grid IN THE PLANE, and map
+ * grid points back to the sphere through the inverse projection.
+ *
+ * Refining in the plane matters: the ear partition is only guaranteed
+ * non-overlapping in 2D, and Lambert is a bijection between the plane
+ * and the sphere cap — so the mapped surface cannot fold. (Refining ears
+ * with straight 3D lerps instead re-introduced overlaps, because an
+ * ear's 2D-straight edge and the 3D great arc between the same corners
+ * are different curves for large ears.)
+ *
+ * Panel-boundary edges are the one exception: their chains come from the
+ * shared 3D `edgeVertexCache`, so they match neighbouring panels
+ * vertex-for-vertex. Boundary corners are dense, so the (second-order)
+ * difference between those arcs and the 2D-straight edges is far smaller
+ * than a grid cell and cannot fold the first row.
+ */
+function subdivideConcavePanel({
+  pool,
+  loop,
+  center,
+  levels,
+  edgeVertexCache,
+  boundaryArcs,
+  triangles,
+}: {
+  pool: Vector3[];
+  loop: readonly number[];
+  center: Vector3;
+  levels: number;
+  edgeVertexCache: Map<string, number>;
+  boundaryArcs: Map<string, number[]>;
+  triangles: [number, number, number][];
+}): void {
+  const sphereRadius = pool[loop[0]].length() || 1;
+
+  // Subdivide + record all boundary edges first (shared with neighbours).
+  for (let i = 0; i < loop.length; i++) {
+    const aIdx = loop[i];
+    const bIdx = loop[(i + 1) % loop.length];
+    const chain = subdivideEdge(pool, edgeVertexCache, aIdx, bIdx, levels);
+    const arcKey = `${Math.min(aIdx, bIdx)}-${Math.max(aIdx, bIdx)}`;
+    if (!boundaryArcs.has(arcKey)) {
+      boundaryArcs.set(
+        arcKey,
+        aIdx < bIdx ? [...chain] : [...chain].reverse(),
+      );
+    }
+  }
+
+  // Lambert azimuthal projection of the corner loop about the center.
+  const n = center.clone().normalize();
+  const helper =
+    Math.abs(n.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+  const e1 = helper.clone().sub(n.clone().multiplyScalar(helper.dot(n))).normalize();
+  const e2 = n.clone().cross(e1);
+  const pts = loop.map((vi) => {
+    const u = pool[vi].clone().normalize();
+    const cosD = Math.min(1, Math.max(-1, u.dot(n)));
+    const az = u.clone().sub(n.clone().multiplyScalar(cosD));
+    const azLen = az.length();
+    const r = 2 * Math.sin(Math.acos(cosD) / 2);
+    return {
+      x: azLen > 1e-12 ? (r * az.dot(e1)) / azLen : 0,
+      y: azLen > 1e-12 ? (r * az.dot(e2)) / azLen : 0,
+    };
+  });
+
+  // Inverse Lambert: planar point → point on the sphere (at sphereRadius).
+  const toSphere = (x: number, y: number): Vector3 => {
+    const r = Math.hypot(x, y);
+    if (r < 1e-12) return n.clone().multiplyScalar(sphereRadius);
+    const d = 2 * Math.asin(Math.min(1, r / 2));
+    return n
+      .clone()
+      .multiplyScalar(Math.cos(d))
+      .addScaledVector(e1, (Math.sin(d) * x) / r)
+      .addScaledVector(e2, (Math.sin(d) * y) / r)
+      .multiplyScalar(sphereRadius);
+  };
+
+  const posOfGlobal = new Map<number, number>();
+  loop.forEach((g, i) => posOfGlobal.set(g, i));
+
+  // Chains for ear edges. Boundary edges (consecutive loop corners) reuse
+  // the global 3D cache; internal ear edges are refined in the plane and
+  // cached per panel so both flanking ears share identical vertices.
+  const internalChains = new Map<string, number[]>();
+  const chainFor = (posA: number, posB: number): number[] => {
+    const gA = loop[posA];
+    const gB = loop[posB];
+    const nLoop = loop.length;
+    const consecutive =
+      posB === (posA + 1) % nLoop || posA === (posB + 1) % nLoop;
+    if (consecutive) {
+      return subdivideEdge(pool, edgeVertexCache, gA, gB, levels);
+    }
+    const lo = Math.min(gA, gB);
+    const hi = Math.max(gA, gB);
+    const key = `${lo}-${hi}`;
+    let chain = internalChains.get(key);
+    if (!chain) {
+      const a2 = pts[posOfGlobal.get(lo)!];
+      const b2 = pts[posOfGlobal.get(hi)!];
+      chain = [lo];
+      for (let s = 1; s <= levels; s++) {
+        const t = s / (levels + 1);
+        chain.push(
+          addVertex(pool, toSphere(a2.x + (b2.x - a2.x) * t, a2.y + (b2.y - a2.y) * t)),
+        );
+      }
+      chain.push(hi);
+      internalChains.set(key, chain);
+    }
+    return gA === lo ? chain : [...chain].reverse();
+  };
+
+  for (const ear of earClip2D(pts)) {
+    let [pa, pb, pc] = ear;
+    // Outward winding: flip if the corner triangle faces inward in 3D.
+    const A3 = pool[loop[pa]];
+    const B3 = pool[loop[pb]];
+    const C3 = pool[loop[pc]];
+    const normal = B3.clone().sub(A3).cross(C3.clone().sub(A3));
+    if (normal.dot(A3) < 0) {
+      const tmp = pb;
+      pb = pc;
+      pc = tmp;
+    }
+
+    const L = levels + 1; // segments per edge
+    const chainAB = chainFor(pa, pb);
+    const chainAC = chainFor(pa, pc);
+    const chainBC = chainFor(pb, pc);
+    const A2 = pts[pa];
+    const B2 = pts[pb];
+    const C2 = pts[pc];
+
+    // grid[r][s]: r rows toward C (row r has L - r + 1 points), s along A→B.
+    const grid: number[][] = [];
+    for (let r = 0; r <= L; r++) {
+      const row: number[] = [];
+      const width = L - r;
+      for (let s = 0; s <= width; s++) {
+        let idx: number;
+        if (r === 0) idx = chainAB[s];
+        else if (s === 0) idx = chainAC[r];
+        else if (s === width) idx = chainBC[r];
+        else {
+          const wa = (L - r - s) / L;
+          const wb = s / L;
+          const wc = r / L;
+          idx = addVertex(
+            pool,
+            toSphere(
+              wa * A2.x + wb * B2.x + wc * C2.x,
+              wa * A2.y + wb * B2.y + wc * C2.y,
+            ),
+          );
+        }
+        row.push(idx);
+      }
+      grid.push(row);
+    }
+
+    for (let r = 0; r < L; r++) {
+      const upper = grid[r];
+      const lower = grid[r + 1];
+      for (let s = 0; s < lower.length; s++) {
+        triangles.push([upper[s], upper[s + 1], lower[s]]);
+        if (s < lower.length - 1) {
+          triangles.push([upper[s + 1], lower[s + 1], lower[s]]);
+        }
+      }
+    }
+  }
 }
 
 
