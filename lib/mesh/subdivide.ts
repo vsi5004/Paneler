@@ -361,19 +361,27 @@ function earClip2D(
   ) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
   let area = 0;
+  let scale = 0;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i];
     const b = pts[(i + 1) % pts.length];
     area += a.x * b.y - b.x * a.y;
+    scale += Math.hypot(b.x - a.x, b.y - a.y);
   }
-  // Work CCW; remember if we flipped so output keeps input winding.
-  const flipped = area < 0;
+  // Cross-product epsilon proportional to the squared average edge length —
+  // fixed epsilons misclassify the near-collinear corner runs of densely
+  // sampled boundaries.
+  const avgEdge = scale / pts.length;
+  const eps = avgEdge * avgEdge * 1e-6;
+
+  // Work CCW and EMIT CCW: the caller relies on counter-clockwise output
+  // (in a right-handed tangent basis, planar CCW = outward-facing on the
+  // sphere). Per-triangle 3D orientation checks are noise for sliver ears.
   const idx = [...Array(pts.length).keys()];
-  if (flipped) idx.reverse();
+  if (area < 0) idx.reverse();
 
   const tris: [number, number, number][] = [];
-  const emit = (a: number, b: number, c: number) =>
-    tris.push(flipped ? [c, b, a] : [a, b, c]);
+  const emit = (a: number, b: number, c: number) => tris.push([a, b, c]);
 
   while (idx.length > 3) {
     let clipped = false;
@@ -384,15 +392,17 @@ function earClip2D(
       const A = pts[ip];
       const B = pts[ic];
       const C = pts[inx];
-      if (cross(A, B, C) <= 1e-12) continue; // reflex or degenerate corner
+      if (cross(A, B, C) < -eps) continue; // true reflex corner
       let contains = false;
       for (const j of idx) {
         if (j === ip || j === ic || j === inx) continue;
         const P = pts[j];
+        // Only STRICTLY interior points block an ear — collinear boundary
+        // neighbours sitting exactly on an ear edge are fine to clip past.
         if (
-          cross(A, B, P) >= -1e-12 &&
-          cross(B, C, P) >= -1e-12 &&
-          cross(C, A, P) >= -1e-12
+          cross(A, B, P) > eps &&
+          cross(B, C, P) > eps &&
+          cross(C, A, P) > eps
         ) {
           contains = true;
           break;
@@ -552,17 +562,11 @@ function subdivideConcavePanel({
   };
 
   for (const ear of earClip2D(pts)) {
-    let [pa, pb, pc] = ear;
-    // Outward winding: flip if the corner triangle faces inward in 3D.
-    const A3 = pool[loop[pa]];
-    const B3 = pool[loop[pb]];
-    const C3 = pool[loop[pc]];
-    const normal = B3.clone().sub(A3).cross(C3.clone().sub(A3));
-    if (normal.dot(A3) < 0) {
-      const tmp = pb;
-      pb = pc;
-      pc = tmp;
-    }
+    // earClip2D emits CCW in the plane; with the right-handed (e1, e2, n)
+    // basis that is outward-facing on the sphere, so the grid winding below
+    // is outward for every ear — including slivers, where a per-ear 3D
+    // normal check would be numerical noise.
+    const [pa, pb, pc] = ear;
 
     const L = levels + 1; // segments per edge
     const chainAB = chainFor(pa, pb);
