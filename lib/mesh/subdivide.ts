@@ -1,10 +1,21 @@
 import { Vector3 } from "three";
+import { Point as CdtPoint, SweepContext } from "poly2tri";
 import {
   type Panel,
   type PanelEdge,
   type PanelTopology,
   shapeForVertexCount,
 } from "@/lib/types";
+
+/** poly2tri Point carrying the global vertex index it corresponds to. */
+class MeshPoint extends CdtPoint {
+  globalIndex: number | null;
+
+  constructor(x: number, y: number, globalIndex: number | null = null) {
+    super(x, y);
+    this.globalIndex = globalIndex;
+  }
+}
 
 /**
  * Subdivide each panel face by:
@@ -443,23 +454,20 @@ function earClip2D(
 }
 
 /**
- * Subdivide a concave panel: project its corner loop onto a Lambert
- * azimuthal plane at the panel center, ear-clip the resulting simple
- * polygon, refine every ear as a barycentric grid IN THE PLANE, and map
- * grid points back to the sphere through the inverse projection.
+ * Subdivide a concave panel in a Lambert azimuthal plane at the panel
+ * center and map the result back through the inverse projection — a valid
+ * planar mesh mapped through a bijection cannot fold, so the panel cannot
+ * overlap its neighbours.
  *
- * Refining in the plane matters: the ear partition is only guaranteed
- * non-overlapping in 2D, and Lambert is a bijection between the plane
- * and the sphere cap — so the mapped surface cannot fold. (Refining ears
- * with straight 3D lerps instead re-introduced overlaps, because an
- * ear's 2D-straight edge and the 3D great arc between the same corners
- * are different curves for large ears.)
+ * Primary path: constrained Delaunay triangulation (poly2tri) of the
+ * FULL-RESOLUTION boundary polyline (every subdivided chain vertex, so the
+ * mesh conforms to neighbouring panels vertex-for-vertex) with a uniform
+ * hex lattice of interior Steiner points. Uniform point spacing gives
+ * uniformly sized triangles — ear-based meshing left huge flat facets on
+ * big ears that rendered as ridges across the panel.
  *
- * Panel-boundary edges are the one exception: their chains come from the
- * shared 3D `edgeVertexCache`, so they match neighbouring panels
- * vertex-for-vertex. Boundary corners are dense, so the (second-order)
- * difference between those arcs and the 2D-straight edges is far smaller
- * than a grid cell and cannot fold the first row.
+ * Fallback path (if poly2tri rejects the polygon): ear-clip the corner
+ * polygon and refine each ear as a planar barycentric grid.
  */
 function subdivideConcavePanel({
   pool,
@@ -525,6 +533,139 @@ function subdivideConcavePanel({
       .multiplyScalar(sphereRadius);
   };
 
+  // ---------------------------------------------------------------------
+  // Primary path: constrained Delaunay with uniform interior points.
+  // ---------------------------------------------------------------------
+  try {
+    // Full-resolution contour: every chain vertex of every boundary edge,
+    // each exactly once (chains share their endpoints).
+    const contourGlobal: number[] = [];
+    for (let i = 0; i < loop.length; i++) {
+      const chain = subdivideEdge(
+        pool,
+        edgeVertexCache,
+        loop[i],
+        loop[(i + 1) % loop.length],
+        levels,
+      );
+      for (let k = 0; k < chain.length - 1; k++) contourGlobal.push(chain[k]);
+    }
+    const to2D = (gi: number): { x: number; y: number } => {
+      const u = pool[gi].clone().normalize();
+      const cosD = Math.min(1, Math.max(-1, u.dot(n)));
+      const az = u.clone().sub(n.clone().multiplyScalar(cosD));
+      const azLen = az.length();
+      const r = 2 * Math.sin(Math.acos(cosD) / 2);
+      return {
+        x: azLen > 1e-12 ? (r * az.dot(e1)) / azLen : 0,
+        y: azLen > 1e-12 ? (r * az.dot(e2)) / azLen : 0,
+      };
+    };
+    const contour = contourGlobal.map((gi) => {
+      const p = to2D(gi);
+      return new MeshPoint(p.x, p.y, gi);
+    });
+
+    // Lattice spacing targeting the same triangle budget as the fan path
+    // (≈ corners × (levels+1)² per panel).
+    let area2 = 0;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < contour.length; i++) {
+      const a = contour[i];
+      const b = contour[(i + 1) % contour.length];
+      area2 += a.x * b.y - b.x * a.y;
+      minX = Math.min(minX, a.x);
+      minY = Math.min(minY, a.y);
+      maxX = Math.max(maxX, a.x);
+      maxY = Math.max(maxY, a.y);
+    }
+    const area = Math.abs(area2) / 2;
+    const targetTris = loop.length * (levels + 1) * (levels + 1);
+    const h = Math.sqrt(area / (0.433 * Math.max(1, targetTris)));
+
+    // Interior Steiner points on a hex lattice, kept clear of the contour
+    // (closer than ~half a cell would make boundary slivers).
+    const cell = new Map<string, MeshPoint[]>();
+    const cellKey = (x: number, y: number) =>
+      `${Math.floor(x / h)}:${Math.floor(y / h)}`;
+    for (const p of contour) {
+      const k = cellKey(p.x, p.y);
+      if (!cell.has(k)) cell.set(k, []);
+      cell.get(k)!.push(p);
+    }
+    const clearOfContour = (x: number, y: number): boolean => {
+      const cx = Math.floor(x / h);
+      const cy = Math.floor(y / h);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = cell.get(`${cx + dx}:${cy + dy}`);
+          if (!bucket) continue;
+          for (const p of bucket) {
+            if (Math.hypot(p.x - x, p.y - y) < 0.5 * h) return false;
+          }
+        }
+      }
+      return true;
+    };
+    const insidePolygon = (x: number, y: number): boolean => {
+      let inside = false;
+      for (let i = 0, j = contour.length - 1; i < contour.length; j = i++) {
+        const pi = contour[i];
+        const pj = contour[j];
+        if (
+          pi.y > y !== pj.y > y &&
+          x < ((pj.x - pi.x) * (y - pi.y)) / (pj.y - pi.y) + pi.x
+        ) {
+          inside = !inside;
+        }
+      }
+      return inside;
+    };
+    const steiner: MeshPoint[] = [];
+    const rowStep = h * 0.866;
+    for (let row = 0, y = minY + rowStep / 2; y < maxY; y += rowStep, row++) {
+      const offset = row % 2 === 0 ? 0 : h / 2;
+      for (let x = minX + offset + h / 2; x < maxX; x += h) {
+        if (insidePolygon(x, y) && clearOfContour(x, y)) {
+          steiner.push(new MeshPoint(x, y));
+        }
+      }
+    }
+
+    const sweep = new SweepContext(contour);
+    for (const p of steiner) sweep.addPoint(p);
+    sweep.triangulate();
+
+    const indexOf = (p: MeshPoint): number => {
+      if (p.globalIndex === null) {
+        p.globalIndex = addVertex(pool, toSphere(p.x, p.y));
+      }
+      return p.globalIndex;
+    };
+    for (const tri of sweep.getTriangles()) {
+      const p0 = tri.getPoint(0) as MeshPoint;
+      const p1 = tri.getPoint(1) as MeshPoint;
+      const p2 = tri.getPoint(2) as MeshPoint;
+      // Outward winding straight from the robust 2D sign: CCW in the
+      // right-handed tangent basis faces outward on the sphere.
+      const ccw =
+        (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x) >= 0;
+      const a = indexOf(p0);
+      const b = indexOf(ccw ? p1 : p2);
+      const c = indexOf(ccw ? p2 : p1);
+      triangles.push([a, b, c]);
+    }
+    return;
+  } catch {
+    // poly2tri rejects some degenerate inputs — fall through to ear clipping.
+  }
+
+  // ---------------------------------------------------------------------
+  // Fallback path: ear clipping + planar barycentric grids.
+  // ---------------------------------------------------------------------
   const posOfGlobal = new Map<number, number>();
   loop.forEach((g, i) => posOfGlobal.set(g, i));
 
