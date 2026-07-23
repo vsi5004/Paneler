@@ -69,14 +69,14 @@ export function LaserSettingsPanel({
               Bite depth
             </label>
             <span className="font-mono text-[10px] tabular-nums text-foreground">
-              {values.biteDepthMm.toFixed(2)}mm
+              {values.biteDepthMm.toFixed(1)}mm
             </span>
           </div>
           <Slider
             value={[values.biteDepthMm]}
             min={MIN_BITE_DEPTH_MM}
             max={MAX_BITE_DEPTH_MM}
-            step={0.25}
+            step={0.1}
             onValueChange={(v) => onChange({ biteDepthMm: first(v) })}
           />
         </div>
