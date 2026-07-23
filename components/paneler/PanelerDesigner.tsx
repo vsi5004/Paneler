@@ -483,6 +483,9 @@ export function PanelerDesigner({
                       <LaserSettingsPanel
                         values={laserSettings}
                         onChange={setLaserSettings}
+                        showCurvature={topology.panels.some(
+                          (p) => p.vertexIndices.length <= 6,
+                        )}
                       />
                       <div className="workshop-hairline my-5" />
                     </>

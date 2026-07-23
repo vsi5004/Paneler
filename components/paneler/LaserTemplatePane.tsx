@@ -113,6 +113,20 @@ export function LaserTemplatePane({
         >
           {/* Carousel stage. */}
           <div className="relative flex-1">
+            {templates.length > 1 && (
+              <>
+                <CarouselArrow
+                  direction={-1}
+                  onClick={() =>
+                    setSelected((s) => (s - 1 + templates.length) % templates.length)
+                  }
+                />
+                <CarouselArrow
+                  direction={1}
+                  onClick={() => setSelected((s) => (s + 1) % templates.length)}
+                />
+              </>
+            )}
             {templates.map((t, i) => {
               // Signed circular distance from the selected card.
               const n = templates.length;
@@ -181,6 +195,68 @@ export function LaserTemplatePane({
 }
 
 /**
+ * Edge navigation button — a hexagonal "panel" (matching the footbag
+ * motif) with a double chevron, glowing on hover. Makes the carousel's
+ * rotability unmistakable.
+ */
+function CarouselArrow({
+  direction,
+  onClick,
+}: {
+  direction: -1 | 1;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      aria-label={direction === 1 ? "Next template" : "Previous template"}
+      onClick={onClick}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.92 }}
+      className={`group absolute top-1/2 z-30 -translate-y-1/2 text-muted-foreground transition-colors hover:text-[var(--primary)] ${
+        direction === 1 ? "right-4" : "left-4"
+      }`}
+    >
+      <svg
+        width="46"
+        height="52"
+        viewBox="0 0 46 52"
+        fill="none"
+        aria-hidden
+        style={{ transform: direction === -1 ? "scaleX(-1)" : undefined }}
+        className="drop-shadow-[0_0_10px_rgba(0,0,0,0.7)] transition-[filter] group-hover:drop-shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_45%,transparent)]"
+      >
+        {/* Hexagonal panel body */}
+        <path
+          d="M23 1 L43.5 12.5 L43.5 39.5 L23 51 L2.5 39.5 L2.5 12.5 Z"
+          fill="#060b18"
+          fillOpacity="0.92"
+          stroke="currentColor"
+          strokeOpacity="0.7"
+          strokeWidth="1.5"
+        />
+        {/* Double chevron */}
+        <polyline
+          points="16 17 25 26 16 35"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity="0.45"
+        />
+        <polyline
+          points="23 17 32 26 23 35"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </motion.button>
+  );
+}
+
+/**
  * One template rendered as a blueprint: bright cut line, dashed seam
  * line, red stitch pierce points, and an engineering-style dimension rule
  * on the front card.
@@ -232,7 +308,7 @@ function TemplateCard({
           strokeWidth={width / 230}
         />
         {/* Stitch pierce points. */}
-        <g fill="#ff4d4d">
+        <g fill="#ffffff" opacity={0.9}>
           {t.holes.map((h, i) => (
             <circle key={i} cx={h.x} cy={h.y} r={holeR} />
           ))}

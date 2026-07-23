@@ -14,6 +14,13 @@ import type { LaserSettings } from "@/lib/laser/types";
 interface LaserSettingsPanelProps {
   values: LaserSettings;
   onChange: (partial: Partial<LaserSettings>) => void;
+  /**
+   * Whether the loaded design has simple polygon panels (≤6 corners).
+   * Wavy imported shapes (trionda pinwheels, baseball) carry their
+   * curvature in the boundary data itself — an edge-bulge slider is
+   * meaningless there, so it's hidden.
+   */
+  showCurvature: boolean;
 }
 
 /**
@@ -21,7 +28,11 @@ interface LaserSettingsPanelProps {
  * (hole size/spacing/bunching, gather correction) is hard-coded to proven
  * values in lib/laser/constants.ts.
  */
-export function LaserSettingsPanel({ values, onChange }: LaserSettingsPanelProps) {
+export function LaserSettingsPanel({
+  values,
+  onChange,
+  showCurvature,
+}: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
     Array.isArray(v) ? v[0] : (v as number);
   return (
@@ -69,10 +80,11 @@ export function LaserSettingsPanel({ values, onChange }: LaserSettingsPanelProps
             onValueChange={(v) => onChange({ biteDepthMm: first(v) })}
           />
         </div>
+        {showCurvature && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              Curvature
+              Panel curvature
             </label>
             <span className="font-mono text-[10px] tabular-nums text-foreground">
               {values.curvaturePct.toFixed(0)}%
@@ -86,6 +98,7 @@ export function LaserSettingsPanel({ values, onChange }: LaserSettingsPanelProps
             onValueChange={(v) => onChange({ curvaturePct: first(v) })}
           />
         </div>
+        )}
       </div>
     </section>
   );
