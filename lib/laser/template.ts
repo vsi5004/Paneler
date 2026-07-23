@@ -28,9 +28,14 @@ export function buildLaserTemplate(
 ): LaserTemplate {
   const scale = mmPerUnit(settings.diameterIn);
   const unscaled = flattenPanelUnscaled(cls.representative, topo);
+  // Curvature scales each edge's bulge: 100% = the true spherical
+  // sagitta, 0% = straight polygon edges. Everything downstream (seam
+  // path, sampled outline, cut offset, stitch holes) derives from these
+  // ratios, so the whole template follows consistently.
+  const curve = settings.curvaturePct / 100;
   const flatMm: PanelFlat = {
     corners: unscaled.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
-    sagittaRatios: unscaled.sagittaRatios,
+    sagittaRatios: unscaled.sagittaRatios.map((r) => r * curve),
   };
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);

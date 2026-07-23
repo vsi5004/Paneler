@@ -7,6 +7,8 @@ export interface LaserSettings {
   diameterIn: number;
   /** Distance from the cut edge to the stitch line, millimeters. */
   biteDepthMm: number;
+  /** Edge curvature, percent of the true spherical bulge (100 = spherical). */
+  curvaturePct: number;
 }
 
 /** A group of congruent panels that share one template. */

@@ -9,10 +9,7 @@ import {
   serializeDocument,
 } from "@/lib/glb/mutate";
 import type { LaserSettings } from "@/lib/laser/types";
-import {
-  DEFAULT_BITE_DEPTH_MM,
-  DEFAULT_DIAMETER_IN,
-} from "@/lib/laser/constants";
+import { defaultLaserSettings } from "@/lib/laser/constants";
 import { linearRgbaToHex } from "@/lib/glb/build";
 import {
   generateTemplateDocument,
@@ -84,10 +81,9 @@ export function useGlbDesign(): UseGlbDesignResult {
   const [parsed, setParsed] = useState<ParsedGlb | null>(null);
   const [panelColors, setPanelColorsState] = useState<PanelColors>({});
   const [designInfo, setDesignInfo] = useState<DesignInfo | null>(null);
-  const [laserSettings, setLaserSettingsState] = useState<LaserSettings>({
-    diameterIn: DEFAULT_DIAMETER_IN,
-    biteDepthMm: DEFAULT_BITE_DEPTH_MM,
-  });
+  const [laserSettings, setLaserSettingsState] = useState<LaserSettings>(
+    defaultLaserSettings(),
+  );
   const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,10 +94,7 @@ export function useGlbDesign(): UseGlbDesignResult {
   // Latest designInfo so rapid setDesignParam calls compound before re-render.
   const designInfoRef = useRef<DesignInfo | null>(null);
   // Latest laser settings, readable inside the regen path.
-  const laserSettingsRef = useRef<LaserSettings>({
-    diameterIn: DEFAULT_DIAMETER_IN,
-    biteDepthMm: DEFAULT_BITE_DEPTH_MM,
-  });
+  const laserSettingsRef = useRef<LaserSettings>(defaultLaserSettings());
   // When > 0, the bytes-parse effect skips a run: a param regen already set
   // `parsed` from the freshly generated document, and re-parsing would clobber
   // defaultsRef (template default colors) and reset panelColors from materials.
@@ -128,10 +121,7 @@ export function useGlbDesign(): UseGlbDesignResult {
       setPanelColorsState({});
       setDesignInfo(null);
       designInfoRef.current = null;
-      const laserDefaults = {
-        diameterIn: DEFAULT_DIAMETER_IN,
-        biteDepthMm: DEFAULT_BITE_DEPTH_MM,
-      };
+      const laserDefaults = defaultLaserSettings();
       setLaserSettingsState(laserDefaults);
       laserSettingsRef.current = laserDefaults;
       defaultsRef.current = {};
@@ -155,10 +145,7 @@ export function useGlbDesign(): UseGlbDesignResult {
             : null;
         setDesignInfo(info);
         designInfoRef.current = info;
-        const laser: LaserSettings = p.design?.laser ?? {
-          diameterIn: DEFAULT_DIAMETER_IN,
-          biteDepthMm: DEFAULT_BITE_DEPTH_MM,
-        };
+        const laser: LaserSettings = p.design?.laser ?? defaultLaserSettings();
         setLaserSettingsState(laser);
         laserSettingsRef.current = laser;
         setVersion((v) => v + 1);
@@ -339,10 +326,7 @@ export function useGlbDesign(): UseGlbDesignResult {
     setPanelColorsState({});
     setDesignInfo(null);
     designInfoRef.current = null;
-    const laserDefaults = {
-      diameterIn: DEFAULT_DIAMETER_IN,
-      biteDepthMm: DEFAULT_BITE_DEPTH_MM,
-    };
+    const laserDefaults = defaultLaserSettings();
     setLaserSettingsState(laserDefaults);
     laserSettingsRef.current = laserDefaults;
     defaultsRef.current = {};

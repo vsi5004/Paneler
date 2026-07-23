@@ -27,6 +27,16 @@ export const MIN_DIAMETER_IN = 1.5;
 export const MAX_DIAMETER_IN = 2.5;
 export const MIN_BITE_DEPTH_MM = 0.5;
 export const MAX_BITE_DEPTH_MM = 4;
+/**
+ * Edge curvature as a percentage of the true spherical bulge: 100 = the
+ * geometric sagitta of each edge's great-circle arc (default), 0 =
+ * straight polygon edges, >100 = extra bow. Reference: the proven
+ * footbag-templates pentagons (curveRadius 40mm on 17.5mm sides) sit at
+ * ≈55% of spherical.
+ */
+export const DEFAULT_CURVATURE_PCT = 100;
+export const MIN_CURVATURE_PCT = 0;
+export const MAX_CURVATURE_PCT = 150;
 
 /**
  * Empirical gather/fabric correction on linear panel dimensions.
@@ -54,6 +64,19 @@ export const GATHER_CORRECTION = 1.55;
 /** Millimeters of physical fabric per topology sphere unit. */
 export function mmPerUnit(diameterIn: number): number {
   return ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * GATHER_CORRECTION;
+}
+
+/** Fresh default settings object (new designs, missing extras). */
+export function defaultLaserSettings(): {
+  diameterIn: number;
+  biteDepthMm: number;
+  curvaturePct: number;
+} {
+  return {
+    diameterIn: DEFAULT_DIAMETER_IN,
+    biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+    curvaturePct: DEFAULT_CURVATURE_PCT,
+  };
 }
 
 // SVG conventions (LightBurn/LaserWeb map colors to operations).

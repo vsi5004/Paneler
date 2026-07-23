@@ -48,5 +48,7 @@ export function templateFilename(
       .replace(/^-+|-+$/g, "") || "design";
   const size = `${parseFloat(s.diameterIn.toFixed(2))}in`;
   const bite = `${parseFloat(s.biteDepthMm.toFixed(2))}mm`;
-  return `${slug(designName)}_${slug(t.label)}_${size}_${bite}.svg`;
+  const curve =
+    s.curvaturePct === 100 ? "" : `_curve${Math.round(s.curvaturePct)}`;
+  return `${slug(designName)}_${slug(t.label)}_${size}_${bite}${curve}.svg`;
 }

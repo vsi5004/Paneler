@@ -33,7 +33,7 @@ export interface ParsedGlb {
   design?: {
     presetId?: string;
     params: Record<string, number>;
-    laser?: { diameterIn: number; biteDepthMm: number };
+    laser?: { diameterIn: number; biteDepthMm: number; curvaturePct: number };
   };
 }
 
@@ -149,16 +149,30 @@ function parseDesignExtras(
     }
   }
 
-  let cleanLaser: { diameterIn: number; biteDepthMm: number } | undefined;
+  let cleanLaser:
+    | { diameterIn: number; biteDepthMm: number; curvaturePct: number }
+    | undefined;
   if (typeof laser === "object" && laser !== null) {
-    const { diameterIn, biteDepthMm } = laser as Record<string, unknown>;
+    const { diameterIn, biteDepthMm, curvaturePct } = laser as Record<
+      string,
+      unknown
+    >;
     if (
       typeof diameterIn === "number" &&
       Number.isFinite(diameterIn) &&
       typeof biteDepthMm === "number" &&
       Number.isFinite(biteDepthMm)
     ) {
-      cleanLaser = { diameterIn, biteDepthMm };
+      cleanLaser = {
+        diameterIn,
+        biteDepthMm,
+        // Added after the first laser release — backfill for GLBs saved
+        // without it.
+        curvaturePct:
+          typeof curvaturePct === "number" && Number.isFinite(curvaturePct)
+            ? curvaturePct
+            : 100,
+      };
     }
   }
 

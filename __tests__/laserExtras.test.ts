@@ -12,7 +12,7 @@ import { subdivideTopology } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { cube } from "@/lib/topology/presets";
 
-const LASER = { diameterIn: 2.1, biteDepthMm: 1.5 };
+const LASER = { diameterIn: 2.1, biteDepthMm: 1.5, curvaturePct: 80 };
 
 function bareCubeDoc() {
   const sub = subdivideTopology(cube(), 1);
@@ -66,6 +66,20 @@ describe("laser settings persistence", () => {
     const parsed = await parseGlb(await serializeDocument(doc));
     expect(parsed.design?.presetId).toBe("cubocta");
     expect(parsed.design?.laser).toBeUndefined();
+  });
+
+  it("backfills curvaturePct=100 for pre-curvature GLBs", async () => {
+    const doc = bareCubeDoc();
+    const asset = doc.getRoot().getAsset();
+    asset.extras = {
+      paneler: { version: 1, laser: { diameterIn: 1.9, biteDepthMm: 2 } },
+    };
+    const parsed = await parseGlb(await serializeDocument(doc));
+    expect(parsed.design?.laser).toEqual({
+      diameterIn: 1.9,
+      biteDepthMm: 2,
+      curvaturePct: 100,
+    });
   });
 
   it("ignores junk laser extras", async () => {

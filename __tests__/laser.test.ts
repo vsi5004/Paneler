@@ -22,7 +22,11 @@ function topoOf(presetId: string, params?: Record<string, number>): PanelTopolog
   return preset.topology(2, resolvePresetParams(preset, params));
 }
 
-const SETTINGS: LaserSettings = { diameterIn: 1.8, biteDepthMm: DEFAULT_BITE_DEPTH_MM };
+const SETTINGS: LaserSettings = {
+  diameterIn: 1.8,
+  biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+  curvaturePct: 100,
+};
 
 /** Distance from point to a closed dense polyline. */
 function distToPolyline(p: Vec2, poly: Vec2[]): number {
@@ -56,7 +60,10 @@ function seamPolyline(presetId: string, params?: Record<string, number>): { poly
 }
 
 function parsePathPoints(d: string): Vec2[] {
-  const nums = d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+  // Handles scientific notation (a 0-curvature control point can serialize
+  // as e.g. 6.4e-16, which a plain decimal regex splits into two numbers,
+  // shifting every subsequent x/y pair).
+  const nums = d.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi)!.map(Number);
   const pts: Vec2[] = [];
   for (let i = 0; i < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
   return pts;
@@ -260,6 +267,44 @@ describe("stitch holes", () => {
   });
 });
 
+describe("curvature", () => {
+  it("0% straightens polygon edges (holes land on the corner chords)", () => {
+    const topo = topoOf("soccer");
+    const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
+    const straight = buildLaserTemplate(topo, pent, {
+      ...SETTINGS,
+      curvaturePct: 0,
+    });
+    // With no bulge the seam is the corner polygon; every hole must sit
+    // on one of its chords.
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = flattenPanelUnscaled(pent.representative, topo);
+    const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
+    for (const h of straight.holes) {
+      expect(distToPolyline(h, corners)).toBeLessThan(0.05);
+    }
+    // No Q control points bulging: the seam path at 0% has zero-offset
+    // control points, so the path's bounding box matches the corners'.
+    const xs = corners.map((c) => c.x);
+    const pathPts = parsePathPoints(straight.seamPath);
+    const maxX = Math.max(...pathPts.map((p) => p.x));
+    expect(maxX).toBeLessThanOrEqual(Math.max(...xs) + 0.01);
+  });
+
+  it("higher curvature grows the template bounds", () => {
+    // Pentagon width is corner-dominated; the edge bulge shows up in the
+    // height (an edge midpoint faces down in this template's frame).
+    const topo = topoOf("soccer");
+    const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
+    const flat0 = buildLaserTemplate(topo, pent, { ...SETTINGS, curvaturePct: 0 });
+    const flat150 = buildLaserTemplate(topo, pent, {
+      ...SETTINGS,
+      curvaturePct: 150,
+    });
+    expect(flat150.bounds.height).toBeGreaterThan(flat0.bounds.height + 0.5);
+  });
+});
+
 describe("SVG output", () => {
   it("emits a millimeter-true document with layered colors", () => {
     const topo = topoOf("soccer");
@@ -288,5 +333,8 @@ describe("SVG output", () => {
     expect(templateFilename("GP(3,0)", t, SETTINGS)).toBe(
       "gp-3-0_hexagon-a_1.8in_2mm.svg",
     );
+    expect(
+      templateFilename("GP(3,0)", t, { ...SETTINGS, curvaturePct: 55 }),
+    ).toBe("gp-3-0_hexagon-a_1.8in_2mm_curve55.svg");
   });
 });
