@@ -183,6 +183,32 @@ function flattenPanelLocal(
   topo: PanelTopology,
   circumradius: number,
 ): PanelFlat {
+  const flat = flattenPanelUnscaled(panel, topo);
+  let maxR = 0;
+  for (const c of flat.corners) {
+    const r = Math.hypot(c.x, c.y);
+    if (r > maxR) maxR = r;
+  }
+  // Scale so the panel's max-radius corner sits on the target circumradius
+  // (consistent visual sizing across all panels in the net). Sagitta ratios
+  // are scale-invariant.
+  const scale = maxR > 0 ? circumradius / maxR : 1;
+  return {
+    corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
+    sagittaRatios: flat.sagittaRatios,
+  };
+}
+
+/**
+ * Flatten a panel's true spherical boundary into 2D in SPHERE UNITS —
+ * physical size is `sphere radius` units, no display rescale. Multiply
+ * corners by a mm-per-unit factor for real-world templates (the laser
+ * exporter does exactly that). Y is already flipped for SVG (down = +y).
+ */
+export function flattenPanelUnscaled(
+  panel: Panel,
+  topo: PanelTopology,
+): PanelFlat {
   const n = panel.vertexIndices.length;
   const sphereRadius = topo.vertices[panel.vertexIndices[0]].length();
 
@@ -232,7 +258,6 @@ function flattenPanelLocal(
   }
 
   const projected: Vec2[] = [];
-  let maxR = 0;
   if (maxAngDist <= Math.PI * 0.55) {
     // Compact panel: Lambert azimuthal equal-area about the center.
     for (const unit of units) {
@@ -247,7 +272,6 @@ function flattenPanelLocal(
       const x = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
       const y = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
       projected.push({ x, y });
-      if (r > maxR) maxR = r;
     }
   } else {
     // Wrap-around panel: equirectangular unroll about the spine through
@@ -273,20 +297,12 @@ function flattenPanelLocal(
       const x = lon * sphereRadius;
       const y = lat * sphereRadius;
       projected.push({ x, y });
-      const r = Math.hypot(x, y);
-      if (r > maxR) maxR = r;
     }
   }
 
-  // Scale so the panel's max-radius corner sits on the target circumradius
-  // (consistent visual sizing across all panels in the net).
-  const scale = maxR > 0 ? circumradius / maxR : 1;
-  const corners: Vec2[] = projected.map((p) => ({
-    x: p.x * scale,
-    // SVG Y axis points down; tangent-plane Y points "up". Flip so the
-    // panel reads right-side-up in the 2D view.
-    y: -p.y * scale,
-  }));
+  // SVG Y axis points down; tangent-plane Y points "up". Flip so the
+  // panel reads right-side-up in the 2D view.
+  const corners: Vec2[] = projected.map((p) => ({ x: p.x, y: -p.y }));
 
   // Per-edge sagitta-to-chord ratio for the original spherical arc:
   //   ratio = tan(θ/2) / 2, where θ is the half-angle of the great circle
