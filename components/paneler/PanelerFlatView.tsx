@@ -42,7 +42,7 @@ export default function PanelerFlatView({
   }, [topology]);
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-muted/20 p-4">
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
       <svg
         viewBox={viewBox}
         className="size-full max-h-full max-w-full"

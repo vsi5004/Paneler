@@ -53,7 +53,7 @@ export function LaserTemplatePane({
       animate={{ height: collapsed ? 32 : "44%" }}
       initial={false}
       transition={{ type: "spring", stiffness: 300, damping: 34 }}
-      className="flex min-h-8 shrink-0 flex-col overflow-hidden border-t border-[var(--border)]/60"
+      className="flex min-h-8 shrink-0 flex-col overflow-hidden border-t border-[var(--border)]/60 bg-[#040810]"
     >
       {/* Header bar — always visible. */}
       <button
