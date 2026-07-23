@@ -253,6 +253,40 @@ describe("stitch holes", () => {
     },
   );
 
+  it("leaves the truncation families' short edges unholed", () => {
+    // Physical templates (footbag-templates repo, truncated hexes at
+    // 0.25-0.4 ratio) put no stitch holes on the short hex-hex edges.
+    const topo = topoOf("soccer", { shortEdge: 40 });
+    const hex = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 6)!;
+    const t = buildLaserTemplate(topo, hex, SETTINGS);
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = flattenPanelUnscaled(hex.representative, topo);
+    const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
+    const n = corners.length;
+    const edges = corners.map((a, i) => {
+      const b = corners[(i + 1) % n];
+      return { a, b, len: Math.hypot(b.x - a.x, b.y - a.y) };
+    });
+    const maxLen = Math.max(...edges.map((e) => e.len));
+    let shortEdges = 0;
+    for (const e of edges) {
+      if (e.len >= 0.55 * maxLen) continue;
+      shortEdges++;
+      for (const h of t.holes) {
+        const abx = e.b.x - e.a.x;
+        const aby = e.b.y - e.a.y;
+        const lsq = abx * abx + aby * aby;
+        const tt = ((h.x - e.a.x) * abx + (h.y - e.a.y) * aby) / lsq;
+        if (tt < 0.05 || tt > 0.95) continue;
+        const d = Math.hypot(h.x - (e.a.x + abx * tt), h.y - (e.a.y + aby * tt));
+        expect(d).toBeGreaterThan(2);
+      }
+    }
+    expect(shortEdges).toBe(3); // hex-hex edges at 40%
+    // Long edges still fully holed.
+    expect(t.holes.length).toBeGreaterThan(12);
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];

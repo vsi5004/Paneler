@@ -9,6 +9,7 @@ import type { PanelFlat, Vec2 } from "@/lib/flatten/types";
 import {
   CORNER_MARGIN_MM,
   HOLE_BUNCHING_MM,
+  HOLE_MIN_RUN_RATIO,
   HOLE_SPACING_MM,
   MARGIN_MM,
   SAMPLE_STEP_MM,
@@ -362,28 +363,40 @@ function placeStitchHoles(
     edgeEnd.set(smp.edgeIndex, smp.s);
   }
 
-  const holes: Vec2[] = [];
-  for (const run of runs) {
+  // Resolve each run's span first so short runs (the truncation
+  // families' hex-hex "short edges") can be excluded relative to the
+  // panel's longest run — physical templates leave those unholed.
+  // The run list is rotated to begin at a neighbour-change boundary, so
+  // the LAST run can wrap through the loop's arc-length origin — its span
+  // continues past totalLength into the start of the loop
+  // (pointAtArcLength wraps modulo the total when holes are placed).
+  const runSpans = runs.map((run) => {
     const s0 = edgeStart.get(run[0]);
-    if (s0 === undefined) continue;
+    if (s0 === undefined) return null;
     const lastEdge = run[run.length - 1];
-    // Run end = start of the edge after the run. Because the run list is
-    // rotated to begin at a neighbour-change boundary, the LAST run can
-    // wrap through the loop's arc-length origin — its span then continues
-    // past totalLength into the start of the loop. (Truncating it at the
-    // loop end left a whole run-sized arc without holes on imported
-    // panels like the trionda.) pointAtArcLength wraps modulo the total,
-    // so walking `s` beyond totalLength lands holes correctly.
     const nextEdge = (lastEdge + 1) % nEdges;
     const sNext = edgeStart.get(nextEdge);
-    let runSpan: number;
+    let span: number;
     if (runs.length === 1 || sNext === undefined) {
-      runSpan = totalLength; // single run = whole closed loop
+      span = totalLength;
     } else if (sNext > s0) {
-      runSpan = sNext - s0;
+      span = sNext - s0;
     } else {
-      runSpan = totalLength - s0 + sNext; // wrapped run
+      span = totalLength - s0 + sNext;
     }
+    return { s0, span };
+  });
+  const maxSpan = Math.max(
+    0,
+    ...runSpans.map((r) => (r ? r.span : 0)),
+  );
+
+  const holes: Vec2[] = [];
+  for (let runIdx = 0; runIdx < runs.length; runIdx++) {
+    const resolved = runSpans[runIdx];
+    if (!resolved) continue;
+    if (resolved.span < HOLE_MIN_RUN_RATIO * maxSpan) continue;
+    const { s0, span: runSpan } = resolved;
     const usable = runSpan - 2 * CORNER_MARGIN_MM;
     if (usable < 1) continue;
 

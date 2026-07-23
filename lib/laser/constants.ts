@@ -20,6 +20,13 @@ export const HOLE_SPACING_MM = 2.5;
 export const HOLE_BUNCHING_MM = 0.4;
 /** Distance of the first/last hole from a panel corner. */
 export const CORNER_MARGIN_MM = 0;
+/**
+ * Seam runs shorter than this fraction of the panel's longest run get no
+ * stitch holes — the truncation families' hex-hex "short edges" (proven
+ * physical templates use short/long ratios of 0.25–0.4 with unholed
+ * short edges). Equal-edged panels are unaffected.
+ */
+export const HOLE_MIN_RUN_RATIO = 0.55;
 
 export const DEFAULT_BITE_DEPTH_MM = 2;
 export const DEFAULT_DIAMETER_IN = 1.8;
