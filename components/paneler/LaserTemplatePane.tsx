@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 import type { PanelTopology } from "@/lib/types";
@@ -35,6 +35,15 @@ export function LaserTemplatePane({
 }: LaserTemplatePaneProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState(0);
+  // Pane height as a fraction of the 2D column — user-resizable via the
+  // grip on the top edge (drag up = bigger templates / clearer holes).
+  const DEFAULT_HEIGHT_FRAC = 0.44;
+  const [heightFrac, setHeightFrac] = useState(DEFAULT_HEIGHT_FRAC);
+  const [resizing, setResizing] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const dragStart = useRef<{ y: number; frac: number; parentH: number } | null>(
+    null,
+  );
 
   const templates = useMemo(() => {
     const classes = groupPanelsByCongruence(topology);
@@ -50,11 +59,54 @@ export function LaserTemplatePane({
 
   return (
     <motion.div
-      animate={{ height: collapsed ? 32 : "44%" }}
+      ref={rootRef}
+      animate={{ height: collapsed ? 32 : `${heightFrac * 100}%` }}
       initial={false}
-      transition={{ type: "spring", stiffness: 300, damping: 34 }}
-      className="flex min-h-8 shrink-0 flex-col overflow-hidden border-t border-[var(--border)]/60 bg-[#040810]"
+      transition={
+        resizing
+          ? { duration: 0 }
+          : { type: "spring", stiffness: 300, damping: 34 }
+      }
+      className="relative flex min-h-8 shrink-0 flex-col overflow-hidden border-t border-[var(--border)]/60 bg-[#040810]"
     >
+      {/* Resize grip — drag the pane's top edge. */}
+      {!collapsed && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize template pane"
+          title="Drag to resize · double-click to reset"
+          className="group absolute inset-x-0 top-0 z-40 h-2 cursor-ns-resize touch-none"
+          onDoubleClick={() => setHeightFrac(DEFAULT_HEIGHT_FRAC)}
+          onPointerDown={(e) => {
+            const parent = rootRef.current?.parentElement;
+            if (!parent) return;
+            e.preventDefault();
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            dragStart.current = {
+              y: e.clientY,
+              frac: heightFrac,
+              parentH: parent.getBoundingClientRect().height,
+            };
+            setResizing(true);
+          }}
+          onPointerMove={(e) => {
+            const start = dragStart.current;
+            if (!start) return;
+            const delta = (start.y - e.clientY) / start.parentH;
+            setHeightFrac(
+              Math.min(0.85, Math.max(0.2, start.frac + delta)),
+            );
+          }}
+          onPointerUp={(e) => {
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            dragStart.current = null;
+            setResizing(false);
+          }}
+        >
+          <div className="mx-auto mt-[3px] h-[2px] w-10 rounded-full bg-[var(--border)] transition-colors group-hover:bg-[var(--primary)]/70" />
+        </div>
+      )}
       {/* Header bar — always visible. */}
       <button
         type="button"
