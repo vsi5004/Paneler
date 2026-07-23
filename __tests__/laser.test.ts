@@ -200,6 +200,52 @@ describe("stitch holes", () => {
     }
   });
 
+  it.each(["soccer", "trionda", "cubocta", "baseball"])(
+    "%s: holes cover the whole circumference",
+    (presetId) => {
+      // Regression: the seam run that wraps past the boundary loop's
+      // arc-length origin used to be truncated, leaving a run-sized arc
+      // (a third of trionda's perimeter) without holes.
+      const { poly, topo } = seamPolyline(presetId);
+      const cls = groupPanelsByCongruence(topo)[0];
+      const t = buildLaserTemplate(topo, cls, SETTINGS);
+      let total = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        total += Math.hypot(b.x - a.x, b.y - a.y);
+      }
+      // Arc position of each hole via nearest boundary sample.
+      const arcOf = (h: Vec2): number => {
+        let best = Infinity;
+        let s = 0;
+        let acc = 0;
+        for (let i = 0; i < poly.length; i++) {
+          const d = Math.hypot(poly[i].x - h.x, poly[i].y - h.y);
+          if (d < best) {
+            best = d;
+            s = acc;
+          }
+          const nxt = poly[(i + 1) % poly.length];
+          acc += Math.hypot(nxt.x - poly[i].x, nxt.y - poly[i].y);
+        }
+        return s;
+      };
+      const positions = t.holes.map(arcOf).sort((a, b) => a - b);
+      let maxGap = 0;
+      for (let i = 0; i < positions.length; i++) {
+        const gap =
+          i === positions.length - 1
+            ? total - positions[i] + positions[0]
+            : positions[i + 1] - positions[i];
+        maxGap = Math.max(maxGap, gap);
+      }
+      // Interior pitch is ≤2.9mm; corner clearances can reach ~2× the
+      // spacing. Anything beyond ~3 spacings means a coverage hole.
+      expect(maxGap).toBeLessThan(3 * HOLE_SPACING_MM);
+    },
+  );
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];

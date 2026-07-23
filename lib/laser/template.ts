@@ -360,16 +360,26 @@ function placeStitchHoles(
   const holes: Vec2[] = [];
   for (const run of runs) {
     const s0 = edgeStart.get(run[0]);
-    const lastEdge = run[run.length - 1];
-    // Run end = start of the edge after the run (wrap → total length).
-    const nextEdge = (lastEdge + 1) % nEdges;
-    let s1 =
-      nextEdge === 0 || !edgeStart.has(nextEdge)
-        ? totalLength
-        : edgeStart.get(nextEdge)!;
     if (s0 === undefined) continue;
-    if (s1 < s0) s1 = totalLength; // wrapped run guard
-    const usable = s1 - s0 - 2 * CORNER_MARGIN_MM;
+    const lastEdge = run[run.length - 1];
+    // Run end = start of the edge after the run. Because the run list is
+    // rotated to begin at a neighbour-change boundary, the LAST run can
+    // wrap through the loop's arc-length origin — its span then continues
+    // past totalLength into the start of the loop. (Truncating it at the
+    // loop end left a whole run-sized arc without holes on imported
+    // panels like the trionda.) pointAtArcLength wraps modulo the total,
+    // so walking `s` beyond totalLength lands holes correctly.
+    const nextEdge = (lastEdge + 1) % nEdges;
+    const sNext = edgeStart.get(nextEdge);
+    let runSpan: number;
+    if (runs.length === 1 || sNext === undefined) {
+      runSpan = totalLength; // single run = whole closed loop
+    } else if (sNext > s0) {
+      runSpan = sNext - s0;
+    } else {
+      runSpan = totalLength - s0 + sNext; // wrapped run
+    }
+    const usable = runSpan - 2 * CORNER_MARGIN_MM;
     if (usable < 1) continue;
 
     let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + HOLE_SPACING_MM) / (2 * HOLE_SPACING_MM));
