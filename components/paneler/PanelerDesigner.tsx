@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
 import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
+import { LaserSettingsPanel } from "./LaserSettingsPanel";
+import { LaserTemplatePane } from "./LaserTemplatePane";
 import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
 import { EmptyDesignState } from "./EmptyDesignState";
@@ -91,6 +93,8 @@ export function PanelerDesigner({
     loadFromBytes,
     setPanelColors,
     setDesignParam,
+    laserSettings,
+    setLaserSettings,
   } = design;
 
   // Shape param defs for the loaded design's preset, when it declares any.
@@ -432,12 +436,23 @@ export function PanelerDesigner({
                       className="flex-1"
                     >
                       {topology ? (
-                        <PanelerFlatView
-                          topology={topology}
-                          panelColors={panelColors}
-                          selectedPanelId={selectedPanelId}
-                          onPanelClick={handlePanelClick}
-                        />
+                        <div className="flex min-h-0 flex-1 flex-col">
+                          <div className="flex min-h-0 flex-1 flex-col">
+                            <PanelerFlatView
+                              topology={topology}
+                              panelColors={panelColors}
+                              selectedPanelId={selectedPanelId}
+                              onPanelClick={handlePanelClick}
+                            />
+                          </div>
+                          <LaserTemplatePane
+                            topology={topology}
+                            laserSettings={laserSettings}
+                            designName={
+                              uploadedName ?? activeTemplateSlug ?? "design"
+                            }
+                          />
+                        </div>
                       ) : (
                         <div className="flex flex-1 items-center justify-center">
                           <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
@@ -455,6 +470,15 @@ export function PanelerDesigner({
                         paramDefs={shapeParamDefs}
                         values={designInfo.params}
                         onChange={setDesignParam}
+                      />
+                      <div className="workshop-hairline my-5" />
+                    </>
+                  )}
+                  {topology && (
+                    <>
+                      <LaserSettingsPanel
+                        values={laserSettings}
+                        onChange={setLaserSettings}
                       />
                       <div className="workshop-hairline my-5" />
                     </>

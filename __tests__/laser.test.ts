@@ -147,13 +147,23 @@ describe("cut outline offset", () => {
       const t = buildLaserTemplate(topo, cls, SETTINGS);
       const cut = parsePathPoints(t.cutPath);
       expect(cut.length).toBeGreaterThan(20);
-      for (const p of cut) {
+      for (let i = 0; i < cut.length; i++) {
+        const p = cut[i];
+        const q = cut[(i + 1) % cut.length];
+        expect(Number.isFinite(p.x + p.y)).toBe(true);
+        // Points sit ON the level set (within grid tolerance)…
         const d = distToPolyline(p, poly);
         expect(d).toBeGreaterThan(SETTINGS.biteDepthMm - 0.1);
         expect(d).toBeLessThan(SETTINGS.biteDepthMm + 0.15);
-      }
-      for (const p of cut) {
-        expect(Number.isFinite(p.x + p.y)).toBe(true);
+        // …and SEGMENTS never dip toward the seam (the failure mode of
+        // point-wise offset schemes on concave hooks narrower than
+        // 2×depth: chords that bridged them used to cross the seam).
+        const mid = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+        expect(distToPolyline(mid, poly)).toBeGreaterThan(
+          SETTINGS.biteDepthMm - 0.15,
+        );
+        // No giant chords.
+        expect(Math.hypot(q.x - p.x, q.y - p.y)).toBeLessThan(2);
       }
     },
   );

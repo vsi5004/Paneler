@@ -66,72 +66,192 @@ export function buildLaserTemplate(
 }
 
 /**
- * Offset the sampled seam outline outward by `depth` mm.
+ * Offset the sampled seam outline outward by `depth` mm — computed as the
+ * outer `distance = depth` level set of the seam polyline via an exact
+ * distance grid + marching squares.
  *
- * - Each sample moves along its outward normal.
- * - Where consecutive normals disagree by more than ~5° (panel corners),
- *   an arc fan of intermediate points is inserted — a round join, which
- *   cuts cleanly on a laser.
- * - A prune pass then drops any offset point that ended up closer than
- *   `depth − ε` to the seam polyline. On concave stretches (trionda
- *   pinwheel arms) naive per-sample offsets cross each other; pruning
- *   the too-close points and connecting the survivors in order yields a
- *   simple, valid cut loop.
+ * This is the true offset envelope (the Minkowski boundary): round joins
+ * at convex corners, correct sealing of concave features narrower than
+ * 2×depth (trionda's pinwheel hooks — where no point-wise offset scheme
+ * can stay ≥ depth from both walls), and by construction it can never
+ * approach the seam closer than `depth` anywhere along any segment.
+ * Grid resolution bounds the positional error at ±cell/2 (≤ ~0.12mm).
  */
 export function offsetOutline(
   samples: OutlineSample[],
   depth: number,
 ): Vec2[] {
-  if (samples.length === 0) return [];
-  const out: Vec2[] = [];
-  const n = samples.length;
-  const JOIN_THRESHOLD = (5 * Math.PI) / 180;
+  if (samples.length < 3) return [];
+  const pts = samples.map((s) => s.p);
+  const n = pts.length;
+
+  // --- Exact distance field on a regular grid, resolved within a band ---
+  const cell = Math.min(0.25, depth / 8);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const pad = depth + 4 * cell;
+  const gx0 = minX - pad;
+  const gy0 = minY - pad;
+  const W = Math.ceil((maxX - minX + 2 * pad) / cell) + 2;
+  const H = Math.ceil((maxY - minY + 2 * pad) / cell) + 2;
+  // Far value: anything comfortably above the iso level. Cells outside the
+  // resolved band keep it, and since band > depth the iso contour never
+  // crosses an unresolved cell.
+  const FAR = depth + 3 * cell;
+  const field = new Float64Array(W * H).fill(FAR);
+  const band = depth + 3 * cell;
   for (let i = 0; i < n; i++) {
-    const cur = samples[i];
-    const next = samples[(i + 1) % n];
-    out.push({
-      x: cur.p.x + cur.nOut.x * depth,
-      y: cur.p.y + cur.nOut.y * depth,
-    });
-    // Angle between consecutive outward normals; positive cross = convex
-    // turn (fan needed), concave turns overlap and get pruned instead.
-    const dot = cur.nOut.x * next.nOut.x + cur.nOut.y * next.nOut.y;
-    const cross = cur.nOut.x * next.nOut.y - cur.nOut.y * next.nOut.x;
-    const angle = Math.atan2(Math.abs(cross), dot);
-    const sameCorner =
-      Math.hypot(next.p.x - cur.p.x, next.p.y - cur.p.y) < SAMPLE_STEP_MM / 4;
-    if (angle > JOIN_THRESHOLD && (sameCorner || angle > Math.PI / 6)) {
-      const steps = Math.ceil(angle / JOIN_THRESHOLD);
-      const a0 = Math.atan2(cur.nOut.y, cur.nOut.x);
-      let delta = Math.atan2(next.nOut.y, next.nOut.x) - a0;
-      if (delta > Math.PI) delta -= 2 * Math.PI;
-      if (delta < -Math.PI) delta += 2 * Math.PI;
-      for (let k = 1; k < steps; k++) {
-        const a = a0 + (delta * k) / steps;
-        out.push({
-          x: cur.p.x + Math.cos(a) * depth,
-          y: cur.p.y + Math.sin(a) * depth,
-        });
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const sxMin = Math.max(0, Math.floor((Math.min(a.x, b.x) - band - gx0) / cell));
+    const sxMax = Math.min(W - 1, Math.ceil((Math.max(a.x, b.x) + band - gx0) / cell));
+    const syMin = Math.max(0, Math.floor((Math.min(a.y, b.y) - band - gy0) / cell));
+    const syMax = Math.min(H - 1, Math.ceil((Math.max(a.y, b.y) + band - gy0) / cell));
+    for (let gy = syMin; gy <= syMax; gy++) {
+      const py = gy0 + gy * cell;
+      for (let gx = sxMin; gx <= sxMax; gx++) {
+        const px = gx0 + gx * cell;
+        const d = pointSegmentDistance({ x: px, y: py }, a, b);
+        const idx = gy * W + gx;
+        if (d < field[idx]) field[idx] = d;
       }
     }
   }
 
-  // Prune points that fell closer than depth − ε to the seam (concave
-  // self-intersections). Survivors stay in order, so joining them
-  // preserves a simple loop.
-  const eps = 0.05;
-  const minAllowed = depth - eps;
-  return out.filter((p) => {
-    let best = Infinity;
-    for (let i = 0; i < n; i++) {
-      const a = samples[i].p;
-      const b = samples[(i + 1) % n].p;
-      const d = pointSegmentDistance(p, a, b);
-      if (d < best) best = d;
-      if (best < minAllowed) return false;
+  // --- Marching squares at iso = depth ---
+  // "Inside" = distance < depth (the near-seam region); the contour we
+  // want separates it from the far region. Standard 16-case table with
+  // linear interpolation along cell edges.
+  const iso = depth;
+  type Pt = Vec2;
+  const segsOut: [Pt, Pt][] = [];
+  const lerp = (pA: Pt, pB: Pt, fA: number, fB: number): Pt => {
+    const t = fB === fA ? 0.5 : (iso - fA) / (fB - fA);
+    return { x: pA.x + (pB.x - pA.x) * t, y: pA.y + (pB.y - pA.y) * t };
+  };
+  for (let gy = 0; gy < H - 1; gy++) {
+    for (let gx = 0; gx < W - 1; gx++) {
+      const f00 = field[gy * W + gx];
+      const f10 = field[gy * W + gx + 1];
+      const f11 = field[(gy + 1) * W + gx + 1];
+      const f01 = field[(gy + 1) * W + gx];
+      let caseId = 0;
+      if (f00 < iso) caseId |= 1;
+      if (f10 < iso) caseId |= 2;
+      if (f11 < iso) caseId |= 4;
+      if (f01 < iso) caseId |= 8;
+      if (caseId === 0 || caseId === 15) continue;
+      const p00 = { x: gx0 + gx * cell, y: gy0 + gy * cell };
+      const p10 = { x: p00.x + cell, y: p00.y };
+      const p11 = { x: p00.x + cell, y: p00.y + cell };
+      const p01 = { x: p00.x, y: p00.y + cell };
+      const top = () => lerp(p00, p10, f00, f10);
+      const right = () => lerp(p10, p11, f10, f11);
+      const bottom = () => lerp(p01, p11, f01, f11);
+      const left = () => lerp(p00, p01, f00, f01);
+      switch (caseId) {
+        case 1: case 14: segsOut.push([left(), top()]); break;
+        case 2: case 13: segsOut.push([top(), right()]); break;
+        case 3: case 12: segsOut.push([left(), right()]); break;
+        case 4: case 11: segsOut.push([right(), bottom()]); break;
+        case 6: case 9: segsOut.push([top(), bottom()]); break;
+        case 7: case 8: segsOut.push([left(), bottom()]); break;
+        case 5:
+          segsOut.push([left(), top()]);
+          segsOut.push([right(), bottom()]);
+          break;
+        case 10:
+          segsOut.push([top(), right()]);
+          segsOut.push([bottom(), left()]);
+          break;
+      }
     }
-    return true;
+  }
+
+  // --- Link segments into loops, keep the outermost (largest area) ---
+  const key = (p: Pt) => `${Math.round(p.x / (cell / 16))}:${Math.round(p.y / (cell / 16))}`;
+  const adj = new Map<string, { p: Pt; segs: number[] }>();
+  segsOut.forEach(([a, b], i) => {
+    for (const p of [a, b]) {
+      const k = key(p);
+      let e = adj.get(k);
+      if (!e) {
+        e = { p, segs: [] };
+        adj.set(k, e);
+      }
+      e.segs.push(i);
+    }
   });
+  const used = new Array(segsOut.length).fill(false);
+  let bestLoop: Pt[] = [];
+  let bestArea = 0;
+  for (let i = 0; i < segsOut.length; i++) {
+    if (used[i]) continue;
+    const loop: Pt[] = [];
+    let segIdx = i;
+    let cur = segsOut[i][0];
+    while (segIdx >= 0 && !used[segIdx]) {
+      used[segIdx] = true;
+      const [a, b] = segsOut[segIdx];
+      const nextPt = key(a) === key(cur) ? b : a;
+      loop.push(nextPt);
+      cur = nextPt;
+      const entry = adj.get(key(cur));
+      segIdx = entry ? (entry.segs.find((s) => !used[s]) ?? -1) : -1;
+    }
+    if (loop.length < 3) continue;
+    let area = 0;
+    for (let k2 = 0; k2 < loop.length; k2++) {
+      const a = loop[k2];
+      const b = loop[(k2 + 1) % loop.length];
+      area += a.x * b.y - b.x * a.y;
+    }
+    area = Math.abs(area) / 2;
+    if (area > bestArea) {
+      bestArea = area;
+      bestLoop = loop;
+    }
+  }
+
+  // Decimation: walk the loop with an anchor, extending a chord while every
+  // skipped point stays within a hair of it and the chord stays short.
+  // (Naive per-point collinearity dropping cascades on smooth arcs and
+  // guts the loop into giant chords.)
+  const m = bestLoop.length;
+  if (m < 3) return bestLoop;
+  const MAX_CHORD = 1.2;
+  const MAX_DEV = 0.03;
+  const out: Pt[] = [bestLoop[0]];
+  let anchorIdx = 0;
+  for (let i = 2; i <= m; i++) {
+    const anchor = bestLoop[anchorIdx];
+    const cand = bestLoop[i % m];
+    const chord = Math.hypot(cand.x - anchor.x, cand.y - anchor.y);
+    let ok = chord <= MAX_CHORD;
+    if (ok) {
+      for (let j = anchorIdx + 1; j < i; j++) {
+        const q = bestLoop[j % m];
+        if (pointSegmentDistance(q, anchor, cand) > MAX_DEV) {
+          ok = false;
+          break;
+        }
+      }
+    }
+    if (!ok) {
+      const kept = bestLoop[(i - 1) % m];
+      out.push(kept);
+      anchorIdx = i - 1;
+    }
+  }
+  return out.length >= 3 ? out : bestLoop;
 }
 
 function pointSegmentDistance(p: Vec2, a: Vec2, b: Vec2): number {
