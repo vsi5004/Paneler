@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { unfoldNet } from "@/lib/flatten/unfoldNet";
-import type { PanelFlat, Vec2 } from "@/lib/flatten/types";
+import { buildCurvedPanelPath } from "@/lib/flatten/panelPath";
+import type { PanelFlat } from "@/lib/flatten/types";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 const DEFAULT_PANEL_COLOR = "#c41e3a";
@@ -41,7 +42,7 @@ export default function PanelerFlatView({
   }, [topology]);
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-muted/20 p-4">
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
       <svg
         viewBox={viewBox}
         className="size-full max-h-full max-w-full"
@@ -73,56 +74,6 @@ export default function PanelerFlatView({
       </svg>
     </div>
   );
-}
-
-/**
- * Build an SVG path that traces the panel boundary with one quadratic-
- * bezier segment per edge. Control point for each edge sits on the
- * perpendicular bisector of the chord, offset outward (away from the
- * panel centroid) by `2 × sagitta` — because a quadratic bezier
- * evaluated at t=0.5 reaches half the perpendicular distance from
- * chord to control point.
- */
-function buildCurvedPanelPath(flat: PanelFlat): string {
-  const { corners, sagittaRatios } = flat;
-  const n = corners.length;
-  if (n < 3) return "";
-
-  // Panel centroid in flat space — used to flip the outward normal so
-  // every edge bulges AWAY from the centre, not into it.
-  let cx = 0;
-  let cy = 0;
-  for (const c of corners) {
-    cx += c.x;
-    cy += c.y;
-  }
-  cx /= n;
-  cy /= n;
-
-  const parts: string[] = [`M ${corners[0].x} ${corners[0].y}`];
-  for (let i = 0; i < n; i++) {
-    const a = corners[i];
-    const b = corners[(i + 1) % n];
-    const midX = (a.x + b.x) / 2;
-    const midY = (a.y + b.y) / 2;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const edgeLen = Math.hypot(dx, dy);
-    // Perpendicular to the edge.
-    let nx = -dy / edgeLen;
-    let ny = dx / edgeLen;
-    // Flip if it points toward the centroid — we want OUTward bulge.
-    if (nx * (cx - midX) + ny * (cy - midY) > 0) {
-      nx = -nx;
-      ny = -ny;
-    }
-    const sagitta = edgeLen * sagittaRatios[i];
-    const cpX = midX + nx * 2 * sagitta;
-    const cpY = midY + ny * 2 * sagitta;
-    parts.push(`Q ${cpX} ${cpY} ${b.x} ${b.y}`);
-  }
-  parts.push("Z");
-  return parts.join(" ");
 }
 
 function computeViewBox(layout: ReadonlyMap<string, PanelFlat>): string {

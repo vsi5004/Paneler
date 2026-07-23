@@ -25,11 +25,23 @@ export interface ParsedGlb {
   /** The parsed gltf-transform Document — kept so save flow can mutate + re-serialize. */
   document: Document;
   /**
-   * Preset provenance + shape param values from `asset.extras.paneler`, when
-   * the GLB was generated from a parameterized preset. Absent for custom
-   * (e.g. Blender-exported) GLBs — those get no Shape sliders.
+   * Contents of `asset.extras.paneler`. `presetId` + `params` are preset
+   * provenance (drive the Shape sliders; absent for custom Blender-exported
+   * GLBs). `laser` is the user's laser-template settings — it can exist with
+   * or without preset provenance, since templates derive from topology.
    */
-  design?: { presetId: string; params: Record<string, number> };
+  design?: {
+    presetId?: string;
+    params: Record<string, number>;
+    laser?: {
+      diameterIn: number;
+      biteDepthMm: number;
+      curvaturePct: number;
+      showHoles: boolean;
+      holeSpacingMm: number;
+      cornerMarginMm: number;
+    };
+  };
 }
 
 const CORNER_DEDUPE_EPSILON = 1e-4;
@@ -120,7 +132,12 @@ export function parseDocument(doc: Document): ParsedGlb {
   };
 }
 
-/** Read `asset.extras.paneler` defensively — hand-edited GLBs may hold junk. */
+/**
+ * Read `asset.extras.paneler` defensively — hand-edited GLBs may hold junk.
+ * Returns an object when the extras carry EITHER preset provenance OR a
+ * valid laser block (a Blender import with saved laser settings has no
+ * presetId); undefined when neither is present.
+ */
 function parseDesignExtras(
   doc: Document,
 ): ParsedGlb["design"] {
@@ -128,8 +145,8 @@ function parseDesignExtras(
   if (typeof extras !== "object" || extras === null) return undefined;
   const paneler = (extras as Record<string, unknown>).paneler;
   if (typeof paneler !== "object" || paneler === null) return undefined;
-  const { presetId, params } = paneler as Record<string, unknown>;
-  if (typeof presetId !== "string") return undefined;
+  const { presetId, params, laser } = paneler as Record<string, unknown>;
+
   const cleanParams: Record<string, number> = {};
   if (typeof params === "object" && params !== null) {
     for (const [key, value] of Object.entries(params)) {
@@ -138,7 +155,60 @@ function parseDesignExtras(
       }
     }
   }
-  return { presetId, params: cleanParams };
+
+  let cleanLaser:
+    | {
+        diameterIn: number;
+        biteDepthMm: number;
+        curvaturePct: number;
+        showHoles: boolean;
+        holeSpacingMm: number;
+        cornerMarginMm: number;
+      }
+    | undefined;
+  if (typeof laser === "object" && laser !== null) {
+    const {
+      diameterIn,
+      biteDepthMm,
+      curvaturePct,
+      showHoles,
+      holeSpacingMm,
+      cornerMarginMm,
+    } = laser as Record<string, unknown>;
+    if (
+      typeof diameterIn === "number" &&
+      Number.isFinite(diameterIn) &&
+      typeof biteDepthMm === "number" &&
+      Number.isFinite(biteDepthMm)
+    ) {
+      cleanLaser = {
+        diameterIn,
+        biteDepthMm,
+        // Added after the first laser release — backfill for GLBs saved
+        // without it.
+        curvaturePct:
+          typeof curvaturePct === "number" && Number.isFinite(curvaturePct)
+            ? curvaturePct
+            : 100,
+        // Backfills for GLBs saved before each field existed.
+        showHoles: typeof showHoles === "boolean" ? showHoles : true,
+        holeSpacingMm:
+          typeof holeSpacingMm === "number" && Number.isFinite(holeSpacingMm)
+            ? holeSpacingMm
+            : 2.5,
+        cornerMarginMm:
+          typeof cornerMarginMm === "number" && Number.isFinite(cornerMarginMm)
+            ? cornerMarginMm
+            : 0,
+      };
+    }
+  }
+
+  const cleanPresetId = typeof presetId === "string" ? presetId : undefined;
+  if (cleanPresetId === undefined && cleanLaser === undefined) {
+    return undefined;
+  }
+  return { presetId: cleanPresetId, params: cleanParams, laser: cleanLaser };
 }
 
 function dedupeVertex(

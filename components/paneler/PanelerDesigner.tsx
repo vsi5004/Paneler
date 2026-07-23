@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
 import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
+import { LaserSettingsPanel } from "./LaserSettingsPanel";
+import { LaserTemplatePane } from "./LaserTemplatePane";
 import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
 import { EmptyDesignState } from "./EmptyDesignState";
@@ -91,6 +93,8 @@ export function PanelerDesigner({
     loadFromBytes,
     setPanelColors,
     setDesignParam,
+    laserSettings,
+    setLaserSettings,
   } = design;
 
   // Shape param defs for the loaded design's preset, when it declares any.
@@ -291,7 +295,11 @@ export function PanelerDesigner({
   }, [allPanelIds, selectedColor, setPanelColors]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    // h-dvh (not flex-1 of a content-sized body): the designer is a
+    // single-screen app — bounding it to the viewport is what lets the
+    // inner min-h-0/overflow chain contain tall content (laser pane,
+    // sidebar) instead of growing the page and causing scrolling.
+    <div className="flex h-dvh flex-col overflow-hidden">
       {/* Identity strip — title bar spans the full width above the drawer. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
         <div className="flex items-center gap-3">
@@ -416,7 +424,7 @@ export function PanelerDesigner({
               {/* Canvas stage + sidebar. */}
               <div className="flex flex-1 overflow-hidden">
                 <div className="flex flex-1 flex-col">
-                  <div className="flex flex-1 flex-col md:flex-row">
+                  <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                     <CanvasFrame label="3D · Sphere" className="flex-1">
                       <PanelerCanvas
                         glbBytes={bytes}
@@ -432,12 +440,24 @@ export function PanelerDesigner({
                       className="flex-1"
                     >
                       {topology ? (
-                        <PanelerFlatView
-                          topology={topology}
-                          panelColors={panelColors}
-                          selectedPanelId={selectedPanelId}
-                          onPanelClick={handlePanelClick}
-                        />
+                        <div className="flex min-h-0 flex-1 flex-col">
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                            <PanelerFlatView
+                              topology={topology}
+                              panelColors={panelColors}
+                              selectedPanelId={selectedPanelId}
+                              onPanelClick={handlePanelClick}
+                            />
+                          </div>
+                          <LaserTemplatePane
+                            topology={topology}
+                            laserSettings={laserSettings}
+                            onSettingsChange={setLaserSettings}
+                            designName={
+                              uploadedName ?? activeTemplateSlug ?? "design"
+                            }
+                          />
+                        </div>
                       ) : (
                         <div className="flex flex-1 items-center justify-center">
                           <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
@@ -455,6 +475,18 @@ export function PanelerDesigner({
                         paramDefs={shapeParamDefs}
                         values={designInfo.params}
                         onChange={setDesignParam}
+                      />
+                      <div className="workshop-hairline my-5" />
+                    </>
+                  )}
+                  {topology && (
+                    <>
+                      <LaserSettingsPanel
+                        values={laserSettings}
+                        onChange={setLaserSettings}
+                        showCurvature={topology.panels.some(
+                          (p) => p.vertexIndices.length <= 6,
+                        )}
                       />
                       <div className="workshop-hairline my-5" />
                     </>
@@ -549,7 +581,7 @@ function CanvasFrame({
           {label}
         </span>
       </div>
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );
 }
