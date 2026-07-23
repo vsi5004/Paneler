@@ -1,0 +1,38 @@
+import type { Panel } from "@/lib/types";
+import type { Vec2 } from "@/lib/flatten/types";
+
+/** User-adjustable laser settings; everything else is in constants.ts. */
+export interface LaserSettings {
+  /** Finished footbag diameter, inches. */
+  diameterIn: number;
+  /** Distance from the cut edge to the stitch line, millimeters. */
+  biteDepthMm: number;
+}
+
+/** A group of congruent panels that share one template. */
+export interface PanelClass {
+  key: string;
+  /** Display label, e.g. "Pentagon", "Hexagon A", "Panel". */
+  label: string;
+  cornerCount: number;
+  /** All panels in this class; badge count = length. */
+  panelIds: string[];
+  /** The panel whose geometry builds the template. */
+  representative: Panel;
+}
+
+/** A ready-to-render/export template. All coordinates in millimeters. */
+export interface LaserTemplate {
+  classKey: string;
+  label: string;
+  /** How many of this panel the design needs. */
+  count: number;
+  /** Seam-line outline (stitch line) as an SVG path. */
+  seamPath: string;
+  /** Cut outline (seam offset outward by bite depth) as an SVG path. */
+  cutPath: string;
+  /** Stitch hole centers, on the seam line. */
+  holes: Vec2[];
+  /** Bounding box including margin. */
+  bounds: { minX: number; minY: number; width: number; height: number };
+}
