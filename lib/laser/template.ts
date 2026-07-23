@@ -43,7 +43,7 @@ export function buildLaserTemplate(
   const seamPath = buildCurvedPanelPath(flatMm);
   const cutPoints = offsetOutline(samples, settings.biteDepthMm);
   const cutPath = polylinePath(cutPoints);
-  const holes = placeStitchHoles(topo, cls, flatMm, samples);
+  const holes = placeStitchHoles(topo, cls, samples, scale);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -301,8 +301,8 @@ function polylinePath(points: Vec2[]): string {
 function placeStitchHoles(
   topo: PanelTopology,
   cls: PanelClass,
-  flatMm: PanelFlat,
   samples: OutlineSample[],
+  mmScale: number,
 ): Vec2[] {
   const loop = cls.representative.vertexIndices;
   const nEdges = loop.length;
@@ -363,42 +363,49 @@ function placeStitchHoles(
     edgeEnd.set(smp.edgeIndex, smp.s);
   }
 
-  // Resolve each run's span first so short runs (the truncation
-  // families' hex-hex "short edges") can be excluded relative to the
-  // panel's longest run — physical templates leave those unholed.
-  // The run list is rotated to begin at a neighbour-change boundary, so
-  // the LAST run can wrap through the loop's arc-length origin — its span
-  // continues past totalLength into the start of the loop
-  // (pointAtArcLength wraps modulo the total when holes are placed).
+  // Resolve each run: its span in this panel's FLAT outline (for placing
+  // points) and the length of the same seam in 3D (for deciding the hole
+  // pattern). The 3D length is identical on both panels sharing a seam —
+  // flat lengths differ slightly per panel because equal-area flattening
+  // distorts each panel differently, and deriving counts from them let a
+  // shared seam land on opposite sides of a rounding threshold (mating
+  // panels with mismatched hole counts). The run list is rotated to
+  // begin at a neighbour-change boundary, so the LAST run can wrap
+  // through the loop's arc-length origin — its flat span continues past
+  // totalLength (pointAtArcLength wraps modulo the total).
+  const sphereRadius = topo.vertices[loop[0]].length() || 1;
+  const edge3DLen = (i: number): number =>
+    topo.vertices[loop[i]].angleTo(topo.vertices[loop[(i + 1) % nEdges]]) *
+    sphereRadius *
+    mmScale;
   const runSpans = runs.map((run) => {
     const s0 = edgeStart.get(run[0]);
     if (s0 === undefined) return null;
     const lastEdge = run[run.length - 1];
     const nextEdge = (lastEdge + 1) % nEdges;
     const sNext = edgeStart.get(nextEdge);
-    let span: number;
+    let flatSpan: number;
     if (runs.length === 1 || sNext === undefined) {
-      span = totalLength;
+      flatSpan = totalLength;
     } else if (sNext > s0) {
-      span = sNext - s0;
+      flatSpan = sNext - s0;
     } else {
-      span = totalLength - s0 + sNext;
+      flatSpan = totalLength - s0 + sNext;
     }
-    return { s0, span };
+    const len3d = run.reduce((sum, i) => sum + edge3DLen(i), 0);
+    return { s0, flatSpan, len3d };
   });
-  const maxSpan = Math.max(
-    0,
-    ...runSpans.map((r) => (r ? r.span : 0)),
-  );
+  const maxLen3d = Math.max(0, ...runSpans.map((r) => (r ? r.len3d : 0)));
 
   const holes: Vec2[] = [];
-  for (let runIdx = 0; runIdx < runs.length; runIdx++) {
-    const resolved = runSpans[runIdx];
+  for (const resolved of runSpans) {
     if (!resolved) continue;
-    if (resolved.span < HOLE_MIN_RUN_RATIO * maxSpan) continue;
-    const { s0, span: runSpan } = resolved;
-    const usable = runSpan - 2 * CORNER_MARGIN_MM;
-    if (usable < 1) continue;
+    // Short-edge rule, judged on the shared 3D length so both panels of
+    // a seam agree.
+    if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
+    const { s0, flatSpan, len3d } = resolved;
+    const usable = len3d - 2 * CORNER_MARGIN_MM;
+    if (usable < 1 || flatSpan <= 0) continue;
 
     let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + HOLE_SPACING_MM) / (2 * HOLE_SPACING_MM));
     while (n >= 2 && (n - 1) * HOLE_SPACING_MM - HOLE_BUNCHING_MM > usable) {
@@ -411,10 +418,14 @@ function placeStitchHoles(
     } else {
       span = (n - 1) * HOLE_SPACING_MM - HOLE_BUNCHING_MM;
     }
-    let s = s0 + CORNER_MARGIN_MM + (usable - span) / 2;
+    // Walk the pattern in 3D arc length, mapping proportionally into the
+    // panel's flat run — both panels of a seam get identical counts and
+    // proportional positions, so their holes mate.
+    let s3d = CORNER_MARGIN_MM + (usable - span) / 2;
     for (let k = 0; k < n; k++) {
-      holes.push(pointAtArcLength(samples, s, totalLength));
-      s +=
+      const sFlat = s0 + (s3d / len3d) * flatSpan;
+      holes.push(pointAtArcLength(samples, sFlat, totalLength));
+      s3d +=
         k % 2 === 0
           ? HOLE_SPACING_MM - HOLE_BUNCHING_MM
           : HOLE_SPACING_MM + HOLE_BUNCHING_MM;

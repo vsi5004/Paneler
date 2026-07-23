@@ -253,6 +253,44 @@ describe("stitch holes", () => {
     },
   );
 
+  it("gives mating panel types identical holes per shared seam", () => {
+    // Hole counts derive from the shared 3D seam length, not each
+    // panel's flattened edge (which distorts differently per panel and
+    // could round to different counts across a seam).
+    const check = (presetId: string, params?: Record<string, number>) => {
+      const topo = topoOf(presetId, params);
+      const classes = groupPanelsByCongruence(topo);
+      return new Map(
+        classes.map((c) => [
+          c.label,
+          buildLaserTemplate(topo, c, SETTINGS),
+        ]),
+      );
+    };
+    // Regular soccer: every seam is equal-length → per-seam count k is
+    // uniform; hex has 6 seams, pent 5.
+    const soccer = check("soccer");
+    const hexK = soccer.get("Hexagon")!.holes.length / 6;
+    const pentK = soccer.get("Pentagon")!.holes.length / 5;
+    expect(hexK).toBe(pentK);
+    expect(Number.isInteger(hexK)).toBe(true);
+    // Truncated soccer: hex short edges unholed; its 3 long edges are all
+    // pent seams, and all 5 pentagon edges are hex seams → counts match.
+    const trunc = check("soccer", { shortEdge: 40 });
+    expect(trunc.get("Hexagon")!.holes.length / 3).toBe(
+      trunc.get("Pentagon")!.holes.length / 5,
+    );
+    // GP(3,0): three classes share seams of near-equal length; per-seam
+    // counts agree across all of them.
+    const gp3 = check("gp3");
+    expect(gp3.get("Pentagon")!.holes.length / 5).toBe(
+      gp3.get("Hexagon A")!.holes.length / 6,
+    );
+    expect(gp3.get("Hexagon A")!.holes.length).toBe(
+      gp3.get("Hexagon B")!.holes.length,
+    );
+  });
+
   it("leaves the truncation families' short edges unholed", () => {
     // Physical templates (footbag-templates repo, truncated hexes at
     // 0.25-0.4 ratio) put no stitch holes on the short hex-hex edges.
