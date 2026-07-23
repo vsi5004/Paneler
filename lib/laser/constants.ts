@@ -44,6 +44,10 @@ export const MAX_BITE_DEPTH_MM = 4;
 export const DEFAULT_CURVATURE_PCT = 100;
 export const MIN_CURVATURE_PCT = 0;
 export const MAX_CURVATURE_PCT = 150;
+export const MIN_HOLE_SPACING_MM = 1.5;
+export const MAX_HOLE_SPACING_MM = 5;
+export const MIN_CORNER_MARGIN_MM = 0;
+export const MAX_CORNER_MARGIN_MM = 5;
 
 /**
  * Empirical gather/fabric correction on linear panel dimensions.
@@ -79,12 +83,16 @@ export function defaultLaserSettings(): {
   biteDepthMm: number;
   curvaturePct: number;
   showHoles: boolean;
+  holeSpacingMm: number;
+  cornerMarginMm: number;
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
     biteDepthMm: DEFAULT_BITE_DEPTH_MM,
     curvaturePct: DEFAULT_CURVATURE_PCT,
     showHoles: true,
+    holeSpacingMm: HOLE_SPACING_MM,
+    cornerMarginMm: CORNER_MARGIN_MM,
   };
 }
 

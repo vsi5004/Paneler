@@ -49,6 +49,8 @@ export function setLaserExtras(doc: Document, laser: LaserSettings): void {
     biteDepthMm: laser.biteDepthMm,
     curvaturePct: laser.curvaturePct,
     showHoles: laser.showHoles,
+    holeSpacingMm: laser.holeSpacingMm,
+    cornerMarginMm: laser.cornerMarginMm,
   };
   extras.paneler = paneler;
   asset.extras = extras;

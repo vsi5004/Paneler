@@ -27,6 +27,8 @@ const SETTINGS: LaserSettings = {
   biteDepthMm: DEFAULT_BITE_DEPTH_MM,
   curvaturePct: 100,
   showHoles: true,
+  holeSpacingMm: HOLE_SPACING_MM,
+  cornerMarginMm: 0,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -399,6 +401,35 @@ describe("SVG output", () => {
     expect(w).toBeGreaterThan(2 * MARGIN_MM);
     expect(h).toBeGreaterThan(2 * MARGIN_MM);
     expect(minX).toBeCloseTo(t.bounds.minX, 2);
+  });
+
+  it("honors custom spacing and corner margin", () => {
+    const topo = topoOf("cube");
+    const cls = groupPanelsByCongruence(topo)[0];
+    const base = buildLaserTemplate(topo, cls, SETTINGS);
+    // Wider pitch → fewer holes.
+    const wide = buildLaserTemplate(topo, cls, {
+      ...SETTINGS,
+      holeSpacingMm: 4,
+    });
+    expect(wide.holes.length).toBeLessThan(base.holes.length);
+    const run = wide.holes.slice(0, wide.holes.length / 4);
+    const gap = Math.hypot(run[1].x - run[0].x, run[1].y - run[0].y);
+    expect(gap).toBeGreaterThan(4 - HOLE_BUNCHING_MM - 0.15);
+    // Corner margin pushes the first hole away from the corners.
+    const margined = buildLaserTemplate(topo, cls, {
+      ...SETTINGS,
+      cornerMarginMm: 4,
+    });
+    expect(margined.holes.length).toBeLessThanOrEqual(base.holes.length);
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = flattenPanelUnscaled(cls.representative, topo);
+    const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
+    for (const h of margined.holes) {
+      for (const c of corners) {
+        expect(Math.hypot(h.x - c.x, h.y - c.y)).toBeGreaterThan(3.5);
+      }
+    }
   });
 
   it("omits holes from the export when showHoles is off", () => {

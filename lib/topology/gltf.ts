@@ -38,6 +38,8 @@ export interface ParsedGlb {
       biteDepthMm: number;
       curvaturePct: number;
       showHoles: boolean;
+      holeSpacingMm: number;
+      cornerMarginMm: number;
     };
   };
 }
@@ -160,11 +162,19 @@ function parseDesignExtras(
         biteDepthMm: number;
         curvaturePct: number;
         showHoles: boolean;
+        holeSpacingMm: number;
+        cornerMarginMm: number;
       }
     | undefined;
   if (typeof laser === "object" && laser !== null) {
-    const { diameterIn, biteDepthMm, curvaturePct, showHoles } =
-      laser as Record<string, unknown>;
+    const {
+      diameterIn,
+      biteDepthMm,
+      curvaturePct,
+      showHoles,
+      holeSpacingMm,
+      cornerMarginMm,
+    } = laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
       Number.isFinite(diameterIn) &&
@@ -180,8 +190,16 @@ function parseDesignExtras(
           typeof curvaturePct === "number" && Number.isFinite(curvaturePct)
             ? curvaturePct
             : 100,
-        // Backfill for GLBs saved before the field existed.
+        // Backfills for GLBs saved before each field existed.
         showHoles: typeof showHoles === "boolean" ? showHoles : true,
+        holeSpacingMm:
+          typeof holeSpacingMm === "number" && Number.isFinite(holeSpacingMm)
+            ? holeSpacingMm
+            : 2.5,
+        cornerMarginMm:
+          typeof cornerMarginMm === "number" && Number.isFinite(cornerMarginMm)
+            ? cornerMarginMm
+            : 0,
       };
     }
   }

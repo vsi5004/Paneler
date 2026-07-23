@@ -11,6 +11,10 @@ export interface LaserSettings {
   curvaturePct: number;
   /** Include stitch holes in previews and exported SVGs. */
   showHoles: boolean;
+  /** Nominal hole-to-hole pitch along a seam, millimeters. */
+  holeSpacingMm: number;
+  /** Empty space between each hole row's ends and the panel corners, mm. */
+  cornerMarginMm: number;
 }
 
 /** A group of congruent panels that share one template. */

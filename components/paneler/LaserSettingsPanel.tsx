@@ -3,11 +3,15 @@
 import { Slider } from "@/components/ui/slider";
 import {
   MAX_BITE_DEPTH_MM,
+  MAX_CORNER_MARGIN_MM,
   MAX_CURVATURE_PCT,
   MAX_DIAMETER_IN,
+  MAX_HOLE_SPACING_MM,
   MIN_BITE_DEPTH_MM,
+  MIN_CORNER_MARGIN_MM,
   MIN_CURVATURE_PCT,
   MIN_DIAMETER_IN,
+  MIN_HOLE_SPACING_MM,
 } from "@/lib/laser/constants";
 import type { LaserSettings } from "@/lib/laser/types";
 
@@ -78,6 +82,40 @@ export function LaserSettingsPanel({
             max={MAX_BITE_DEPTH_MM}
             step={0.1}
             onValueChange={(v) => onChange({ biteDepthMm: first(v) })}
+          />
+        </div>
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              Hole spacing
+            </label>
+            <span className="font-mono text-[10px] tabular-nums text-foreground">
+              {values.holeSpacingMm.toFixed(1)}mm
+            </span>
+          </div>
+          <Slider
+            value={[values.holeSpacingMm]}
+            min={MIN_HOLE_SPACING_MM}
+            max={MAX_HOLE_SPACING_MM}
+            step={0.1}
+            onValueChange={(v) => onChange({ holeSpacingMm: first(v) })}
+          />
+        </div>
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              Corner margin
+            </label>
+            <span className="font-mono text-[10px] tabular-nums text-foreground">
+              {values.cornerMarginMm.toFixed(2)}mm
+            </span>
+          </div>
+          <Slider
+            value={[values.cornerMarginMm]}
+            min={MIN_CORNER_MARGIN_MM}
+            max={MAX_CORNER_MARGIN_MM}
+            step={0.25}
+            onValueChange={(v) => onChange({ cornerMarginMm: first(v) })}
           />
         </div>
         {showCurvature && (

@@ -8,10 +8,8 @@ import {
 } from "@/lib/flatten/panelPath";
 import type { PanelFlat, Vec2 } from "@/lib/flatten/types";
 import {
-  CORNER_MARGIN_MM,
   HOLE_BUNCHING_MM,
   HOLE_MIN_RUN_RATIO,
-  HOLE_SPACING_MM,
   MARGIN_MM,
   SAMPLE_STEP_MM,
   mmPerUnit,
@@ -44,7 +42,7 @@ export function buildLaserTemplate(
   const seamPath = buildCurvedPanelPath(flatMm);
   const cutPoints = offsetOutline(samples, settings.biteDepthMm);
   const cutPath = polylinePath(cutPoints);
-  const holes = placeStitchHoles(topo, cls, samples, scale);
+  const holes = placeStitchHoles(topo, cls, samples, scale, settings);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -304,7 +302,10 @@ function placeStitchHoles(
   cls: PanelClass,
   samples: OutlineSample[],
   mmScale: number,
+  settings: LaserSettings,
 ): Vec2[] {
+  const spacing = settings.holeSpacingMm;
+  const cornerMargin = settings.cornerMarginMm;
   const loop = cls.representative.vertexIndices;
   const nEdges = loop.length;
 
@@ -448,11 +449,11 @@ function placeStitchHoles(
     // a seam agree.
     if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
     const { s0, flatSpan, patternLen, extras } = resolved;
-    const usable = patternLen - 2 * CORNER_MARGIN_MM;
+    const usable = patternLen - 2 * cornerMargin;
     if (usable < 1 || flatSpan <= 0) continue;
 
-    let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + HOLE_SPACING_MM) / (2 * HOLE_SPACING_MM));
-    while (n >= 2 && (n - 1) * HOLE_SPACING_MM - HOLE_BUNCHING_MM > usable) {
+    let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + spacing) / (2 * spacing));
+    while (n >= 2 && (n - 1) * spacing - HOLE_BUNCHING_MM > usable) {
       n -= 2;
     }
     let span: number;
@@ -460,7 +461,7 @@ function placeStitchHoles(
       n = 1;
       span = 0;
     } else {
-      span = (n - 1) * HOLE_SPACING_MM - HOLE_BUNCHING_MM;
+      span = (n - 1) * spacing - HOLE_BUNCHING_MM;
     }
     // COUNT comes from the shared 3D length (the mating invariant);
     // POSITIONS are laid with exact bunched gaps in the panel's FLAT
@@ -473,9 +474,9 @@ function placeStitchHoles(
       holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
     };
     const patternStart =
-      CORNER_MARGIN_MM + (flatSpan - 2 * CORNER_MARGIN_MM - span * gapScale) / 2;
+      cornerMargin + (flatSpan - 2 * cornerMargin - span * gapScale) / 2;
     if (extras) {
-      placeFlat(Math.max(0.3, patternStart - HOLE_SPACING_MM * gapScale));
+      placeFlat(Math.max(0.3, patternStart - spacing * gapScale));
     }
     let sFlat = patternStart;
     for (let k = 0; k < n; k++) {
@@ -483,13 +484,13 @@ function placeStitchHoles(
       if (k < n - 1) {
         sFlat +=
           (k % 2 === 0
-            ? HOLE_SPACING_MM - HOLE_BUNCHING_MM
-            : HOLE_SPACING_MM + HOLE_BUNCHING_MM) * gapScale;
+            ? spacing - HOLE_BUNCHING_MM
+            : spacing + HOLE_BUNCHING_MM) * gapScale;
       }
     }
     if (extras) {
       placeFlat(
-        Math.min(flatSpan - 0.3, sFlat + HOLE_SPACING_MM * gapScale),
+        Math.min(flatSpan - 0.3, sFlat + spacing * gapScale),
       );
     }
   }

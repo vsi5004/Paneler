@@ -17,6 +17,8 @@ const LASER = {
   biteDepthMm: 1.5,
   curvaturePct: 80,
   showHoles: false,
+  holeSpacingMm: 3.1,
+  cornerMarginMm: 1.5,
 };
 
 function bareCubeDoc() {
@@ -85,6 +87,8 @@ describe("laser settings persistence", () => {
       biteDepthMm: 2,
       curvaturePct: 100,
       showHoles: true,
+      holeSpacingMm: 2.5,
+      cornerMarginMm: 0,
     });
   });
 
