@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { parseGlb, parseDocument, type ParsedGlb } from "@/lib/topology/gltf";
-import { setMaterialColor, serializeDocument } from "@/lib/glb/mutate";
+import {
+  setLaserExtras,
+  setMaterialColor,
+  serializeDocument,
+} from "@/lib/glb/mutate";
+import type { LaserSettings } from "@/lib/laser/types";
+import {
+  DEFAULT_BITE_DEPTH_MM,
+  DEFAULT_DIAMETER_IN,
+} from "@/lib/laser/constants";
 import { linearRgbaToHex } from "@/lib/glb/build";
 import {
   generateTemplateDocument,
@@ -56,6 +65,14 @@ export interface UseGlbDesignResult {
    * Colors survive because panel ids are stable across param values.
    */
   setDesignParam: (key: string, value: number, quality: RegenQuality) => void;
+  /** Laser template settings (footbag size, bite depth) for the loaded design. */
+  laserSettings: LaserSettings;
+  /**
+   * Update laser settings: React state plus a direct extras write on the
+   * parsed document (no geometry regeneration), so both save paths persist
+   * them. Works for designs without preset provenance (Blender imports).
+   */
+  setLaserSettings: (partial: Partial<LaserSettings>) => void;
   /** Serialize the current GLB document back to bytes (for save). */
   serialize: () => Promise<Uint8Array | null>;
   /** Clear loaded design. */
@@ -67,6 +84,10 @@ export function useGlbDesign(): UseGlbDesignResult {
   const [parsed, setParsed] = useState<ParsedGlb | null>(null);
   const [panelColors, setPanelColorsState] = useState<PanelColors>({});
   const [designInfo, setDesignInfo] = useState<DesignInfo | null>(null);
+  const [laserSettings, setLaserSettingsState] = useState<LaserSettings>({
+    diameterIn: DEFAULT_DIAMETER_IN,
+    biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+  });
   const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +97,11 @@ export function useGlbDesign(): UseGlbDesignResult {
   const panelColorsRef = useRef<PanelColors>({});
   // Latest designInfo so rapid setDesignParam calls compound before re-render.
   const designInfoRef = useRef<DesignInfo | null>(null);
+  // Latest laser settings, readable inside the regen path.
+  const laserSettingsRef = useRef<LaserSettings>({
+    diameterIn: DEFAULT_DIAMETER_IN,
+    biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+  });
   // When > 0, the bytes-parse effect skips a run: a param regen already set
   // `parsed` from the freshly generated document, and re-parsing would clobber
   // defaultsRef (template default colors) and reset panelColors from materials.
@@ -102,6 +128,12 @@ export function useGlbDesign(): UseGlbDesignResult {
       setPanelColorsState({});
       setDesignInfo(null);
       designInfoRef.current = null;
+      const laserDefaults = {
+        diameterIn: DEFAULT_DIAMETER_IN,
+        biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+      };
+      setLaserSettingsState(laserDefaults);
+      laserSettingsRef.current = laserDefaults;
       defaultsRef.current = {};
       return;
     }
@@ -116,9 +148,19 @@ export function useGlbDesign(): UseGlbDesignResult {
         defaultsRef.current = defaults;
         setParsed(p);
         setPanelColorsState(defaults);
-        const info = p.design ?? null;
+        // Shape sliders need preset provenance; laser settings do not.
+        const info: DesignInfo | null =
+          p.design?.presetId !== undefined
+            ? { presetId: p.design.presetId, params: p.design.params }
+            : null;
         setDesignInfo(info);
         designInfoRef.current = info;
+        const laser: LaserSettings = p.design?.laser ?? {
+          diameterIn: DEFAULT_DIAMETER_IN,
+          biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+        };
+        setLaserSettingsState(laser);
+        laserSettingsRef.current = laser;
         setVersion((v) => v + 1);
         setError(null);
       })
@@ -217,6 +259,9 @@ export function useGlbDesign(): UseGlbDesignResult {
           panelColorsRef.current,
           { targetTriangles },
         );
+        // The fresh document only carries preset extras — re-apply the
+        // laser settings or a slider regen would silently drop them.
+        setLaserExtras(doc, laserSettingsRef.current);
         const newBytes = await serializeDocument(doc);
         if (generation !== regenCounterRef.current) return; // superseded
         skipParseRef.current += 1;
@@ -261,6 +306,18 @@ export function useGlbDesign(): UseGlbDesignResult {
     [applyGenerated],
   );
 
+  const setLaserSettings = useCallback(
+    (partial: Partial<LaserSettings>) => {
+      const next: LaserSettings = { ...laserSettingsRef.current, ...partial };
+      laserSettingsRef.current = next;
+      setLaserSettingsState(next);
+      // Mirror onto the live document so serialize() captures it. No
+      // regeneration — laser settings only affect the template pane.
+      if (parsed) setLaserExtras(parsed.document, next);
+    },
+    [parsed],
+  );
+
   // Drop any pending draft regen on unmount.
   useEffect(() => {
     return () => {
@@ -282,6 +339,12 @@ export function useGlbDesign(): UseGlbDesignResult {
     setPanelColorsState({});
     setDesignInfo(null);
     designInfoRef.current = null;
+    const laserDefaults = {
+      diameterIn: DEFAULT_DIAMETER_IN,
+      biteDepthMm: DEFAULT_BITE_DEPTH_MM,
+    };
+    setLaserSettingsState(laserDefaults);
+    laserSettingsRef.current = laserDefaults;
     defaultsRef.current = {};
     setError(null);
   }, [cancelRegen]);
@@ -300,6 +363,8 @@ export function useGlbDesign(): UseGlbDesignResult {
     setPanelColor,
     resetPanel,
     setDesignParam,
+    laserSettings,
+    setLaserSettings,
     serialize,
     reset,
   };
