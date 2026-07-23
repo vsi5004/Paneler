@@ -78,11 +78,13 @@ export function defaultLaserSettings(): {
   diameterIn: number;
   biteDepthMm: number;
   curvaturePct: number;
+  showHoles: boolean;
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
     biteDepthMm: DEFAULT_BITE_DEPTH_MM,
     curvaturePct: DEFAULT_CURVATURE_PCT,
+    showHoles: true,
   };
 }
 

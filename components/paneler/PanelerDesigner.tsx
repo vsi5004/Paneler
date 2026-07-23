@@ -452,6 +452,7 @@ export function PanelerDesigner({
                           <LaserTemplatePane
                             topology={topology}
                             laserSettings={laserSettings}
+                            onSettingsChange={setLaserSettings}
                             designName={
                               uploadedName ?? activeTemplateSlug ?? "design"
                             }

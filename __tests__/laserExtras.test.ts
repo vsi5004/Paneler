@@ -12,7 +12,12 @@ import { subdivideTopology } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { cube } from "@/lib/topology/presets";
 
-const LASER = { diameterIn: 2.1, biteDepthMm: 1.5, curvaturePct: 80 };
+const LASER = {
+  diameterIn: 2.1,
+  biteDepthMm: 1.5,
+  curvaturePct: 80,
+  showHoles: false,
+};
 
 function bareCubeDoc() {
   const sub = subdivideTopology(cube(), 1);
@@ -79,6 +84,7 @@ describe("laser settings persistence", () => {
       diameterIn: 1.9,
       biteDepthMm: 2,
       curvaturePct: 100,
+      showHoles: true,
     });
   });
 

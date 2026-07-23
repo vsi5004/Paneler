@@ -33,7 +33,12 @@ export interface ParsedGlb {
   design?: {
     presetId?: string;
     params: Record<string, number>;
-    laser?: { diameterIn: number; biteDepthMm: number; curvaturePct: number };
+    laser?: {
+      diameterIn: number;
+      biteDepthMm: number;
+      curvaturePct: number;
+      showHoles: boolean;
+    };
   };
 }
 
@@ -150,13 +155,16 @@ function parseDesignExtras(
   }
 
   let cleanLaser:
-    | { diameterIn: number; biteDepthMm: number; curvaturePct: number }
+    | {
+        diameterIn: number;
+        biteDepthMm: number;
+        curvaturePct: number;
+        showHoles: boolean;
+      }
     | undefined;
   if (typeof laser === "object" && laser !== null) {
-    const { diameterIn, biteDepthMm, curvaturePct } = laser as Record<
-      string,
-      unknown
-    >;
+    const { diameterIn, biteDepthMm, curvaturePct, showHoles } =
+      laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
       Number.isFinite(diameterIn) &&
@@ -172,6 +180,8 @@ function parseDesignExtras(
           typeof curvaturePct === "number" && Number.isFinite(curvaturePct)
             ? curvaturePct
             : 100,
+        // Backfill for GLBs saved before the field existed.
+        showHoles: typeof showHoles === "boolean" ? showHoles : true,
       };
     }
   }

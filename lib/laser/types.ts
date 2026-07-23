@@ -9,6 +9,8 @@ export interface LaserSettings {
   biteDepthMm: number;
   /** Edge curvature, percent of the true spherical bulge (100 = spherical). */
   curvaturePct: number;
+  /** Include stitch holes in previews and exported SVGs. */
+  showHoles: boolean;
 }
 
 /** A group of congruent panels that share one template. */

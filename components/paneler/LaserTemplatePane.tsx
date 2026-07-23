@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 interface LaserTemplatePaneProps {
   topology: PanelTopology;
   laserSettings: LaserSettings;
+  onSettingsChange: (partial: Partial<LaserSettings>) => void;
   /** Design name used for download filenames. */
   designName: string;
 }
@@ -31,6 +32,7 @@ interface LaserTemplatePaneProps {
 export function LaserTemplatePane({
   topology,
   laserSettings,
+  onSettingsChange,
   designName,
 }: LaserTemplatePaneProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -207,7 +209,11 @@ export function LaserTemplatePane({
                   initial={false}
                   transition={{ type: "spring", stiffness: 260, damping: 28 }}
                 >
-                  <TemplateCard template={t} front={front} />
+                  <TemplateCard
+                    template={t}
+                    front={front}
+                    showHoles={laserSettings.showHoles}
+                  />
                 </motion.button>
               );
             })}
@@ -222,9 +228,33 @@ export function LaserTemplatePane({
               <span className="rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">
                 × {current.count}
               </span>
-              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+              <button
+                type="button"
+                aria-pressed={laserSettings.showHoles}
+                title={
+                  laserSettings.showHoles
+                    ? "Hide stitch holes (preview + export)"
+                    : "Show stitch holes (preview + export)"
+                }
+                onClick={() =>
+                  onSettingsChange({ showHoles: !laserSettings.showHoles })
+                }
+                className={`flex items-center gap-1.5 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors ${
+                  laserSettings.showHoles
+                    ? "border-[var(--primary)]/50 text-foreground"
+                    : "border-[var(--border)] text-muted-foreground/60"
+                }`}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    laserSettings.showHoles
+                      ? "bg-[var(--primary)]"
+                      : "border border-current"
+                  }`}
+                  aria-hidden
+                />
                 {current.holes.length} holes
-              </span>
+              </button>
               <Button
                 size="sm"
                 variant="outline"
@@ -232,7 +262,9 @@ export function LaserTemplatePane({
                 onClick={() =>
                   downloadSvg(
                     templateFilename(designName, current, laserSettings),
-                    templateToSvg(current),
+                    templateToSvg(current, {
+                      showHoles: laserSettings.showHoles,
+                    }),
                   )
                 }
               >
@@ -316,9 +348,11 @@ function CarouselArrow({
 function TemplateCard({
   template: t,
   front,
+  showHoles,
 }: {
   template: LaserTemplate;
   front: boolean;
+  showHoles: boolean;
 }) {
   // The export keeps laser-friendly 10mm margins; the preview crops to
   // the shape itself (plus a little air and a band for the dimension
@@ -370,11 +404,13 @@ function TemplateCard({
           strokeWidth={shapeW / 180}
         />
         {/* Stitch pierce points. */}
-        <g fill="#ffffff" opacity={0.9}>
-          {t.holes.map((h, i) => (
-            <circle key={i} cx={h.x} cy={h.y} r={holeR} />
-          ))}
-        </g>
+        {showHoles && (
+          <g fill="#ffffff" opacity={0.9}>
+            {t.holes.map((h, i) => (
+              <circle key={i} cx={h.x} cy={h.y} r={holeR} />
+            ))}
+          </g>
+        )}
         {/* Engineering dimension rule (front card only). */}
         {front && (
           <g

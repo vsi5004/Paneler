@@ -26,6 +26,7 @@ const SETTINGS: LaserSettings = {
   diameterIn: 1.8,
   biteDepthMm: DEFAULT_BITE_DEPTH_MM,
   curvaturePct: 100,
+  showHoles: true,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -400,6 +401,18 @@ describe("SVG output", () => {
     expect(minX).toBeCloseTo(t.bounds.minX, 2);
   });
 
+  it("omits holes from the export when showHoles is off", () => {
+    const topo = topoOf("soccer");
+    const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
+    const t = buildLaserTemplate(topo, pent, SETTINGS);
+    const withHoles = templateToSvg(t, { showHoles: true });
+    const without = templateToSvg(t, { showHoles: false });
+    expect((withHoles.match(/<circle/g) ?? []).length).toBe(t.holes.length);
+    expect((without.match(/<circle/g) ?? []).length).toBe(0);
+    // Cut outline unaffected.
+    expect(without).toContain(`stroke="#000000"`);
+  });
+
   it("builds descriptive filenames", () => {
     const topo = topoOf("gp3");
     const hexA = groupPanelsByCongruence(topo).find((c) => c.label === "Hexagon A")!;
@@ -410,5 +423,8 @@ describe("SVG output", () => {
     expect(
       templateFilename("GP(3,0)", t, { ...SETTINGS, curvaturePct: 55 }),
     ).toBe("gp-3-0_hexagon-a_1.8in_2mm_curve55.svg");
+    expect(
+      templateFilename("GP(3,0)", t, { ...SETTINGS, showHoles: false }),
+    ).toBe("gp-3-0_hexagon-a_1.8in_2mm_noholes.svg");
   });
 });

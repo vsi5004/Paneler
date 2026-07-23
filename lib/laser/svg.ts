@@ -14,10 +14,14 @@ import type { LaserSettings, LaserTemplate } from "./types";
  * Cut outline is black; stitch holes are red circles so they map to a
  * separate operation.
  */
-export function templateToSvg(t: LaserTemplate): string {
+export function templateToSvg(
+  t: LaserTemplate,
+  options: { showHoles?: boolean } = {},
+): string {
   const { minX, minY, width, height } = t.bounds;
   const holeR = STITCH_HOLE_DIAMETER_MM / 2;
-  const holes = t.holes
+  const includeHoles = options.showHoles !== false;
+  const holes = (includeHoles ? t.holes : [])
     .map(
       (h) =>
         `    <circle cx="${h.x.toFixed(3)}" cy="${h.y.toFixed(3)}" r="${holeR}" fill="none" stroke="${HOLE_COLOR}" stroke-width="${HOLE_STROKE_MM}"/>`,
@@ -50,5 +54,6 @@ export function templateFilename(
   const bite = `${parseFloat(s.biteDepthMm.toFixed(2))}mm`;
   const curve =
     s.curvaturePct === 100 ? "" : `_curve${Math.round(s.curvaturePct)}`;
-  return `${slug(designName)}_${slug(t.label)}_${size}_${bite}${curve}.svg`;
+  const holes = s.showHoles ? "" : "_noholes";
+  return `${slug(designName)}_${slug(t.label)}_${size}_${bite}${curve}${holes}.svg`;
 }
