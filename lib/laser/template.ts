@@ -421,7 +421,23 @@ function placeStitchHoles(
       flatSpan = totalLength - s0 + sNext;
     }
     const len3d = run.reduce((sum, i) => sum + edge3DLen(i), 0);
-    return { s0, flatSpan, len3d, extras: runGetsExtras(run) };
+    // Pattern-length basis: the 3D seam length exists to keep DIFFERENT
+    // classes in agreement across a seam (their flattenings distort
+    // differently). A same-class seam joins congruent panels whose flat
+    // runs are identical, so the pattern can fill the true flat length —
+    // otherwise big wavy panels (trionda: flat ~7% longer than 3D) get
+    // bare zones at the corners.
+    const neighborId = edgeNeighbor(run[0]);
+    const neighborCls =
+      neighborId !== null ? classOfPanel.get(neighborId) : undefined;
+    const sameClass = neighborCls !== undefined && neighborCls === ownClass;
+    return {
+      s0,
+      flatSpan,
+      len3d,
+      patternLen: sameClass || neighborId === null ? flatSpan : len3d,
+      extras: runGetsExtras(run),
+    };
   });
   const maxLen3d = Math.max(0, ...runSpans.map((r) => (r ? r.len3d : 0)));
 
@@ -431,8 +447,8 @@ function placeStitchHoles(
     // Short-edge rule, judged on the shared 3D length so both panels of
     // a seam agree.
     if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
-    const { s0, flatSpan, len3d, extras } = resolved;
-    const usable = len3d - 2 * CORNER_MARGIN_MM;
+    const { s0, flatSpan, patternLen, extras } = resolved;
+    const usable = patternLen - 2 * CORNER_MARGIN_MM;
     if (usable < 1 || flatSpan <= 0) continue;
 
     let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + HOLE_SPACING_MM) / (2 * HOLE_SPACING_MM));
