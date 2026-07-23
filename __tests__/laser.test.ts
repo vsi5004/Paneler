@@ -253,10 +253,12 @@ describe("stitch holes", () => {
     },
   );
 
-  it("gives mating panel types identical holes per shared seam", () => {
-    // Hole counts derive from the shared 3D seam length, not each
-    // panel's flattened edge (which distorts differently per panel and
-    // could round to different counts across a seam).
+  it("matches mating seams, with the hex corner-anchor +2 convention", () => {
+    // Hole counts derive from the shared 3D seam length (identical on
+    // both panels), and classes with same-class adjacency (hexes) get
+    // one extra corner-anchor hole at each end of mixed seams — the
+    // holes that stitch hex to adjacent hex. Proven templates: 32-panel
+    // pent 6 / hex 8; 14-panel square 10 / hex 12.
     const check = (presetId: string, params?: Record<string, number>) => {
       const topo = topoOf(presetId, params);
       const classes = groupPanelsByCongruence(topo);
@@ -267,27 +269,27 @@ describe("stitch holes", () => {
         ]),
       );
     };
-    // Regular soccer: every seam is equal-length → per-seam count k is
-    // uniform; hex has 6 seams, pent 5.
+    // Regular soccer: pent-seam count k on the pentagon; hexagon = 3
+    // pent seams at k+2 plus 3 hex-hex seams at k.
     const soccer = check("soccer");
-    const hexK = soccer.get("Hexagon")!.holes.length / 6;
     const pentK = soccer.get("Pentagon")!.holes.length / 5;
-    expect(hexK).toBe(pentK);
-    expect(Number.isInteger(hexK)).toBe(true);
-    // Truncated soccer: hex short edges unholed; its 3 long edges are all
-    // pent seams, and all 5 pentagon edges are hex seams → counts match.
+    expect(Number.isInteger(pentK)).toBe(true);
+    expect(soccer.get("Hexagon")!.holes.length).toBe(
+      3 * (pentK + 2) + 3 * pentK,
+    );
+    // Truncated soccer: shorts unholed; hex = 3 pent seams at k+2.
     const trunc = check("soccer", { shortEdge: 40 });
-    expect(trunc.get("Hexagon")!.holes.length / 3).toBe(
-      trunc.get("Pentagon")!.holes.length / 5,
-    );
-    // GP(3,0): three classes share seams of near-equal length; per-seam
-    // counts agree across all of them.
-    const gp3 = check("gp3");
-    expect(gp3.get("Pentagon")!.holes.length / 5).toBe(
-      gp3.get("Hexagon A")!.holes.length / 6,
-    );
-    expect(gp3.get("Hexagon A")!.holes.length).toBe(
-      gp3.get("Hexagon B")!.holes.length,
+    const truncPentK = trunc.get("Pentagon")!.holes.length / 5;
+    expect(trunc.get("Hexagon")!.holes.length).toBe(3 * (truncPentK + 2));
+    // 14-panel analog (truncated octahedron): quad k, hex long seams k+2.
+    const cubocta = check("cubocta", { shortEdge: 40 });
+    const quadK = cubocta.get("Quad")!.holes.length / 4;
+    expect(cubocta.get("Hexagon")!.holes.length).toBe(3 * (quadK + 2));
+    // True cuboctahedron: triangles never touch triangles → no extras,
+    // seams match exactly.
+    const flat = check("cubocta");
+    expect(flat.get("Triangle")!.holes.length / 3).toBe(
+      flat.get("Quad")!.holes.length / 4,
     );
   });
 

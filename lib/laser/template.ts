@@ -1,5 +1,6 @@
 import type { PanelTopology } from "@/lib/types";
 import { flattenPanelUnscaled } from "@/lib/flatten/unfoldNet";
+import { groupPanelsByCongruence } from "./congruence";
 import {
   buildCurvedPanelPath,
   sampleOutline,
@@ -373,6 +374,33 @@ function placeStitchHoles(
   // begin at a neighbour-change boundary, so the LAST run can wrap
   // through the loop's arc-length origin — its flat span continues past
   // totalLength (pointAtArcLength wraps modulo the total).
+  // Corner-anchor extras: on a seam between two DIFFERENT classes, the
+  // class that also has same-class seams gets one extra hole at each end
+  // of the run — the holes that stitch it to its adjacent same-class
+  // neighbour across the corner. Matches the proven templates: 32-panel
+  // pent 6 / hex 8, 14-panel square 10 / hex 12.
+  const classes = groupPanelsByCongruence(topo);
+  const classOfPanel = new Map<string, string>();
+  for (const c of classes) {
+    for (const pid of c.panelIds) classOfPanel.set(pid, c.key);
+  }
+  const selfAdjacent = new Set<string>();
+  for (const e of topo.edges) {
+    if (!e.panelB) continue;
+    const ca = classOfPanel.get(e.panelA);
+    const cb = classOfPanel.get(e.panelB);
+    if (ca !== undefined && ca === cb) selfAdjacent.add(ca);
+  }
+  const ownClass = classOfPanel.get(cls.representative.id);
+  const runGetsExtras = (run: number[]): boolean => {
+    if (ownClass === undefined || !selfAdjacent.has(ownClass)) return false;
+    const neighborId = edgeNeighbor(run[0]);
+    if (!neighborId) return false;
+    const neighborClass = classOfPanel.get(neighborId);
+    if (neighborClass === undefined || neighborClass === ownClass) return false;
+    return !selfAdjacent.has(neighborClass);
+  };
+
   const sphereRadius = topo.vertices[loop[0]].length() || 1;
   const edge3DLen = (i: number): number =>
     topo.vertices[loop[i]].angleTo(topo.vertices[loop[(i + 1) % nEdges]]) *
@@ -393,7 +421,7 @@ function placeStitchHoles(
       flatSpan = totalLength - s0 + sNext;
     }
     const len3d = run.reduce((sum, i) => sum + edge3DLen(i), 0);
-    return { s0, flatSpan, len3d };
+    return { s0, flatSpan, len3d, extras: runGetsExtras(run) };
   });
   const maxLen3d = Math.max(0, ...runSpans.map((r) => (r ? r.len3d : 0)));
 
@@ -403,7 +431,7 @@ function placeStitchHoles(
     // Short-edge rule, judged on the shared 3D length so both panels of
     // a seam agree.
     if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
-    const { s0, flatSpan, len3d } = resolved;
+    const { s0, flatSpan, len3d, extras } = resolved;
     const usable = len3d - 2 * CORNER_MARGIN_MM;
     if (usable < 1 || flatSpan <= 0) continue;
 
@@ -418,17 +446,35 @@ function placeStitchHoles(
     } else {
       span = (n - 1) * HOLE_SPACING_MM - HOLE_BUNCHING_MM;
     }
-    // Walk the pattern in 3D arc length, mapping proportionally into the
-    // panel's flat run — both panels of a seam get identical counts and
-    // proportional positions, so their holes mate.
-    let s3d = CORNER_MARGIN_MM + (usable - span) / 2;
+    // COUNT comes from the shared 3D length (the mating invariant);
+    // POSITIONS are laid with exact bunched gaps in the panel's FLAT
+    // outline — that's the physical fabric, so gaps must be true there.
+    // If flatten distortion leaves the flat run slightly shorter than
+    // the pattern, gaps compress uniformly to fit (both panels of a seam
+    // have near-identical flat lengths, so their holes still align).
+    const gapScale = span > flatSpan - 0.6 ? (flatSpan - 0.6) / span : 1;
+    const placeFlat = (sFlat: number) => {
+      holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
+    };
+    const patternStart =
+      CORNER_MARGIN_MM + (flatSpan - 2 * CORNER_MARGIN_MM - span * gapScale) / 2;
+    if (extras) {
+      placeFlat(Math.max(0.3, patternStart - HOLE_SPACING_MM * gapScale));
+    }
+    let sFlat = patternStart;
     for (let k = 0; k < n; k++) {
-      const sFlat = s0 + (s3d / len3d) * flatSpan;
-      holes.push(pointAtArcLength(samples, sFlat, totalLength));
-      s3d +=
-        k % 2 === 0
-          ? HOLE_SPACING_MM - HOLE_BUNCHING_MM
-          : HOLE_SPACING_MM + HOLE_BUNCHING_MM;
+      placeFlat(sFlat);
+      if (k < n - 1) {
+        sFlat +=
+          (k % 2 === 0
+            ? HOLE_SPACING_MM - HOLE_BUNCHING_MM
+            : HOLE_SPACING_MM + HOLE_BUNCHING_MM) * gapScale;
+      }
+    }
+    if (extras) {
+      placeFlat(
+        Math.min(flatSpan - 0.3, sFlat + HOLE_SPACING_MM * gapScale),
+      );
     }
   }
   return holes;
