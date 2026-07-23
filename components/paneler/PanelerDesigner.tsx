@@ -295,7 +295,11 @@ export function PanelerDesigner({
   }, [allPanelIds, selectedColor, setPanelColors]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    // h-dvh (not flex-1 of a content-sized body): the designer is a
+    // single-screen app — bounding it to the viewport is what lets the
+    // inner min-h-0/overflow chain contain tall content (laser pane,
+    // sidebar) instead of growing the page and causing scrolling.
+    <div className="flex h-dvh flex-col overflow-hidden">
       {/* Identity strip — title bar spans the full width above the drawer. */}
       <div className="workshop-slab flex items-center justify-between border-b px-5 py-2">
         <div className="flex items-center gap-3">
@@ -420,7 +424,7 @@ export function PanelerDesigner({
               {/* Canvas stage + sidebar. */}
               <div className="flex flex-1 overflow-hidden">
                 <div className="flex flex-1 flex-col">
-                  <div className="flex flex-1 flex-col md:flex-row">
+                  <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                     <CanvasFrame label="3D · Sphere" className="flex-1">
                       <PanelerCanvas
                         glbBytes={bytes}
@@ -573,7 +577,7 @@ function CanvasFrame({
           {label}
         </span>
       </div>
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );
 }

@@ -49,7 +49,12 @@ export function LaserTemplatePane({
   const current = templates[selected];
 
   return (
-    <div className="flex flex-col border-t border-[var(--border)]/60">
+    <motion.div
+      animate={{ height: collapsed ? 32 : "44%" }}
+      initial={false}
+      transition={{ type: "spring", stiffness: 300, damping: 34 }}
+      className="flex min-h-8 shrink-0 flex-col overflow-hidden border-t border-[var(--border)]/60"
+    >
       {/* Header bar — always visible. */}
       <button
         type="button"
@@ -79,12 +84,7 @@ export function LaserTemplatePane({
         </span>
       </button>
 
-      <motion.div
-        animate={{ height: collapsed ? 0 : "38vh" }}
-        initial={false}
-        transition={{ type: "spring", stiffness: 300, damping: 34 }}
-        className="relative overflow-hidden"
-      >
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {/* Blueprint dot-grid workbench backdrop. */}
         <div
           className="absolute inset-0"
@@ -175,8 +175,8 @@ export function LaserTemplatePane({
             </div>
           )}
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 }
 
