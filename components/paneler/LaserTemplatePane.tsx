@@ -320,14 +320,24 @@ function TemplateCard({
   template: LaserTemplate;
   front: boolean;
 }) {
-  const { minX, minY, width, height } = t.bounds;
-  const shapeW = width - 2 * MARGIN_MM;
-  const maxY = minY + height;
-  // Dimension rule sits inside the bottom margin band.
-  const dimY = maxY - MARGIN_MM / 2;
-  const dimX0 = minX + MARGIN_MM;
-  const dimX1 = minX + width - MARGIN_MM;
-  const holeR = Math.max(STITCH_HOLE_DIAMETER_MM / 2, width / 260);
+  // The export keeps laser-friendly 10mm margins; the preview crops to
+  // the shape itself (plus a little air and a band for the dimension
+  // rule) so the template fills its frame.
+  const PAD = 4;
+  const DIM_BAND = 7;
+  const shapeMinX = t.bounds.minX + MARGIN_MM;
+  const shapeMinY = t.bounds.minY + MARGIN_MM;
+  const shapeW = t.bounds.width - 2 * MARGIN_MM;
+  const shapeH = t.bounds.height - 2 * MARGIN_MM;
+  const vbX = shapeMinX - PAD;
+  const vbY = shapeMinY - PAD;
+  const vbW = shapeW + 2 * PAD;
+  const vbH = shapeH + 2 * PAD + (front ? DIM_BAND : 0);
+  // Dimension rule sits in the reserved band under the shape.
+  const dimY = shapeMinY + shapeH + PAD + DIM_BAND / 2;
+  const dimX0 = shapeMinX;
+  const dimX1 = shapeMinX + shapeW;
+  const holeR = Math.max(STITCH_HOLE_DIAMETER_MM / 2, shapeW / 200);
 
   return (
     <span
@@ -338,7 +348,7 @@ function TemplateCard({
       }`}
     >
       <svg
-        viewBox={`${minX} ${minY} ${width} ${height}`}
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
         preserveAspectRatio="xMidYMid meet"
         className="h-full w-full"
         aria-hidden
@@ -348,8 +358,8 @@ function TemplateCard({
           d={t.seamPath}
           fill="none"
           stroke="var(--muted-foreground)"
-          strokeWidth={width / 420}
-          strokeDasharray={`${width / 90} ${width / 130}`}
+          strokeWidth={shapeW / 320}
+          strokeDasharray={`${shapeW / 70} ${shapeW / 100}`}
           opacity={0.7}
         />
         {/* Cut line — the star. */}
@@ -357,7 +367,7 @@ function TemplateCard({
           d={t.cutPath}
           fill="none"
           stroke="var(--primary)"
-          strokeWidth={width / 230}
+          strokeWidth={shapeW / 180}
         />
         {/* Stitch pierce points. */}
         <g fill="#ffffff" opacity={0.9}>
@@ -369,20 +379,20 @@ function TemplateCard({
         {front && (
           <g
             stroke="var(--muted-foreground)"
-            strokeWidth={width / 600}
+            strokeWidth={shapeW / 450}
             opacity={0.85}
           >
             <line x1={dimX0} y1={dimY} x2={dimX1} y2={dimY} />
-            <line x1={dimX0} y1={dimY - width / 90} x2={dimX0} y2={dimY + width / 90} />
-            <line x1={dimX1} y1={dimY - width / 90} x2={dimX1} y2={dimY + width / 90} />
+            <line x1={dimX0} y1={dimY - shapeW / 70} x2={dimX0} y2={dimY + shapeW / 70} />
+            <line x1={dimX1} y1={dimY - shapeW / 70} x2={dimX1} y2={dimY + shapeW / 70} />
             <text
               x={(dimX0 + dimX1) / 2}
-              y={dimY - width / 70}
+              y={dimY - shapeW / 55}
               textAnchor="middle"
               stroke="none"
               fill="var(--muted-foreground)"
               style={{
-                fontSize: width / 26,
+                fontSize: shapeW / 20,
                 fontFamily: "var(--font-mono, monospace)",
                 letterSpacing: "0.08em",
               }}
