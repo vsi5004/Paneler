@@ -108,43 +108,67 @@ describe("groupPanelsByCongruence", () => {
 });
 
 describe("physical calibration", () => {
-  it("reproduces the proven 1.8in cut pentagon (~17.5mm sides)", () => {
-    // footbag-templates repo: the 1.8in bag uses 17.5mm cut pentagon
-    // sides with 2mm bite, where "side" is the vertex-to-vertex chord of
-    // a miter-cornered edge offset. Our cut outline rounds its corners
-    // (nicer for lasers), so compare via the miter-equivalent formula:
-    // cutSide = seamSide + 2·bite·tan(π/5). This pins the full pipeline
-    // (flatten → mm scale → gather correction) to the proven template.
+  it("total fabric area matches the proven 1.8in bag", () => {
+    // The gather correction is calibrated on TOTAL seam-enclosed fabric
+    // area (what determines finished bag size), not any single panel's
+    // side — the proven design under-sizes hexes / over-sizes pentagons
+    // relative to equal-area sharing. Proven 32-panel 1.8in bag:
+    // 9192mm² of seam-enclosed fabric (footbag-templates JSONs).
     const topo = topoOf("soccer");
-    const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
-    const scale = mmPerUnit(SETTINGS.diameterIn);
-    const flat = flattenPanelUnscaled(pent.representative, topo);
-    const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
-    const seamSides = corners.map((a, i) => {
-      const b = corners[(i + 1) % corners.length];
-      return Math.hypot(b.x - a.x, b.y - a.y);
-    });
-    for (const s of seamSides) {
-      const cutSide = s + 2 * SETTINGS.biteDepthMm * Math.tan(Math.PI / 5);
-      expect(cutSide).toBeGreaterThan(17.0);
-      expect(cutSide).toBeLessThan(18.0);
+    const scale = mmPerUnit(1.8);
+    let total = 0;
+    for (const panel of topo.panels) {
+      const flat = flattenPanelUnscaled(panel, topo);
+      const flatMm = {
+        corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
+        sagittaRatios: flat.sagittaRatios,
+      };
+      const pts = sampleOutline(flatMm, 0.3).map((s) => s.p);
+      let a = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const q = pts[(i + 1) % pts.length];
+        a += pts[i].x * q.y - q.x * pts[i].y;
+      }
+      total += Math.abs(a) / 2;
+    }
+    expect(total).toBeGreaterThan(9192 * 0.92);
+    expect(total).toBeLessThan(9192 * 1.08);
+  });
+
+  it("reproduces proven panel dimensions at the proven config", () => {
+    // At the proven truncation (hex ratio 0.25) and 1.8in, panel sizes
+    // should bracket the proven templates (pent 17.5 / hex-long 20 cut).
+    // Our symmetric family forces pent edge = hex long edge, so the two
+    // land between the proven values rather than on both exactly.
+    const topo = topoOf("soccer", { shortEdge: 25 });
+    const scale = mmPerUnit(1.8);
+    for (const cls of groupPanelsByCongruence(topo)) {
+      const flat = flattenPanelUnscaled(cls.representative, topo);
+      const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
+      const n = corners.length;
+      const longest = Math.max(
+        ...corners.map((a, i) => {
+          const b = corners[(i + 1) % n];
+          return Math.hypot(b.x - a.x, b.y - a.y);
+        }),
+      );
+      const tan = Math.tan(Math.PI / cls.cornerCount);
+      const cut = longest + 2 * 2 * tan;
+      expect(cut).toBeGreaterThan(16);
+      expect(cut).toBeLessThan(20.5);
     }
   });
 
-  it("seam-line pentagon edge matches the calibration (~14.6mm)", () => {
-    const topo = topoOf("soccer");
-    const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
-    const scale = mmPerUnit(1.8);
-    const flat = flattenPanelUnscaled(pent.representative, topo);
-    const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
-    const edges = corners.map((a, i) => {
-      const b = corners[(i + 1) % corners.length];
-      return Math.hypot(b.x - a.x, b.y - a.y);
-    });
-    for (const e of edges) {
-      expect(e).toBeGreaterThan(14.1);
-      expect(e).toBeLessThan(15.1);
-    }
+  it("keeps the proven 6/8 per-seam hole counts at the proven config", () => {
+    const topo = topoOf("soccer", { shortEdge: 25 });
+    const classes = groupPanelsByCongruence(topo);
+    const templates = new Map(
+      classes.map((c) => [c.label, buildLaserTemplate(topo, c, SETTINGS)]),
+    );
+    // Pentagon: 5 hex seams at 6 each. Hexagon: shorts unholed, 3 long
+    // (pent) seams at 6+2.
+    expect(templates.get("Pentagon")!.holes.length).toBe(5 * 6);
+    expect(templates.get("Hexagon")!.holes.length).toBe(3 * 8);
   });
 });
 

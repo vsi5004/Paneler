@@ -52,25 +52,28 @@ export const MAX_CORNER_MARGIN_MM = 5;
 /**
  * Empirical gather/fabric correction on linear panel dimensions.
  *
- * Real footbags gather fabric and sit loose, so proven panel sizes are
- * much larger than rigid sphere geometry predicts. Calibrated from the
- * footbag-templates repo (README "Sizes and Gather" + per-size JSONs),
- * 32-panel series. The repo's listed pentagon sides are CUT outlines
- * with the stitch line inset by the bite (2mm; 2.2mm at 2.0in), so the
- * comparison is seam line vs seam line:
+ * Real footbags gather fabric and sit loose, so proven panels are larger
+ * than rigid sphere geometry predicts. Calibrated on TOTAL FABRIC AREA
+ * (the quantity that determines finished bag size — matching any single
+ * panel's side length is a false anchor, because the proven 32-panel
+ * design deliberately under-sizes its truncated hexes relative to
+ * equal-area sharing while over-sizing pentagons).
  *
- *   K = (cutSide − 2·bite·tan36°) / ((D_mm/2) / 2.478)
+ * From the footbag-templates repo (32-panel series, per-size JSONs):
+ * seam-enclosed area of 12 pentagons + 20 truncated hexes vs the target
+ * sphere's surface:
  *
- *   1.6in: (15.5 − 2.91) / 8.20 = 1.54
- *   1.7in: (16.5 − 2.91) / 8.71 = 1.56
- *   1.8in: (17.5 − 2.91) / 9.22 = 1.58
- *   2.0in: (19.0 − 3.20) / 10.25 = 1.54
+ *   1.6in: 6878mm² / 5189mm² → K = 1.151
+ *   1.7in: 7992mm² / 5858mm² → K = 1.168
+ *   1.8in: 9192mm² / 6567mm² → K = 1.183
+ *   2.0in: 12236mm² / 8107mm² → K = 1.229
  *
- * Stable across the size range → a single constant. Calibrated on
- * 32-panel bags only; other panel counts extrapolate (adjust here if a
- * test bag comes out off-size).
+ * K drifts up with size (bigger bags gather relatively more); 1.18
+ * matches the 1.8in flagship and sits mid-range. Because the flatten is
+ * equal-area, applying K linearly makes our total fabric = K² × sphere
+ * area = the proven total, regardless of panel tiling.
  */
-export const GATHER_CORRECTION = 1.55;
+export const GATHER_CORRECTION = 1.18;
 
 /** Millimeters of physical fabric per topology sphere unit. */
 export function mmPerUnit(diameterIn: number): number {
