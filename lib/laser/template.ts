@@ -306,6 +306,13 @@ function placeStitchHoles(
 ): Vec2[] {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
+  // Pair bunching only on simple polygon panels, where the palindromic
+  // pattern provably mates across a seam. On wavy imported panels
+  // (trionda, baseball: >6 corners) seam alignment can't be verified
+  // visually, so a mismatched 2.1-vs-2.9 pairing would go unnoticed —
+  // uniform spacing removes the risk.
+  const isWavy = cls.representative.vertexIndices.length > 6;
+  const bunching = isWavy ? 0 : HOLE_BUNCHING_MM;
   const loop = cls.representative.vertexIndices;
   const nEdges = loop.length;
 
@@ -436,11 +443,58 @@ function placeStitchHoles(
       s0,
       flatSpan,
       len3d,
+      neighborCls: neighborCls ?? "boundary",
       patternLen: sameClass || neighborId === null ? flatSpan : len3d,
       extras: runGetsExtras(run),
     };
   });
+
+  // Canonicalize equivalent runs: runs with the same neighbour class and
+  // near-equal length (numeric noise on imported boundaries — trionda's
+  // three symmetric runs differ ~0.5%) share ONE pattern length. Without
+  // this, two runs straddling a count-rounding threshold get different
+  // hole counts: corners look different, and — since every physical seam
+  // is cut from two different runs of the SAME class template — the
+  // seams wouldn't mate.
+  {
+    interface Bucket { key: string; lens: number[]; members: number[] }
+    const buckets: Bucket[] = [];
+    runSpans.forEach((r, i) => {
+      if (!r) return;
+      let placed = false;
+      for (const b of buckets) {
+        const mean = b.lens.reduce((a, v) => a + v, 0) / b.lens.length;
+        if (
+          b.key === r.neighborCls &&
+          Math.abs(r.patternLen - mean) / mean <= 0.015
+        ) {
+          b.lens.push(r.patternLen);
+          b.members.push(i);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        buckets.push({ key: r.neighborCls, lens: [r.patternLen], members: [i] });
+      }
+    });
+    for (const b of buckets) {
+      const canonical = b.lens.reduce((a, v) => a + v, 0) / b.lens.length;
+      for (const i of b.members) {
+        runSpans[i]!.patternLen = canonical;
+      }
+    }
+  }
   const maxLen3d = Math.max(0, ...runSpans.map((r) => (r ? r.len3d : 0)));
+
+  // Wavy panels with real junction corners (runs.length > 1: trionda's
+  // pinwheels, not the baseball's single closed seam) get one hole
+  // EXACTLY at each corner — the same physical junction point exists on
+  // every panel meeting there, so corner holes mate unambiguously — and
+  // the remaining holes divide each run EVENLY corner-to-corner (no
+  // bunching, no end slack). Count derives from the canonical run length
+  // so all equivalent runs and both sides of a seam agree.
+  const cornerHoles = isWavy && runs.length > 1;
 
   const holes: Vec2[] = [];
   for (const resolved of runSpans) {
@@ -449,11 +503,21 @@ function placeStitchHoles(
     // a seam agree.
     if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
     const { s0, flatSpan, patternLen, extras } = resolved;
+    if (cornerHoles) {
+      const placeFlat = (sFlat: number) => {
+        holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
+      };
+      placeFlat(0); // the junction corner itself; run end = next corner
+      const nInterior = Math.max(0, Math.round(patternLen / spacing) - 1);
+      const gap = flatSpan / (nInterior + 1);
+      for (let k = 1; k <= nInterior; k++) placeFlat(k * gap);
+      continue;
+    }
     const usable = patternLen - 2 * cornerMargin;
     if (usable < 1 || flatSpan <= 0) continue;
 
-    let n = 2 * Math.floor((usable + HOLE_BUNCHING_MM + spacing) / (2 * spacing));
-    while (n >= 2 && (n - 1) * spacing - HOLE_BUNCHING_MM > usable) {
+    let n = 2 * Math.floor((usable + bunching + spacing) / (2 * spacing));
+    while (n >= 2 && (n - 1) * spacing - bunching > usable) {
       n -= 2;
     }
     let span: number;
@@ -461,7 +525,7 @@ function placeStitchHoles(
       n = 1;
       span = 0;
     } else {
-      span = (n - 1) * spacing - HOLE_BUNCHING_MM;
+      span = (n - 1) * spacing - bunching;
     }
     // COUNT comes from the shared 3D length (the mating invariant);
     // POSITIONS are laid with exact bunched gaps in the panel's FLAT
@@ -483,9 +547,7 @@ function placeStitchHoles(
       placeFlat(sFlat);
       if (k < n - 1) {
         sFlat +=
-          (k % 2 === 0
-            ? spacing - HOLE_BUNCHING_MM
-            : spacing + HOLE_BUNCHING_MM) * gapScale;
+          (k % 2 === 0 ? spacing - bunching : spacing + bunching) * gapScale;
       }
     }
     if (extras) {

@@ -330,6 +330,47 @@ describe("stitch holes", () => {
     expect(t.holes.length).toBeGreaterThan(12);
   });
 
+  it("trionda: exact corner holes, even spacing, no bunching", () => {
+    const topo = topoOf("trionda");
+    const cls = groupPanelsByCongruence(topo)[0];
+    const t = buildLaserTemplate(topo, cls, SETTINGS);
+    // A hole exactly at each 3-panel junction corner.
+    const useCount = new Map<number, number>();
+    for (const p of topo.panels) {
+      for (const vi of p.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = flattenPanelUnscaled(cls.representative, topo);
+    let junctions = 0;
+    cls.representative.vertexIndices.forEach((vi, i) => {
+      if ((useCount.get(vi) ?? 0) < 3) return;
+      junctions++;
+      const cx = flat.corners[i].x * scale;
+      const cy = flat.corners[i].y * scale;
+      const best = Math.min(
+        ...t.holes.map((h) => Math.hypot(h.x - cx, h.y - cy)),
+      );
+      expect(best).toBeLessThan(0.05);
+    });
+    expect(junctions).toBe(3);
+    // Even spacing, no bunched pairs: consecutive hole distances cluster
+    // tightly around the pitch (bunching would alternate 2.1/2.9).
+    const runLen = t.holes.length / 3;
+    expect(Number.isInteger(runLen)).toBe(true);
+    const run = t.holes.slice(0, runLen);
+    const gaps = run
+      .slice(1)
+      .map((h, i) => Math.hypot(h.x - run[i].x, h.y - run[i].y));
+    for (const g of gaps) {
+      expect(g).toBeGreaterThan(2.2);
+      expect(g).toBeLessThan(2.8);
+    }
+    const spread = Math.max(...gaps) - Math.min(...gaps);
+    expect(spread).toBeLessThan(0.3);
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
