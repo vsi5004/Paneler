@@ -21,10 +21,11 @@ interface LaserSettingsPanelProps {
   /**
    * Whether the loaded design has simple polygon panels (≤6 corners).
    * Wavy imported shapes (trionda pinwheels, baseball) carry their
-   * curvature in the boundary data itself — an edge-bulge slider is
-   * meaningless there, so it's hidden.
+   * curvature in the boundary data itself, and their holes are laid
+   * corner-anchored/evenly — so both the edge-bulge and corner-margin
+   * sliders are meaningless there and hidden.
    */
-  showCurvature: boolean;
+  hasPolygonPanels: boolean;
 }
 
 /**
@@ -35,7 +36,7 @@ interface LaserSettingsPanelProps {
 export function LaserSettingsPanel({
   values,
   onChange,
-  showCurvature,
+  hasPolygonPanels,
 }: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
     Array.isArray(v) ? v[0] : (v as number);
@@ -101,6 +102,7 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ holeSpacingMm: first(v) })}
           />
         </div>
+        {hasPolygonPanels && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
@@ -118,7 +120,8 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ cornerMarginMm: first(v) })}
           />
         </div>
-        {showCurvature && (
+        )}
+        {hasPolygonPanels && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">

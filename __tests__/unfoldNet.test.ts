@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { unfoldNet } from "@/lib/flatten/unfoldNet";
+import { flattenPanelUnscaled, unfoldNet } from "@/lib/flatten/unfoldNet";
 import { PRESETS } from "@/lib/topology/presets";
 import { baseball } from "@/lib/topology/baseball";
 import { goldberg11 } from "@/lib/topology/goldberg";
@@ -127,6 +127,46 @@ describe("unfoldNet", () => {
   it("returns empty layout for empty topology", () => {
     const layout = unfoldNet({ vertices: [], panels: [], edges: [] });
     expect(layout.size).toBe(0);
+  });
+
+  it("flattened panels carry exactly the 720deg Descartes deficit", () => {
+    // For any correct closed unwrap, the flat corner angles meeting at
+    // each assembled vertex must fall short of 360deg by a total of
+    // exactly 720deg across the ball (Descartes / Gauss-Bonnet). This
+    // pins the flatten end-to-end: orientation, corner ordering, and
+    // vertex identification all have to be right to land on 720.
+    for (const preset of PRESETS) {
+      const topo = preset.topology(2);
+      const angleAt = new Map<number, number>();
+      for (const panel of topo.panels) {
+        const flat = flattenPanelUnscaled(panel, topo);
+        const c = flat.corners;
+        const n = c.length;
+        let area = 0;
+        for (let i = 0; i < n; i++) {
+          const a = c[i];
+          const b = c[(i + 1) % n];
+          area += a.x * b.y - b.x * a.y;
+        }
+        const ccw = area > 0;
+        for (let i = 0; i < n; i++) {
+          const prev = c[(i - 1 + n) % n];
+          const cur = c[i];
+          const next = c[(i + 1) % n];
+          const inDir = Math.atan2(cur.y - prev.y, cur.x - prev.x);
+          const outDir = Math.atan2(next.y - cur.y, next.x - cur.x);
+          let turn = outDir - inDir;
+          while (turn > Math.PI) turn -= 2 * Math.PI;
+          while (turn < -Math.PI) turn += 2 * Math.PI;
+          const interior = 180 - ((ccw ? turn : -turn) * 180) / Math.PI;
+          const vi = panel.vertexIndices[i];
+          angleAt.set(vi, (angleAt.get(vi) ?? 0) + interior);
+        }
+      }
+      let total = 0;
+      for (const [, sum] of angleAt) total += 360 - sum;
+      expect(Math.abs(total - 720)).toBeLessThan(0.5);
+    }
   });
 
   it("gives full-wrap panels (Baseball) a non-degenerate outline", () => {

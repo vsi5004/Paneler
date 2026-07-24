@@ -484,7 +484,7 @@ export function PanelerDesigner({
                       <LaserSettingsPanel
                         values={laserSettings}
                         onChange={setLaserSettings}
-                        showCurvature={topology.panels.some(
+                        hasPolygonPanels={topology.panels.some(
                           (p) => p.vertexIndices.length <= 6,
                         )}
                       />

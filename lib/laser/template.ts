@@ -464,9 +464,12 @@ function placeStitchHoles(
       let placed = false;
       for (const b of buckets) {
         const mean = b.lens.reduce((a, v) => a + v, 0) / b.lens.length;
+        // 2.5%: trionda's flat-space run noise reaches ~1.7% (larger than
+        // its 3D noise), while genuinely different runs (GP hexagons'
+        // alternating edges) differ by ~10%+.
         if (
           b.key === r.neighborCls &&
-          Math.abs(r.patternLen - mean) / mean <= 0.015
+          Math.abs(r.patternLen - mean) / mean <= 0.025
         ) {
           b.lens.push(r.patternLen);
           b.members.push(i);
