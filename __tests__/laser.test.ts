@@ -357,9 +357,10 @@ describe("stitch holes", () => {
   it("trionda: every seam's two developments mate within 0.5mm", () => {
     // The physical bug: laser-cut panels did not line up, because the
     // Lambert flatten developed the same 3D seam differently in each
-    // neighbouring panel (up to 32mm apart). With the seam-true
-    // development, both sides of every seam must agree as planar curves
-    // (same-side-up convention) after rigid endpoint alignment.
+    // neighbouring panel (up to 32mm apart). With the seam-true runs,
+    // both sides of every seam must be CONGRUENT planar curves (plain,
+    // traversed oppositely — the classic pattern-making rule for
+    // adjoining seam lines) after rigid endpoint alignment.
     const topo = topoOf("trionda");
     const scale = mmPerUnit(SETTINGS.diameterIn);
     const neighborOf = new Map<string, string[]>();
@@ -418,7 +419,6 @@ describe("stitch holes", () => {
         const cA = curveOf(A, runA);
         let cB = curveOf(B, runOf(B, A.id));
         if (cA[0].vi !== cB[0].vi) cB = [...cB].reverse();
-        // Rigid endpoint alignment.
         const a0 = cB[0];
         const a1 = cB[cB.length - 1];
         const p0 = cA[0];
@@ -474,11 +474,13 @@ describe("stitch holes", () => {
       .slice(1)
       .map((h, i) => Math.hypot(h.x - run[i].x, h.y - run[i].y));
     for (const g of gaps) {
-      expect(g).toBeGreaterThan(2.2);
-      expect(g).toBeLessThan(2.8);
+      expect(g).toBeGreaterThan(2.1);
+      expect(g).toBeLessThan(2.9);
     }
+    // Chord-distance spread: arc spacing is uniform, but chord gaps vary
+    // with local curvature of the (symmetrized) outline.
     const spread = Math.max(...gaps) - Math.min(...gaps);
-    expect(spread).toBeLessThan(0.3);
+    expect(spread).toBeLessThan(0.5);
   });
 
   it("is reversal-symmetric per run (mating panels line up)", () => {

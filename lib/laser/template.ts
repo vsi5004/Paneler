@@ -1,6 +1,8 @@
 import type { PanelTopology } from "@/lib/types";
-import { flattenPanelUnscaled } from "@/lib/flatten/unfoldNet";
-import { developWavyPanel } from "./develop";
+import {
+  flattenPanelUnscaled,
+  symmetrizeWavyPanel,
+} from "@/lib/flatten/unfoldNet";
 import { groupPanelsByCongruence } from "./congruence";
 import {
   buildCurvedPanelPath,
@@ -74,22 +76,20 @@ export function buildLaserTemplate(
 /**
  * The unscaled flat outline the laser templates are built from.
  *
- * Wavy panels with junction corners (trionda) use the seam-true
- * development (develop.ts): the Lambert flatten distorts a shared seam
- * differently in each panel's template, and laser-cut pieces did not
- * line up (2-3cm seam mismatch; now <0.4mm). Polygon panels keep the
- * Lambert flatten (small spans, negligible distortion, preserves the
- * sagitta curvature model), as does the baseball (no junction corners
- * to carry the spherical excess — two-panel balls are patterned this
- * way physically).
+ * Wavy panels with junction corners (trionda) use the seam-symmetrized
+ * flatten: each seam is replaced by the average of its two panels'
+ * Lambert developments, so both templates carry congruent seam curves
+ * and laser-cut pieces mate (previously up to 32mm apart) while the
+ * overall shape stays Lambert-true. Polygon panels and the baseball
+ * (no junction corners) keep the plain Lambert flatten.
  */
 export function laserPanelOutline(
   topo: PanelTopology,
   panel: PanelClass["representative"],
 ): PanelFlat {
   if (panel.vertexIndices.length > 6) {
-    const developed = developWavyPanel(panel, topo);
-    if (developed) return developed;
+    const symmetrized = symmetrizeWavyPanel(panel, topo);
+    if (symmetrized) return symmetrized;
   }
   return flattenPanelUnscaled(panel, topo);
 }
