@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
 import type { Panel, PanelTopology } from "@/lib/types";
+import { arapFlattenBoundary } from "./arap";
 import { chooseRoot } from "./chooseRoot";
 import type { FlatLayout, PanelFlat, Vec2 } from "./types";
 
@@ -382,30 +383,24 @@ function estimateAvgCircumradius(topo: PanelTopology): number {
 }
 
 /**
- * Seam-true flatten for wavy panels with junction corners (trionda).
+ * Cut-ready flatten for wavy panels with junction corners (trionda):
+ * the ARAP flatten (lib/flatten/arap.ts), which spreads the sphere's
+ * flattening strain evenly, so corners land within ~1 degree of their
+ * spherical angles and every mating pair of seams develops to the same
+ * arc length (~0.2mm) — equal-length seams with matched hole counts is
+ * what sewing needs.
  *
- * The Lambert equal-area flatten develops a shared seam differently in
- * each neighbouring panel's frame (up to 32mm apart on the trionda's
- * 96°-radius panels) — laser-cut pieces did not line up. Averaging the
- * two developments destroys the arm shapes (they disagree by more than
- * the feature size), and a global intrinsic walk shears the outline.
- *
- * This construction gets shape AND mating right:
- *  1. Each seam run is developed INTRINSICALLY (true great-arc segment
- *     lengths + spherical turning at each interior vertex) — an open
- *     curve, no closure problem. This is the seam's true planar shape,
- *     identical for both panels by construction.
- *  2. The panel's junction corners are placed as the triangle whose
- *     sides are the runs' intrinsic chord lengths, Procrustes-fitted
- *     onto the Lambert corner layout (3-corner panels; more corners
- *     fall back to Lambert positions).
- *  3. Each intrinsic run is rigidly placed between its corners (chords
- *     match the corner triangle exactly), choosing the bulge side that
- *     matches the Lambert development.
- *
- * Congruent panels share corner triangles and run curves exactly, so
- * every seam's two templates mate; the sphere's angular deficit lands
- * implicitly at the corners, where it belongs.
+ * What this deliberately does NOT deliver is flat-nesting seams
+ * (cut pieces laid edge-to-edge on the table). By Gauss-Bonnet, a
+ * trionda panel's flat boundary must turn through 360 degrees, and its
+ * seam curves carry 180 degrees less turning than the sphere provides —
+ * so exactly-congruent seam curves (whose turning is fixed by being
+ * shared) force the corners to absorb the whole deficit: interior
+ * angles averaging 60 degrees. Earlier seam-true constructions proved
+ * this empirically (needle corners, rejected). Wide corners and
+ * flat-nesting seams are mathematically exclusive; like a baseball's
+ * two identical panels — whose edges don't nest flat either — the
+ * pieces mate in the seam, not on the table.
  *
  * Returns null for panels without junction corners (the baseball) —
  * callers fall back to the plain flatten.
@@ -414,179 +409,33 @@ export function symmetrizeWavyPanel(
   panel: Panel,
   topo: PanelTopology,
 ): PanelFlat | null {
-  const loop = panel.vertexIndices;
-  const n = loop.length;
-  const sphereRadius = topo.vertices[loop[0]].length() || 1;
-
   const useCount = new Map<number, number>();
   for (const p of topo.panels) {
     for (const vi of p.vertexIndices) {
       useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
     }
   }
-  if (!loop.some((vi) => (useCount.get(vi) ?? 0) >= 3)) return null;
-
-  // Runs split at junction corners (where ≥3 panels meet).
-  let start = -1;
-  for (let i = 0; i < n; i++) {
-    if ((useCount.get(loop[i]) ?? 0) >= 3) {
-      start = i;
-      break;
-    }
+  if (!panel.vertexIndices.some((vi) => (useCount.get(vi) ?? 0) >= 3)) {
+    return null;
   }
-  if (start < 0) return null;
-  const runs: number[][] = [];
-  let current: number[] = [start];
-  for (let k = 1; k <= n; k++) {
-    const i = (start + k) % n;
-    if ((useCount.get(loop[i]) ?? 0) >= 3) {
-      current.push(i);
-      runs.push(current);
-      current = [i];
-    } else {
-      current.push(i);
-    }
-  }
-  if (runs.length < 2) return null;
 
-  const base = flattenPanelUnscaled(panel, topo);
-  const units = loop.map((vi) => topo.vertices[vi].clone().normalize());
-
-  // Intrinsic development of one run (open curve, sphere units).
-  const developRun = (idxs: number[]): Vec2[] => {
-    const pts: Vec2[] = [{ x: 0, y: 0 }];
-    let heading = 0;
-    for (let k = 0; k < idxs.length - 1; k++) {
-      const a = units[idxs[k]];
-      const b = units[idxs[k + 1]];
-      if (k > 0) {
-        const prev = units[idxs[k - 1]];
-        const cur = a;
-        const tangentToward = (from: Vector3, to: Vector3) =>
-          to
-            .clone()
-            .sub(from.clone().multiplyScalar(to.dot(from)))
-            .normalize();
-        const inDir = tangentToward(cur, prev).multiplyScalar(-1);
-        const outDir = tangentToward(cur, b);
-        const cross = new Vector3().crossVectors(inDir, outDir);
-        heading += Math.atan2(cross.dot(cur), inDir.dot(outDir));
-      }
-      const len = a.angleTo(b) * sphereRadius;
-      const p = pts[pts.length - 1];
-      pts.push({
-        x: p.x + len * Math.cos(heading),
-        y: p.y + len * Math.sin(heading),
-      });
-    }
-    return pts;
+  const boundary = arapCached(panel, topo);
+  if (!boundary) return null;
+  return {
+    corners: boundary.map((c) => ({ ...c })),
+    sagittaRatios: new Array(panel.vertexIndices.length).fill(0),
   };
+}
 
-  // Corner layout: intrinsic chord lengths per run; for 3 corners build
-  // the exact triangle and rigid-fit it onto the Lambert corners.
-  const developed = runs.map((idxs) => developRun(idxs));
-  const chords = developed.map((pts) => {
-    const a = pts[0];
-    const b = pts[pts.length - 1];
-    return Math.hypot(b.x - a.x, b.y - a.y);
-  });
-  const cornerLoopIdx = runs.map((r) => r[0]);
-  const lambertCorners = cornerLoopIdx.map((i) => base.corners[i]);
-
-  let placedCorners: Vec2[];
-  if (runs.length === 3) {
-    // Triangle with sides chords[0] (c0→c1), chords[1] (c1→c2), chords[2] (c2→c0).
-    const [a, b, c] = chords;
-    const x = (a * a + c * c - b * b) / (2 * a);
-    const y = Math.sqrt(Math.max(0, c * c - x * x));
-    const tri: Vec2[] = [
-      { x: 0, y: 0 },
-      { x: a, y: 0 },
-      { x, y },
-    ];
-    // Two mirror placements; Procrustes-fit both onto the Lambert
-    // corners and keep the better one (keeps panel handedness).
-    const fit = (cand: Vec2[]) => {
-      const cw = { x: 0, y: 0 };
-      const lw = { x: 0, y: 0 };
-      for (let i = 0; i < 3; i++) {
-        cw.x += cand[i].x / 3;
-        cw.y += cand[i].y / 3;
-        lw.x += lambertCorners[i].x / 3;
-        lw.y += lambertCorners[i].y / 3;
-      }
-      let sxx = 0,
-        sxy = 0,
-        syx = 0,
-        syy = 0;
-      for (let i = 0; i < 3; i++) {
-        const ax = cand[i].x - cw.x;
-        const ay = cand[i].y - cw.y;
-        const bx = lambertCorners[i].x - lw.x;
-        const by = lambertCorners[i].y - lw.y;
-        sxx += ax * bx;
-        sxy += ax * by;
-        syx += ay * bx;
-        syy += ay * by;
-      }
-      const ang = Math.atan2(sxy - syx, sxx + syy);
-      const cos = Math.cos(ang);
-      const sin = Math.sin(ang);
-      const out = cand.map((p) => ({
-        x: lw.x + (p.x - cw.x) * cos - (p.y - cw.y) * sin,
-        y: lw.y + (p.x - cw.x) * sin + (p.y - cw.y) * cos,
-      }));
-      let err = 0;
-      for (let i = 0; i < 3; i++) {
-        err += Math.hypot(
-          out[i].x - lambertCorners[i].x,
-          out[i].y - lambertCorners[i].y,
-        );
-      }
-      return { out, err };
-    };
-    const fitA = fit(tri);
-    const fitB = fit(tri.map((p) => ({ x: p.x, y: -p.y })));
-    placedCorners = (fitA.err <= fitB.err ? fitA : fitB).out;
-  } else {
-    placedCorners = lambertCorners;
+const arapBoundaryCache = new WeakMap<PanelTopology, Map<string, Vec2[] | null>>();
+function arapCached(panel: Panel, topo: PanelTopology): Vec2[] | null {
+  let perTopo = arapBoundaryCache.get(topo);
+  if (!perTopo) {
+    perTopo = new Map();
+    arapBoundaryCache.set(topo, perTopo);
   }
-
-  // Place each intrinsic run between its corners; pick the bulge side
-  // that matches the Lambert development of the same run.
-  const newCorners: Vec2[] = base.corners.map((c) => ({ ...c }));
-  for (let r = 0; r < runs.length; r++) {
-    const idxs = runs[r];
-    const dev = developed[r];
-    const c0 = placedCorners[r];
-    const c1 = placedCorners[(r + 1) % runs.length];
-    const place = (pts: Vec2[]): Vec2[] => {
-      const a0 = pts[0];
-      const a1 = pts[pts.length - 1];
-      const ang =
-        Math.atan2(c1.y - c0.y, c1.x - c0.x) -
-        Math.atan2(a1.y - a0.y, a1.x - a0.x);
-      // Chord lengths match by construction for 3-corner panels; for
-      // the fallback, scale uniformly to bridge the tiny difference.
-      const s =
-        Math.hypot(c1.x - c0.x, c1.y - c0.y) /
-        (Math.hypot(a1.x - a0.x, a1.y - a0.y) || 1);
-      const cos = Math.cos(ang) * s;
-      const sin = Math.sin(ang) * s;
-      return pts.map((p) => ({
-        x: c0.x + (p.x - a0.x) * cos - (p.y - a0.y) * sin,
-        y: c0.y + (p.x - a0.x) * sin + (p.y - a0.y) * cos,
-      }));
-    };
-    // The development’s signed turnings already encode the bulge sides —
-    // no per-run choice (choosing per panel broke cross-panel
-    // consistency). One deterministic y-flip converts the math-space
-    // curve into the base’s SVG-flipped convention.
-    const chosen = place(dev.map((p) => ({ x: p.x, y: -p.y })));
-    for (let k = 0; k < idxs.length - 1; k++) {
-      newCorners[idxs[k]] = chosen[k];
-    }
+  if (!perTopo.has(panel.id)) {
+    perTopo.set(panel.id, arapFlattenBoundary(panel, topo));
   }
-
-  return { corners: newCorners, sagittaRatios: base.sagittaRatios.map(() => 0) };
+  return perTopo.get(panel.id) ?? null;
 }

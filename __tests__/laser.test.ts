@@ -354,13 +354,17 @@ describe("stitch holes", () => {
     expect(t.holes.length).toBeGreaterThan(12);
   });
 
-  it("trionda: every seam's two developments mate within 0.5mm", () => {
+  it("trionda: mating seams develop to equal arc length, corners spherical", () => {
     // The physical bug: laser-cut panels did not line up, because the
-    // Lambert flatten developed the same 3D seam differently in each
-    // neighbouring panel (up to 32mm apart). With the seam-true runs,
-    // both sides of every seam must be CONGRUENT planar curves (plain,
-    // traversed oppositely — the classic pattern-making rule for
-    // adjoining seam lines) after rigid endpoint alignment.
+    // Lambert flatten developed the same 3D seam to DIFFERENT lengths in
+    // each neighbouring panel (tens of mm apart) — so hole counts and
+    // positions could never match. What sewing needs is equal seam arc
+    // length with matched hole counts; the developed CURVES need not nest
+    // flat (each panel's flattening strain bows the seam toward its own
+    // interior — exactly-congruent flat seams would force 60-degree
+    // corners by Gauss-Bonnet; see symmetrizeWavyPanel). So we pin:
+    //  1. both developments of every seam have equal arc length (<0.5mm)
+    //  2. flat corner angles match the spherical corner angles (<3 deg)
     const topo = topoOf("trionda");
     const scale = mmPerUnit(SETTINGS.diameterIn);
     const neighborOf = new Map<string, string[]>();
@@ -391,23 +395,19 @@ describe("stitch holes", () => {
       }
       return idxs;
     };
-    const curveOf = (
+    const runLength = (
       panel: (typeof topo.panels)[number],
       edgeIdxs: number[],
     ) => {
       const flat = laserPanelOutline(topo, panel);
       const loop = panel.vertexIndices;
-      return [...edgeIdxs, -1].map((e, k) => {
-        const i =
-          k < edgeIdxs.length
-            ? edgeIdxs[k]
-            : (edgeIdxs[edgeIdxs.length - 1] + 1) % loop.length;
-        return {
-          x: flat.corners[i].x * scale,
-          y: flat.corners[i].y * scale,
-          vi: loop[i],
-        };
-      });
+      let len = 0;
+      for (const e of edgeIdxs) {
+        const a = flat.corners[e];
+        const b = flat.corners[(e + 1) % loop.length];
+        len += Math.hypot(b.x - a.x, b.y - a.y) * scale;
+      }
+      return len;
     };
     let checked = 0;
     for (const A of topo.panels) {
@@ -416,28 +416,60 @@ describe("stitch holes", () => {
         const runA = runOf(A, B.id);
         if (!runA.length) continue;
         checked++;
-        const cA = curveOf(A, runA);
-        let cB = curveOf(B, runOf(B, A.id));
-        if (cA[0].vi !== cB[0].vi) cB = [...cB].reverse();
-        const a0 = cB[0];
-        const a1 = cB[cB.length - 1];
-        const p0 = cA[0];
-        const p1 = cA[cA.length - 1];
-        const ang =
-          Math.atan2(p1.y - p0.y, p1.x - p0.x) -
-          Math.atan2(a1.y - a0.y, a1.x - a0.x);
-        const cos = Math.cos(ang);
-        const sin = Math.sin(ang);
-        for (let i = 0; i < cA.length; i++) {
-          const dx = cB[i].x - a0.x;
-          const dy = cB[i].y - a0.y;
-          const x = p0.x + dx * cos - dy * sin;
-          const y = p0.y + dx * sin + dy * cos;
-          expect(Math.hypot(cA[i].x - x, cA[i].y - y)).toBeLessThan(0.5);
-        }
+        const lenA = runLength(A, runA);
+        const lenB = runLength(B, runOf(B, A.id));
+        expect(Math.abs(lenA - lenB)).toBeLessThan(0.5);
       }
     }
     expect(checked).toBe(6);
+
+    // Corner angles: flat within 3 degrees of the spherical angle.
+    const useCount = new Map<number, number>();
+    for (const p of topo.panels) {
+      for (const vi of p.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    const angleBetween = (
+      p: { x: number; y: number },
+      a: { x: number; y: number },
+      b: { x: number; y: number },
+    ) => {
+      const d = (a.x - p.x) * (b.x - p.x) + (a.y - p.y) * (b.y - p.y);
+      const c = (a.x - p.x) * (b.y - p.y) - (a.y - p.y) * (b.x - p.x);
+      return (Math.atan2(Math.abs(c), d) * 180) / Math.PI;
+    };
+    let corners = 0;
+    for (const panel of topo.panels) {
+      const flat = laserPanelOutline(topo, panel);
+      const loop = panel.vertexIndices;
+      const n = loop.length;
+      for (let i = 0; i < n; i++) {
+        if ((useCount.get(loop[i]) ?? 0) < 3) continue;
+        corners++;
+        const flatAngle = angleBetween(
+          flat.corners[i],
+          flat.corners[(i - 1 + n) % n],
+          flat.corners[(i + 1) % n],
+        );
+        const v = topo.vertices[loop[i]].clone().normalize();
+        const ta = topo.vertices[loop[(i - 1 + n) % n]]
+          .clone()
+          .normalize()
+          .addScaledVector(v, -topo.vertices[loop[(i - 1 + n) % n]].clone().normalize().dot(v))
+          .normalize();
+        const tb = topo.vertices[loop[(i + 1) % n]]
+          .clone()
+          .normalize()
+          .addScaledVector(v, -topo.vertices[loop[(i + 1) % n]].clone().normalize().dot(v))
+          .normalize();
+        const sphereAngle =
+          (Math.acos(Math.min(1, Math.max(-1, ta.dot(tb)))) * 180) / Math.PI;
+        expect(sphereAngle).toBeGreaterThan(90); // sanity: wide on sphere
+        expect(Math.abs(flatAngle - sphereAngle)).toBeLessThan(3);
+      }
+    }
+    expect(corners).toBe(12);
   });
 
   it("trionda: exact corner holes, even spacing, no bunching", () => {
