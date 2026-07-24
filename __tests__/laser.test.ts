@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { presetById, resolvePresetParams } from "@/lib/topology/presets";
 import type { PanelTopology } from "@/lib/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
-import { buildLaserTemplate } from "@/lib/laser/template";
+import { buildLaserTemplate, laserPanelOutline } from "@/lib/laser/template";
 import { templateFilename, templateToSvg } from "@/lib/laser/svg";
 import {
   DEFAULT_BITE_DEPTH_MM,
@@ -54,7 +54,7 @@ function seamPolyline(presetId: string, params?: Record<string, number>): { poly
   const topo = topoOf(presetId, params);
   const cls = groupPanelsByCongruence(topo)[0];
   const scale = mmPerUnit(SETTINGS.diameterIn);
-  const flat = flattenPanelUnscaled(cls.representative, topo);
+  const flat = laserPanelOutline(topo, cls.representative);
   const flatMm = {
     corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
     sagittaRatios: flat.sagittaRatios,
@@ -354,6 +354,92 @@ describe("stitch holes", () => {
     expect(t.holes.length).toBeGreaterThan(12);
   });
 
+  it("trionda: every seam's two developments mate within 0.5mm", () => {
+    // The physical bug: laser-cut panels did not line up, because the
+    // Lambert flatten developed the same 3D seam differently in each
+    // neighbouring panel (up to 32mm apart). With the seam-true
+    // development, both sides of every seam must agree as planar curves
+    // (same-side-up convention) after rigid endpoint alignment.
+    const topo = topoOf("trionda");
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const neighborOf = new Map<string, string[]>();
+    for (const e of topo.edges) {
+      const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+      neighborOf.set(key, [e.panelA, e.panelB ?? ""]);
+    }
+    const runOf = (panel: (typeof topo.panels)[number], otherId: string) => {
+      const loop = panel.vertexIndices;
+      const n = loop.length;
+      const isShared = (i: number) => {
+        const a = loop[i];
+        const b = loop[(i + 1) % n];
+        return (
+          neighborOf.get(`${Math.min(a, b)}-${Math.max(a, b)}`) ?? []
+        ).includes(otherId);
+      };
+      let start = -1;
+      for (let i = 0; i < n; i++) {
+        if (isShared(i) && !isShared((i - 1 + n) % n)) {
+          start = i;
+          break;
+        }
+      }
+      const idxs: number[] = [];
+      for (let k = 0; k < n && isShared((start + k) % n); k++) {
+        idxs.push((start + k) % n);
+      }
+      return idxs;
+    };
+    const curveOf = (
+      panel: (typeof topo.panels)[number],
+      edgeIdxs: number[],
+    ) => {
+      const flat = laserPanelOutline(topo, panel);
+      const loop = panel.vertexIndices;
+      return [...edgeIdxs, -1].map((e, k) => {
+        const i =
+          k < edgeIdxs.length
+            ? edgeIdxs[k]
+            : (edgeIdxs[edgeIdxs.length - 1] + 1) % loop.length;
+        return {
+          x: flat.corners[i].x * scale,
+          y: flat.corners[i].y * scale,
+          vi: loop[i],
+        };
+      });
+    };
+    let checked = 0;
+    for (const A of topo.panels) {
+      for (const B of topo.panels) {
+        if (A.id >= B.id) continue;
+        const runA = runOf(A, B.id);
+        if (!runA.length) continue;
+        checked++;
+        const cA = curveOf(A, runA);
+        let cB = curveOf(B, runOf(B, A.id));
+        if (cA[0].vi !== cB[0].vi) cB = [...cB].reverse();
+        // Rigid endpoint alignment.
+        const a0 = cB[0];
+        const a1 = cB[cB.length - 1];
+        const p0 = cA[0];
+        const p1 = cA[cA.length - 1];
+        const ang =
+          Math.atan2(p1.y - p0.y, p1.x - p0.x) -
+          Math.atan2(a1.y - a0.y, a1.x - a0.x);
+        const cos = Math.cos(ang);
+        const sin = Math.sin(ang);
+        for (let i = 0; i < cA.length; i++) {
+          const dx = cB[i].x - a0.x;
+          const dy = cB[i].y - a0.y;
+          const x = p0.x + dx * cos - dy * sin;
+          const y = p0.y + dx * sin + dy * cos;
+          expect(Math.hypot(cA[i].x - x, cA[i].y - y)).toBeLessThan(0.5);
+        }
+      }
+    }
+    expect(checked).toBe(6);
+  });
+
   it("trionda: exact corner holes, even spacing, no bunching", () => {
     const topo = topoOf("trionda");
     const cls = groupPanelsByCongruence(topo)[0];
@@ -366,7 +452,7 @@ describe("stitch holes", () => {
       }
     }
     const scale = mmPerUnit(SETTINGS.diameterIn);
-    const flat = flattenPanelUnscaled(cls.representative, topo);
+    const flat = laserPanelOutline(topo, cls.representative);
     let junctions = 0;
     cls.representative.vertexIndices.forEach((vi, i) => {
       if ((useCount.get(vi) ?? 0) < 3) return;

@@ -1,5 +1,6 @@
 import type { PanelTopology } from "@/lib/types";
 import { flattenPanelUnscaled } from "@/lib/flatten/unfoldNet";
+import { developWavyPanel } from "./develop";
 import { groupPanelsByCongruence } from "./congruence";
 import {
   buildCurvedPanelPath,
@@ -27,7 +28,7 @@ export function buildLaserTemplate(
   settings: LaserSettings,
 ): LaserTemplate {
   const scale = mmPerUnit(settings.diameterIn);
-  const unscaled = flattenPanelUnscaled(cls.representative, topo);
+  const unscaled = laserPanelOutline(topo, cls.representative);
   // Curvature scales each edge's bulge: 100% = the true spherical
   // sagitta, 0% = straight polygon edges. Everything downstream (seam
   // path, sampled outline, cut offset, stitch holes) derives from these
@@ -68,6 +69,29 @@ export function buildLaserTemplate(
       height: maxY - minY + 2 * MARGIN_MM,
     },
   };
+}
+
+/**
+ * The unscaled flat outline the laser templates are built from.
+ *
+ * Wavy panels with junction corners (trionda) use the seam-true
+ * development (develop.ts): the Lambert flatten distorts a shared seam
+ * differently in each panel's template, and laser-cut pieces did not
+ * line up (2-3cm seam mismatch; now <0.4mm). Polygon panels keep the
+ * Lambert flatten (small spans, negligible distortion, preserves the
+ * sagitta curvature model), as does the baseball (no junction corners
+ * to carry the spherical excess — two-panel balls are patterned this
+ * way physically).
+ */
+export function laserPanelOutline(
+  topo: PanelTopology,
+  panel: PanelClass["representative"],
+): PanelFlat {
+  if (panel.vertexIndices.length > 6) {
+    const developed = developWavyPanel(panel, topo);
+    if (developed) return developed;
+  }
+  return flattenPanelUnscaled(panel, topo);
 }
 
 /**
