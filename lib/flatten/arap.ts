@@ -19,13 +19,21 @@ import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
  * nest flat (each panel's strain bows the seam toward its own interior);
  * that is unavoidable for wide corners — see symmetrizeWavyPanel.
  *
- * Returns the flattened positions of the panel's boundary loop (same
- * order as `panel.vertexIndices`), y-flipped for SVG, in sphere units.
+ * arapFlattenMesh returns the full flattened mesh — positions for every
+ * subdivided vertex (interior included), the panel's triangles in local
+ * indices, and the 3D source positions — enough to measure the re-wrap
+ * strain of the flat pattern against the sphere. Y-flipped for SVG,
+ * sphere units.
  */
-export function arapFlattenBoundary(
+export function arapFlattenMesh(
   panel: Panel,
   topo: PanelTopology,
-): Vec2[] | null {
+): {
+  flat: Vec2[];
+  positions3D: Vector3[];
+  triangles: [number, number, number][];
+  boundaryMeshIndex: Map<number, number>;
+} | null {
   const mesh = meshForPanel(panel, topo);
   if (!mesh) return null;
   const { positions3D, triangles, boundaryMeshIndex } = mesh;
@@ -214,10 +222,24 @@ export function arapFlattenBoundary(
     py = cg(by, py);
   }
 
-  // --- Extract boundary loop, y-flipped for SVG ---
+  const flat: Vec2[] = [];
+  for (let i = 0; i < nV; i++) flat.push({ x: px[i], y: -py[i] });
+  return { flat, positions3D, triangles, boundaryMeshIndex };
+}
+
+/**
+ * The flattened positions of the panel's boundary loop (same order as
+ * `panel.vertexIndices`), y-flipped for SVG, in sphere units.
+ */
+export function arapFlattenBoundary(
+  panel: Panel,
+  topo: PanelTopology,
+): Vec2[] | null {
+  const mesh = arapFlattenMesh(panel, topo);
+  if (!mesh) return null;
   return panel.vertexIndices.map((vi) => {
-    const m = boundaryMeshIndex.get(vi)!;
-    return { x: px[m], y: -py[m] };
+    const m = mesh.boundaryMeshIndex.get(vi)!;
+    return { ...mesh.flat[m] };
   });
 }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { Vector3 } from "three";
 import { flattenPanelUnscaled, unfoldNet } from "@/lib/flatten/unfoldNet";
+import { arapFlattenMesh } from "@/lib/flatten/arap";
 import { PRESETS } from "@/lib/topology/presets";
 import { baseball } from "@/lib/topology/baseball";
 import { goldberg11 } from "@/lib/topology/goldberg";
@@ -166,6 +168,63 @@ describe("unfoldNet", () => {
       let total = 0;
       for (const [, sum] of angleAt) total += 360 - sum;
       expect(Math.abs(total - 720)).toBeLessThan(0.5);
+    }
+  });
+
+  it("re-wrap: flat trionda panels lie back on the sphere with small smooth strain", () => {
+    // The direct check that the unwrap is correct: every flat point has a
+    // known 3D mate, so per-triangle principal stretches of the map
+    // FLAT -> SPHERE measure exactly how much the cut fabric must stretch
+    // to wrap back into the ball. A correct low-distortion unwrap means
+    // no fold-overs, a few percent stretch at worst, ~1-2% typical (the
+    // sewing ease). The rejected Lambert flatten measures 19% RMS / 58%
+    // max on the same meshes — the physical "panels don't line up".
+    const preset = PRESETS.find((p) => p.id === "trionda")!;
+    const topo = preset.topology(2);
+    for (const panel of topo.panels) {
+      const mesh = arapFlattenMesh(panel, topo)!;
+      expect(mesh).not.toBeNull();
+      const { flat, positions3D, triangles } = mesh;
+      const strains: number[] = [];
+      let pos = 0;
+      let neg = 0;
+      for (const [a, b, c] of triangles) {
+        const e1f = { x: flat[b].x - flat[a].x, y: flat[b].y - flat[a].y };
+        const e2f = { x: flat[c].x - flat[a].x, y: flat[c].y - flat[a].y };
+        const AB = positions3D[b].clone().sub(positions3D[a]);
+        const AC = positions3D[c].clone().sub(positions3D[a]);
+        const X = AB.clone().normalize();
+        const Zv = new Vector3().crossVectors(AB, AC);
+        const Y = new Vector3().crossVectors(Zv, AB).normalize();
+        const e1t = { x: AB.length(), y: 0 };
+        const e2t = { x: AC.dot(X), y: AC.dot(Y) };
+        const det = e1f.x * e2f.y - e1f.y * e2f.x;
+        expect(det).not.toBe(0);
+        const inv = [e2f.y / det, -e2f.x / det, -e1f.y / det, e1f.x / det];
+        const F = [
+          e1t.x * inv[0] + e2t.x * inv[2],
+          e1t.x * inv[1] + e2t.x * inv[3],
+          e1t.y * inv[0] + e2t.y * inv[2],
+          e1t.y * inv[1] + e2t.y * inv[3],
+        ];
+        const detF = F[0] * F[3] - F[1] * F[2];
+        if (detF > 0) pos++;
+        else neg++;
+        const E = (F[0] ** 2 + F[1] ** 2 + F[2] ** 2 + F[3] ** 2) / 2;
+        const D = Math.sqrt(Math.max(0, E * E - detF * detF));
+        strains.push(
+          Math.abs(Math.sqrt(E + D) - 1),
+          Math.abs(Math.sqrt(Math.max(0, E - D)) - 1),
+        );
+      }
+      // No local fold-overs: the SVG y-flip mirrors every triangle the
+      // same way, so orientation must be uniform across the panel.
+      expect(Math.min(pos, neg)).toBe(0);
+      const rms = Math.sqrt(
+        strains.reduce((s, x) => s + x * x, 0) / strains.length,
+      );
+      expect(rms).toBeLessThan(0.03);
+      expect(Math.max(...strains)).toBeLessThan(0.15);
     }
   });
 
