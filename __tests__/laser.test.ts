@@ -716,13 +716,17 @@ describe("stitch holes", () => {
       }
       return best;
     };
-    // deep middle of each short edge: bite + EXT; long edges: bite only.
-    // (sample a few midpoints away from the 2mm corner ramps)
-    const shortDeep = shortMid.filter((p, i) => i % 7 === 3);
-    expect(shortDeep.length).toBeGreaterThan(2);
-    for (const p of shortDeep) {
-      const d = cutDist(extended, p);
-      expect(d).toBeGreaterThan(SETTINGS.biteDepthMm + EXT - 0.6);
+    // The short edge translates rigidly outward: its tab front reaches
+    // bite + EXT, and no short-edge point ends up closer than bite (the
+    // curved tip's local normal diverges from the translation direction,
+    // so off-center points measure between the two).
+    expect(shortMid.length).toBeGreaterThan(10);
+    const shortDists = shortMid.map((p) => cutDist(extended, p));
+    expect(Math.max(...shortDists)).toBeGreaterThan(
+      SETTINGS.biteDepthMm + EXT - 0.6,
+    );
+    for (const d of shortDists) {
+      expect(d).toBeGreaterThan(SETTINGS.biteDepthMm - 0.15);
       expect(d).toBeLessThan(SETTINGS.biteDepthMm + EXT + 0.6);
     }
     // long-edge checks: stay clear of the deliberate ~2mm corner ramps

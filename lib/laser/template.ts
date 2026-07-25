@@ -338,12 +338,13 @@ interface Span {
 }
 
 /**
- * Push seam samples outward along unstitched short edges so the cut line
- * lands biteDepth + extension from the seam there — extra fabric behind
- * the corner stitch so it can't pull out. The displacement holds the
- * full extension across each span and ramps to zero over ~2mm into the
- * neighbouring stitched runs; the level-set offset then rounds the
- * transitions. Stitch line and holes are untouched.
+ * Extend the fabric past each UNSTITCHED short edge: the span's samples
+ * translate rigidly outward by the extension along the span's mean
+ * normal — the short edge slides straight out, in its own direction
+ * only. Samples outside the span (the stitched long edges) do not move,
+ * so the cut there stays at plain bite depth right up to the corner;
+ * the level-set offset bridges the step with bite-radius-rounded side
+ * walls. Stitch line and holes are untouched.
  */
 function extendShortEdges(
   samples: OutlineSample[],
@@ -351,37 +352,33 @@ function extendShortEdges(
   extensionMm: number,
 ): OutlineSample[] {
   if (extensionMm <= 0 || spans.length === 0) return samples;
-  const RAMP_MM = 2;
   const total = samples[samples.length - 1].s;
-  const weight = (s: number): number => {
-    let w = 0;
-    for (const span of spans) {
-      const end = span.s0 + span.len;
-      let d: number;
-      if (s >= span.s0 && s <= end) {
-        d = 0;
-      } else {
-        const toStart = Math.min(
-          Math.abs(s - span.s0),
-          total - Math.abs(s - span.s0),
-        );
-        const toEnd = Math.min(Math.abs(s - end), total - Math.abs(s - end));
-        d = Math.min(toStart, toEnd);
-      }
-      w = Math.max(w, Math.max(0, 1 - d / RAMP_MM));
+  const inSpan = (s: number, span: Span) =>
+    (s - span.s0 + total) % total <= span.len;
+  const meanNormals = spans.map((span) => {
+    let nx = 0;
+    let ny = 0;
+    for (const sm of samples) {
+      if (!inSpan(sm.s, span)) continue;
+      nx += sm.nOut.x;
+      ny += sm.nOut.y;
     }
-    return w;
-  };
+    const len = Math.hypot(nx, ny) || 1;
+    return { x: nx / len, y: ny / len };
+  });
   return samples.map((sm) => {
-    const w = weight(sm.s);
-    if (w <= 0) return sm;
-    return {
-      ...sm,
-      p: {
-        x: sm.p.x + sm.nOut.x * extensionMm * w,
-        y: sm.p.y + sm.nOut.y * extensionMm * w,
-      },
-    };
+    for (let i = 0; i < spans.length; i++) {
+      if (inSpan(sm.s, spans[i])) {
+        return {
+          ...sm,
+          p: {
+            x: sm.p.x + meanNormals[i].x * extensionMm,
+            y: sm.p.y + meanNormals[i].y * extensionMm,
+          },
+        };
+      }
+    }
+    return sm;
   });
 }
 
