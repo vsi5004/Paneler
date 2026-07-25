@@ -261,7 +261,7 @@ describe("scaleFeaturePanels (Teamgeist oval-size param)", () => {
 
   it("scales the six ovals, t-bones fill the rest", () => {
     const base = panelAreas(topoAt(100));
-    const grown = panelAreas(topoAt(130));
+    const grown = panelAreas(topoAt(125));
     const sorted = [...base].sort((a, b) => a - b);
     const threshold = (sorted[7] + sorted[8]) / 2; // 8 t-bones below, 6 ovals above
     let ovals = 0;
@@ -323,7 +323,7 @@ describe("scaleFeaturePanels (Teamgeist oval-size param)", () => {
       return lens;
     };
     const base = runLensOf(topoAt(100));
-    const grown = runLensOf(topoAt(130));
+    const grown = runLensOf(topoAt(125));
     expect(grown.length).toBe(base.length);
     for (let i = 1; i < base.length; i++) {
       expect(grown[i] / grown[0]).toBeCloseTo(base[i] / base[0], 2);

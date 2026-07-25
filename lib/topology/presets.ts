@@ -282,7 +282,7 @@ export const PRESETS: PresetEntry[] = [
         key: "ovalSize",
         label: "Oval size",
         min: 60,
-        max: 140,
+        max: 125,
         step: 5,
         defaultValue: 100,
         unit: "%",
