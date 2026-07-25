@@ -40,6 +40,7 @@ export interface ParsedGlb {
       showHoles: boolean;
       holeSpacingMm: number;
       cornerMarginMm: number;
+      shortEdgeHoles: boolean;
     };
   };
 }
@@ -164,6 +165,7 @@ function parseDesignExtras(
         showHoles: boolean;
         holeSpacingMm: number;
         cornerMarginMm: number;
+        shortEdgeHoles: boolean;
       }
     | undefined;
   if (typeof laser === "object" && laser !== null) {
@@ -174,6 +176,7 @@ function parseDesignExtras(
       showHoles,
       holeSpacingMm,
       cornerMarginMm,
+      shortEdgeHoles,
     } = laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
@@ -200,6 +203,8 @@ function parseDesignExtras(
           typeof cornerMarginMm === "number" && Number.isFinite(cornerMarginMm)
             ? cornerMarginMm
             : 0,
+        shortEdgeHoles:
+          typeof shortEdgeHoles === "boolean" ? shortEdgeHoles : false,
       };
     }
   }

@@ -29,6 +29,7 @@ const SETTINGS: LaserSettings = {
   showHoles: true,
   holeSpacingMm: HOLE_SPACING_MM,
   cornerMarginMm: 0,
+  shortEdgeHoles: false,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -515,6 +516,115 @@ describe("stitch holes", () => {
     expect(spread).toBeLessThan(0.5);
   });
 
+  it("teamgeist: every run is holed, counts mate across both classes", () => {
+    // Regression: the short-run rule (no holes on runs < 55% of the
+    // longest, meant for the soccer hex's unstitched short edges) was
+    // also killing the Teamgeist bone panel's end runs and the turbine's
+    // short sides — real seams that need stitching. Wavy corner-hole
+    // panels now hole every run. Verify full coverage plus the mating
+    // invariant: a 3D seam gets the same hole count from both classes.
+    const topo = topoOf("teamgeist");
+    const classes = groupPanelsByCongruence(topo);
+    expect(classes.length).toBe(2);
+    const TG_SETTINGS = { ...SETTINGS, shortEdgeHoles: true };
+    const scale = mmPerUnit(TG_SETTINGS.diameterIn);
+    const clsOf = new Map<string, string>();
+    for (const c of classes) for (const id of c.panelIds) clsOf.set(id, c.key);
+
+    // count interior holes per run, keyed by (ownClass, neighborClass,
+    // rounded 3D length) — every equivalent seam must agree.
+    const counts = new Map<string, Set<number>>();
+    for (const cls of classes) {
+      const t = buildLaserTemplate(topo, cls, TG_SETTINGS);
+      const rep = cls.representative;
+      const flat = laserPanelOutline(topo, rep);
+      const loop = rep.vertexIndices;
+      const n = loop.length;
+      const pts = flat.corners.map((c2) => ({ x: c2.x * scale, y: c2.y * scale }));
+      const cum = [0];
+      for (let i = 0; i < n; i++) {
+        cum.push(cum[i] + Math.hypot(pts[(i + 1) % n].x - pts[i].x, pts[(i + 1) % n].y - pts[i].y));
+      }
+      const neighborOf = new Map<string, string | null>();
+      for (const e of topo.edges) {
+        const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+        neighborOf.set(key, e.panelA === rep.id ? e.panelB : e.panelA);
+      }
+      const nb = (i: number) =>
+        neighborOf.get(
+          `${Math.min(loop[i], loop[(i + 1) % n])}-${Math.max(loop[i], loop[(i + 1) % n])}`,
+        ) ?? null;
+      let startIdx = 0;
+      for (let i = 0; i < n; i++) {
+        if (nb(i) !== nb((i - 1 + n) % n)) {
+          startIdx = i;
+          break;
+        }
+      }
+      const runs: number[][] = [];
+      let cur: number[] = [];
+      for (let k = 0; k < n; k++) {
+        const i = (startIdx + k) % n;
+        if (cur.length && nb(i) !== nb(cur[cur.length - 1])) {
+          runs.push(cur);
+          cur = [];
+        }
+        cur.push(i);
+      }
+      if (cur.length) runs.push(cur);
+      const holeS = t.holes.map((h) => {
+        let bestS = 0;
+        let bestD = Infinity;
+        for (let i = 0; i < n; i++) {
+          const a = pts[i];
+          const b = pts[(i + 1) % n];
+          const abx = b.x - a.x;
+          const aby = b.y - a.y;
+          const L2 = abx * abx + aby * aby || 1e-12;
+          const tt = Math.max(0, Math.min(1, ((h.x - a.x) * abx + (h.y - a.y) * aby) / L2));
+          const d = Math.hypot(h.x - (a.x + abx * tt), h.y - (a.y + aby * tt));
+          if (d < bestD) {
+            bestD = d;
+            bestS = cum[i] + Math.sqrt(L2) * tt;
+          }
+        }
+        return bestS;
+      });
+      const R = topo.vertices[loop[0]].length();
+      for (const run of runs) {
+        const runLen = run.reduce(
+          (s, i) => s + (cum[i + 1] ?? cum[n]) - cum[i],
+          0,
+        );
+        const s0 = cum[run[0]];
+        // interior holes: strictly inside the run span (corners excluded);
+        // handle the wrap-around run by measuring arc distance from s0.
+        const total = cum[n];
+        const interior = holeS.filter((s) => {
+          const rel = (s - s0 + total) % total;
+          return rel > 0.15 && rel < runLen - 0.15;
+        }).length;
+        expect(interior).toBeGreaterThanOrEqual(2); // regression: no bare runs
+        let len3d = 0;
+        for (const i of run) {
+          len3d +=
+            topo.vertices[loop[i]].angleTo(topo.vertices[loop[(i + 1) % n]]) *
+            R *
+            scale;
+        }
+        const key = [clsOf.get(rep.id), clsOf.get(nb(run[0])!), len3d.toFixed(0)]
+          .sort()
+          .join("|");
+        if (!counts.has(key)) counts.set(key, new Set());
+        counts.get(key)!.add(interior);
+      }
+    }
+    // Mating: every (class-pair, seam-length) bucket has ONE count.
+    for (const [key, set] of counts) {
+      expect(set.size, `hole count mismatch for seam ${key}`).toBe(1);
+    }
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
@@ -605,6 +715,7 @@ describe("SVG output", () => {
     const margined = buildLaserTemplate(topo, cls, {
       ...SETTINGS,
       cornerMarginMm: 4,
+      shortEdgeHoles: false,
     });
     expect(margined.holes.length).toBeLessThanOrEqual(base.holes.length);
     const scale = mmPerUnit(SETTINGS.diameterIn);

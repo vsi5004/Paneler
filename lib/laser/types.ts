@@ -15,6 +15,13 @@ export interface LaserSettings {
   holeSpacingMm: number;
   /** Empty space between each hole row's ends and the panel corners, mm. */
   cornerMarginMm: number;
+  /**
+   * Hole short seam runs too (runs under 55% of the panel's longest).
+   * Off = the proven 32/14-panel convention (soccer hex short edges are
+   * unstitched); on = every run holed (Teamgeist-style balls whose short
+   * runs are real stitched seams).
+   */
+  shortEdgeHoles: boolean;
 }
 
 /** A group of congruent panels that share one template. */

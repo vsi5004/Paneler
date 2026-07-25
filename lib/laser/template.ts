@@ -527,8 +527,16 @@ function placeStitchHoles(
   for (const resolved of runSpans) {
     if (!resolved) continue;
     // Short-edge rule, judged on the shared 3D length so both panels of
-    // a seam agree.
-    if (resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d) continue;
+    // a seam agree: runs under 55% of the longest are unstitched (the
+    // proven 32/14-panel convention — soccer hex short edges carry no
+    // holes). User-toggleable because it's a convention, not geometry:
+    // the Teamgeist's short runs ARE stitched seams and need holes.
+    if (
+      !settings.shortEdgeHoles &&
+      resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d
+    ) {
+      continue;
+    }
     const { s0, flatSpan, patternLen, extras } = resolved;
     if (cornerHoles) {
       const placeFlat = (sFlat: number) => {

@@ -19,6 +19,7 @@ const LASER = {
   showHoles: false,
   holeSpacingMm: 3.1,
   cornerMarginMm: 1.5,
+  shortEdgeHoles: true,
 };
 
 function bareCubeDoc() {
@@ -89,6 +90,7 @@ describe("laser settings persistence", () => {
       showHoles: true,
       holeSpacingMm: 2.5,
       cornerMarginMm: 0,
+      shortEdgeHoles: false,
     });
   });
 

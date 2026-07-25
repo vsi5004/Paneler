@@ -102,6 +102,34 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ holeSpacingMm: first(v) })}
           />
         </div>
+        <div className="flex items-center justify-between">
+          <label
+            className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
+            htmlFor="short-edge-holes"
+          >
+            Short-edge holes
+          </label>
+          <button
+            id="short-edge-holes"
+            type="button"
+            role="switch"
+            aria-checked={values.shortEdgeHoles}
+            onClick={() => onChange({ shortEdgeHoles: !values.shortEdgeHoles })}
+            className={`relative h-4 w-8 rounded-full border transition-colors ${
+              values.shortEdgeHoles
+                ? "border-primary bg-primary/30"
+                : "border-border bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full transition-all ${
+                values.shortEdgeHoles
+                  ? "left-[calc(100%-0.75rem)] bg-primary"
+                  : "left-1 bg-muted-foreground"
+              }`}
+            />
+          </button>
+        </div>
         {hasPolygonPanels && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">

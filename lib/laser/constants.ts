@@ -88,6 +88,7 @@ export function defaultLaserSettings(): {
   showHoles: boolean;
   holeSpacingMm: number;
   cornerMarginMm: number;
+  shortEdgeHoles: boolean;
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
@@ -96,6 +97,7 @@ export function defaultLaserSettings(): {
     showHoles: true,
     holeSpacingMm: HOLE_SPACING_MM,
     cornerMarginMm: CORNER_MARGIN_MM,
+    shortEdgeHoles: false,
   };
 }
 
