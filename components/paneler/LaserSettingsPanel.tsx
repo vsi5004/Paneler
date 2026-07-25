@@ -3,6 +3,8 @@
 import { Slider } from "@/components/ui/slider";
 import {
   MAX_BITE_DEPTH_MM,
+  MAX_SHORT_EDGE_EXTENSION_MM,
+  MIN_SHORT_EDGE_EXTENSION_MM,
   MAX_CORNER_MARGIN_MM,
   MAX_CURVATURE_PCT,
   MAX_DIAMETER_IN,
@@ -130,6 +132,25 @@ export function LaserSettingsPanel({
             />
           </button>
         </div>
+        {!values.shortEdgeHoles && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              Short edge extension
+            </label>
+            <span className="font-mono text-[10px] tabular-nums text-foreground">
+              {values.shortEdgeExtensionMm.toFixed(1)}mm
+            </span>
+          </div>
+          <Slider
+            value={[values.shortEdgeExtensionMm]}
+            min={MIN_SHORT_EDGE_EXTENSION_MM}
+            max={MAX_SHORT_EDGE_EXTENSION_MM}
+            step={0.5}
+            onValueChange={(v) => onChange({ shortEdgeExtensionMm: first(v) })}
+          />
+        </div>
+        )}
         {hasPolygonPanels && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">

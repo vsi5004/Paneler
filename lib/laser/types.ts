@@ -16,6 +16,13 @@ export interface LaserSettings {
   /** Empty space between each hole row's ends and the panel corners, mm. */
   cornerMarginMm: number;
   /**
+   * Extra fabric beyond the cut line along UNSTITCHED short edges,
+   * millimeters (0 = off). Widens the strip behind the corner stitch so
+   * it can't pull out; ignored when short-edge holes are on (nothing is
+   * unstitched then).
+   */
+  shortEdgeExtensionMm: number;
+  /**
    * Hole short seam runs too (runs under 55% of the panel's longest).
    * Off = the proven 32/14-panel convention (soccer hex short edges are
    * unstitched); on = every run holed (Teamgeist-style balls whose short

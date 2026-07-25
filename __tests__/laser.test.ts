@@ -30,6 +30,7 @@ const SETTINGS: LaserSettings = {
   holeSpacingMm: HOLE_SPACING_MM,
   cornerMarginMm: 0,
   shortEdgeHoles: false,
+  shortEdgeExtensionMm: 0,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -638,6 +639,7 @@ describe("stitch holes", () => {
       const t = buildLaserTemplate(topo, cls, {
         ...SETTINGS,
         shortEdgeHoles: false,
+      shortEdgeExtensionMm: 0,
       });
       const rep = cls.representative;
       const flat = laserPanelOutline(topo, rep);
@@ -650,6 +652,91 @@ describe("stitch holes", () => {
         );
         expect(nearest, `missing corner hole (toggle off) on ${cls.label}`).toBeLessThan(0.05);
       });
+    }
+  });
+
+  it("short-edge extension widens the cut only along unstitched runs", () => {
+    // Extra fabric behind the corner stitch: with the extension set, the
+    // cut line sits biteDepth + extension from the seam along unstitched
+    // short edges, and plain biteDepth along stitched long edges. The
+    // stitch line and hole positions must not move.
+    const topo = topoOf("teamgeist");
+    const cls = groupPanelsByCongruence(topo)[0]; // t-bones (8x)
+    const EXT = 3;
+    const base = buildLaserTemplate(topo, cls, SETTINGS);
+    const extended = buildLaserTemplate(topo, cls, {
+      ...SETTINGS,
+      shortEdgeExtensionMm: EXT,
+    });
+    // holes identical
+    expect(extended.holes.length).toBe(base.holes.length);
+    base.holes.forEach((h, i) => {
+      expect(Math.hypot(h.x - extended.holes[i].x, h.y - extended.holes[i].y)).toBeLessThan(1e-9);
+    });
+    // classify seam outline into stitched/unstitched arcs via runs
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const rep = cls.representative;
+    const flat = laserPanelOutline(topo, rep);
+    const loop = rep.vertexIndices;
+    const n = loop.length;
+    const pts = flat.corners.map((c2) => ({ x: c2.x * scale, y: c2.y * scale }));
+    const neighborOf = new Map<string, string | null>();
+    for (const e of topo.edges) {
+      const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+      neighborOf.set(key, e.panelA === rep.id ? e.panelB : e.panelA);
+    }
+    const clsIds = new Set(cls.panelIds);
+    const shortMid: { x: number; y: number }[] = [];
+    const longMid: { x: number; y: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const nbr = neighborOf.get(
+        `${Math.min(loop[i], loop[(i + 1) % n])}-${Math.max(loop[i], loop[(i + 1) % n])}`,
+      );
+      const mid = {
+        x: (pts[i].x + pts[(i + 1) % n].x) / 2,
+        y: (pts[i].y + pts[(i + 1) % n].y) / 2,
+      };
+      (nbr && clsIds.has(nbr) ? shortMid : longMid).push(mid);
+    }
+    const cutDist = (t: ReturnType<typeof buildLaserTemplate>, p: { x: number; y: number }) => {
+      // distance from seam point p to the cut polyline
+      const coords = t.cutPath
+        .replace(/[MLZ]/g, " ")
+        .trim()
+        .split(/\s+/)
+        .map(Number);
+      let best = Infinity;
+      for (let k = 0; k + 3 < coords.length; k += 2) {
+        const ax = coords[k], ay = coords[k + 1];
+        const bx = coords[k + 2], by = coords[k + 3];
+        const abx = bx - ax, aby = by - ay;
+        const L2 = abx * abx + aby * aby || 1e-12;
+        const tt = Math.max(0, Math.min(1, ((p.x - ax) * abx + (p.y - ay) * aby) / L2));
+        best = Math.min(best, Math.hypot(p.x - (ax + abx * tt), p.y - (ay + aby * tt)));
+      }
+      return best;
+    };
+    // deep middle of each short edge: bite + EXT; long edges: bite only.
+    // (sample a few midpoints away from the 2mm corner ramps)
+    const shortDeep = shortMid.filter((p, i) => i % 7 === 3);
+    expect(shortDeep.length).toBeGreaterThan(2);
+    for (const p of shortDeep) {
+      const d = cutDist(extended, p);
+      expect(d).toBeGreaterThan(SETTINGS.biteDepthMm + EXT - 0.6);
+      expect(d).toBeLessThan(SETTINGS.biteDepthMm + EXT + 0.6);
+    }
+    // long-edge checks: stay clear of the deliberate ~2mm corner ramps
+    const junctions = loop
+      .map((vi, i) => ({ vi, i }))
+      .filter(({ vi }) =>
+        topo.panels.filter((pp) => pp.vertexIndices.includes(vi)).length >= 3,
+      )
+      .map(({ i }) => pts[i]);
+    const farFromJunctions = (p: { x: number; y: number }) =>
+      junctions.every((j) => Math.hypot(p.x - j.x, p.y - j.y) > 5);
+    for (const p of longMid.filter(farFromJunctions).filter((_, i) => i % 17 === 8)) {
+      const d = cutDist(extended, p);
+      expect(d).toBeLessThan(SETTINGS.biteDepthMm + 0.5);
     }
   });
 
@@ -744,6 +831,7 @@ describe("SVG output", () => {
       ...SETTINGS,
       cornerMarginMm: 4,
       shortEdgeHoles: false,
+      shortEdgeExtensionMm: 0,
     });
     expect(margined.holes.length).toBeLessThanOrEqual(base.holes.length);
     const scale = mmPerUnit(SETTINGS.diameterIn);

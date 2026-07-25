@@ -43,9 +43,18 @@ export function buildLaserTemplate(
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);
   const seamPath = buildCurvedPanelPath(flatMm);
-  const cutPoints = offsetOutline(samples, settings.biteDepthMm);
+  const { holes, edgeHoles, unstitchedSpans } = placeStitchHoles(
+    topo,
+    cls,
+    samples,
+    scale,
+    settings,
+  );
+  const cutPoints = offsetOutline(
+    extendShortEdges(samples, unstitchedSpans, settings.shortEdgeExtensionMm),
+    settings.biteDepthMm,
+  );
   const cutPath = polylinePath(cutPoints);
-  const { holes, edgeHoles } = placeStitchHoles(topo, cls, samples, scale, settings);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -322,13 +331,67 @@ function polylinePath(points: Vec2[]): string {
  * counts + centering make the pattern reversal-symmetric, so the two
  * panels sharing a seam get matching holes.
  */
+interface Span {
+  /** Arc-length start of an unstitched short run on the seam outline. */
+  s0: number;
+  len: number;
+}
+
+/**
+ * Push seam samples outward along unstitched short edges so the cut line
+ * lands biteDepth + extension from the seam there — extra fabric behind
+ * the corner stitch so it can't pull out. The displacement holds the
+ * full extension across each span and ramps to zero over ~2mm into the
+ * neighbouring stitched runs; the level-set offset then rounds the
+ * transitions. Stitch line and holes are untouched.
+ */
+function extendShortEdges(
+  samples: OutlineSample[],
+  spans: Span[],
+  extensionMm: number,
+): OutlineSample[] {
+  if (extensionMm <= 0 || spans.length === 0) return samples;
+  const RAMP_MM = 2;
+  const total = samples[samples.length - 1].s;
+  const weight = (s: number): number => {
+    let w = 0;
+    for (const span of spans) {
+      const end = span.s0 + span.len;
+      let d: number;
+      if (s >= span.s0 && s <= end) {
+        d = 0;
+      } else {
+        const toStart = Math.min(
+          Math.abs(s - span.s0),
+          total - Math.abs(s - span.s0),
+        );
+        const toEnd = Math.min(Math.abs(s - end), total - Math.abs(s - end));
+        d = Math.min(toStart, toEnd);
+      }
+      w = Math.max(w, Math.max(0, 1 - d / RAMP_MM));
+    }
+    return w;
+  };
+  return samples.map((sm) => {
+    const w = weight(sm.s);
+    if (w <= 0) return sm;
+    return {
+      ...sm,
+      p: {
+        x: sm.p.x + sm.nOut.x * extensionMm * w,
+        y: sm.p.y + sm.nOut.y * extensionMm * w,
+      },
+    };
+  });
+}
+
 function placeStitchHoles(
   topo: PanelTopology,
   cls: PanelClass,
   samples: OutlineSample[],
   mmScale: number,
   settings: LaserSettings,
-): { holes: Vec2[]; edgeHoles: number[] } {
+): { holes: Vec2[]; edgeHoles: number[]; unstitchedSpans: Span[] } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
   // Pair bunching only on simple polygon panels, where the palindromic
@@ -526,6 +589,7 @@ function placeStitchHoles(
 
   const holes: Vec2[] = [];
   const edgeHoles: number[] = [];
+  const unstitchedSpans: Span[] = [];
   for (const resolved of runSpans) {
     if (!resolved) continue;
     // Short-edge rule, judged on the shared 3D length so both panels of
@@ -548,6 +612,7 @@ function placeStitchHoles(
       placeFlat(0);
       if (skipShort) {
         edgeHoles.push(0);
+        unstitchedSpans.push({ s0, len: flatSpan });
         continue;
       }
       const nInterior = Math.max(0, Math.round(patternLen / spacing) - 1);
@@ -559,6 +624,7 @@ function placeStitchHoles(
     }
     if (skipShort) {
       edgeHoles.push(0);
+      unstitchedSpans.push({ s0, len: flatSpan });
       continue;
     }
     const usable = patternLen - 2 * cornerMargin;
@@ -608,7 +674,7 @@ function placeStitchHoles(
     }
     edgeHoles.push(n + (extras ? 2 : 0));
   }
-  return { holes, edgeHoles };
+  return { holes, edgeHoles, unstitchedSpans };
 }
 
 function pointAtArcLength(

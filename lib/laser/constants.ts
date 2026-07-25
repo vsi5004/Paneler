@@ -46,6 +46,9 @@ export const MIN_CURVATURE_PCT = 0;
 export const MAX_CURVATURE_PCT = 150;
 export const MIN_HOLE_SPACING_MM = 1.5;
 export const MAX_HOLE_SPACING_MM = 5;
+/** Short-edge extension slider bounds (extra fabric past the corner stitch). */
+export const MIN_SHORT_EDGE_EXTENSION_MM = 0;
+export const MAX_SHORT_EDGE_EXTENSION_MM = 5;
 export const MIN_CORNER_MARGIN_MM = 0;
 export const MAX_CORNER_MARGIN_MM = 5;
 
@@ -89,6 +92,7 @@ export function defaultLaserSettings(): {
   holeSpacingMm: number;
   cornerMarginMm: number;
   shortEdgeHoles: boolean;
+  shortEdgeExtensionMm: number;
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
@@ -98,6 +102,7 @@ export function defaultLaserSettings(): {
     holeSpacingMm: HOLE_SPACING_MM,
     cornerMarginMm: CORNER_MARGIN_MM,
     shortEdgeHoles: false,
+    shortEdgeExtensionMm: 0,
   };
 }
 
