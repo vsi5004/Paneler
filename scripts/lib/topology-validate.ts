@@ -174,16 +174,38 @@ export function validateTopology(
     detail: `total=${topoStats.solidAngle.total.toFixed(4)} expected=${(4 * Math.PI).toFixed(4)} err=${(closureFrac * 100).toFixed(3)}%`,
   });
 
-  // 6. Panel area variance
-  const meanArea = topoStats.solidAngle.mean;
-  const variance =
-    meanArea > 0
-      ? (topoStats.solidAngle.max - topoStats.solidAngle.min) / meanArea
-      : 0;
+  // 6. Panel area variance — per congruence class. Many real balls mix
+  // deliberately different panel sizes (Teamgeist: 6 propellers + 8
+  // turbines; classic soccer: pentagons + hexagons), so a global spread
+  // check false-fails them. Instead cluster areas greedily (same scheme
+  // as lib/laser/congruence.ts) and require a tight spread WITHIN each
+  // cluster: extraction errors make one panel of a class deviate from
+  // its siblings, which this still catches.
+  const areas = panels
+    .map((loop) => solidAngle(loop, positions))
+    .sort((a, b) => a - b);
+  const clusters: number[][] = [];
+  for (const a of areas) {
+    const last = clusters[clusters.length - 1];
+    const mean = last
+      ? last.reduce((s, x) => s + x, 0) / last.length
+      : Number.NaN;
+    if (last && Math.abs(a - mean) / mean <= options.areaVarianceTolerance / 2) {
+      last.push(a);
+    } else {
+      clusters.push([a]);
+    }
+  }
+  let worst = 0;
+  for (const c of clusters) {
+    const mean = c.reduce((s, x) => s + x, 0) / c.length;
+    worst = Math.max(worst, (c[c.length - 1] - c[0]) / mean);
+  }
+  const singletons = clusters.filter((c) => c.length === 1).length;
   checks.push({
-    name: `Panel area variance < ${(options.areaVarianceTolerance * 100).toFixed(0)}%`,
-    pass: variance < options.areaVarianceTolerance,
-    detail: `(max - min) / mean = ${(variance * 100).toFixed(2)}%`,
+    name: `Panel area variance < ${(options.areaVarianceTolerance * 100).toFixed(0)}% within each size class`,
+    pass: worst < options.areaVarianceTolerance && singletons === 0,
+    detail: `${clusters.length} size class(es) [${clusters.map((c) => c.length).join("+")}], worst in-class (max - min) / mean = ${(worst * 100).toFixed(2)}%, ${singletons} singleton(s)`,
   });
 
   // 7. Euler characteristic = 2

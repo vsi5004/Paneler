@@ -1,0 +1,199 @@
+{
+  "slug": "teamgeist",
+  "label": "Teamgeist",
+  "source": {
+    "meshes": 3,
+    "primitives": 3,
+    "rawVerts": 41306,
+    "weldedVerts": 38402,
+    "triangles": 76800,
+    "hasUvs": true,
+    "hadNormals": true
+  },
+  "preprocessing": {
+    "source": {
+      "components": 3,
+      "keptComponentVerts": 41306,
+      "droppedComponentVerts": 0
+    },
+    "originalCenter": [
+      0,
+      0,
+      0
+    ],
+    "bestFitRadius": 0.8741549164491432,
+    "radiusDistribution": [
+      0.9807219147430035,
+      0.9828652749931281,
+      1,
+      1.002431676220186,
+      1.0030326234508118
+    ],
+    "sphericityOk": true
+  },
+  "extraction": {
+    "modeUsed": "uv-seams",
+    "modeNotes": [
+      "Auto-detect tried primitives → uv-seams",
+      "Mode primitives produced no usable seam graph",
+      "Using mode=uv-seams: 24 junctions found",
+      "1248 seam edges, 1236 seam verts"
+    ],
+    "seamEdges": 1248,
+    "seamVerts": 1236,
+    "junctions": 24,
+    "junctionDegrees": [
+      {
+        "degree": 3,
+        "count": 24
+      }
+    ],
+    "curveSegments": 36,
+    "curveSamplesPre": [
+      41,
+      33,
+      33,
+      33,
+      41,
+      33,
+      33,
+      33,
+      41,
+      33,
+      33,
+      41,
+      33,
+      33,
+      33,
+      41,
+      33,
+      33,
+      41,
+      33,
+      33,
+      41,
+      33,
+      33,
+      33,
+      33,
+      41,
+      41,
+      33,
+      41,
+      33,
+      41,
+      41,
+      33,
+      33,
+      33
+    ],
+    "curveSamplesPost": [
+      2,
+      12,
+      12,
+      12,
+      2,
+      12,
+      12,
+      12,
+      2,
+      12,
+      12,
+      2,
+      12,
+      12,
+      12,
+      2,
+      12,
+      12,
+      2,
+      12,
+      12,
+      2,
+      12,
+      12,
+      12,
+      12,
+      2,
+      2,
+      12,
+      2,
+      12,
+      2,
+      2,
+      12,
+      12,
+      12
+    ]
+  },
+  "topology": {
+    "panelCount": 14,
+    "boundarySizes": [
+      36,
+      36,
+      44,
+      44,
+      36,
+      44,
+      36,
+      44,
+      36,
+      44,
+      36,
+      36,
+      44,
+      36
+    ],
+    "perimeter": {
+      "min": 4.539862249414696,
+      "max": 4.556431285839634,
+      "mean": 4.5493302069949735
+    },
+    "solidAngle": {
+      "min": 0.760223464446958,
+      "max": 1.0807634267345305,
+      "mean": 0.8975978890229204,
+      "total": 12.566370446320885
+    },
+    "eulerCharacteristic": 2,
+    "uniqueVertices": 264,
+    "uniqueEdges": 276
+  },
+  "checks": [
+    {
+      "name": "Sphericity (input mesh)",
+      "pass": true,
+      "detail": "95% of source verts within [0.92, 1.08] after best-fit scaling. p5=0.983 p95=1.002"
+    },
+    {
+      "name": "Every panel has ≥ 3 vertices",
+      "pass": true,
+      "detail": "0 panel(s) have fewer than 3 vertices"
+    },
+    {
+      "name": "All panel boundaries are simple loops",
+      "pass": true,
+      "detail": "0 panel(s) have repeated vertices"
+    },
+    {
+      "name": "Every edge shared by exactly 2 panels",
+      "pass": true,
+      "detail": "0 edges have wrong panel-share count"
+    },
+    {
+      "name": "Sphere closure (Σ solid angles = 4π ± 1.0%)",
+      "pass": true,
+      "detail": "total=12.5664 expected=12.5664 err=0.000%"
+    },
+    {
+      "name": "Panel area variance < 30% within each size class",
+      "pass": true,
+      "detail": "2 size class(es) [8+6], worst in-class (max - min) / mean = 0.00%, 0 singleton(s)"
+    },
+    {
+      "name": "Euler characteristic V − E + F = 2",
+      "pass": true,
+      "detail": "V=264 E=276 F=14 χ=2"
+    }
+  ]
+}
