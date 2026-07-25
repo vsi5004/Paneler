@@ -623,6 +623,34 @@ describe("stitch holes", () => {
     for (const [key, set] of counts) {
       expect(set.size, `hole count mismatch for seam ${key}`).toBe(1);
     }
+
+    // With the toggle OFF, short runs lose their interior holes but every
+    // junction corner hole must survive — each run only places its own
+    // start corner, and skipping a short run entirely used to erase the
+    // long edge's last stitch.
+    const useCount = new Map<number, number>();
+    for (const pnl of topo.panels) {
+      for (const vi of pnl.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    for (const cls of classes) {
+      const t = buildLaserTemplate(topo, cls, {
+        ...SETTINGS,
+        shortEdgeHoles: false,
+      });
+      const rep = cls.representative;
+      const flat = laserPanelOutline(topo, rep);
+      rep.vertexIndices.forEach((vi, i) => {
+        if ((useCount.get(vi) ?? 0) < 3) return;
+        const cx = flat.corners[i].x * scale;
+        const cy = flat.corners[i].y * scale;
+        const nearest = Math.min(
+          ...t.holes.map((h) => Math.hypot(h.x - cx, h.y - cy)),
+        );
+        expect(nearest, `missing corner hole (toggle off) on ${cls.label}`).toBeLessThan(0.05);
+      });
+    }
   });
 
   it("is reversal-symmetric per run (mating panels line up)", () => {

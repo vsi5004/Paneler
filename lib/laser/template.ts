@@ -531,23 +531,26 @@ function placeStitchHoles(
     // proven 32/14-panel convention — soccer hex short edges carry no
     // holes). User-toggleable because it's a convention, not geometry:
     // the Teamgeist's short runs ARE stitched seams and need holes.
-    if (
+    const skipShort =
       !settings.shortEdgeHoles &&
-      resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d
-    ) {
-      continue;
-    }
+      resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d;
     const { s0, flatSpan, patternLen, extras } = resolved;
     if (cornerHoles) {
       const placeFlat = (sFlat: number) => {
         holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
       };
-      placeFlat(0); // the junction corner itself; run end = next corner
+      // The junction corner itself (run end = next run's start). Placed
+      // even when the run's interior is skipped: each run only marks its
+      // own START corner, so skipping a short run entirely would also
+      // erase the shared corner — the long edge's LAST stitch.
+      placeFlat(0);
+      if (skipShort) continue;
       const nInterior = Math.max(0, Math.round(patternLen / spacing) - 1);
       const gap = flatSpan / (nInterior + 1);
       for (let k = 1; k <= nInterior; k++) placeFlat(k * gap);
       continue;
     }
+    if (skipShort) continue;
     const usable = patternLen - 2 * cornerMargin;
     if (usable < 1 || flatSpan <= 0) continue;
 
