@@ -4,6 +4,7 @@ import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
+import { scaleFeaturePanels } from "./panelScaleWarp";
 import {
   truncatedIcosahedronFamily,
   truncatedOctahedronFamily,
@@ -268,7 +269,28 @@ export const PRESETS: PresetEntry[] = [
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
-  { id: "teamgeist", label: "Teamgeist 2006", panels: 14, topology: teamgeist },
+  {
+    id: "teamgeist",
+    label: "Teamgeist 2006",
+    panels: 14,
+    params: [
+      {
+        // Percent size of the six oval panels relative to the real 2006
+        // ball. Ovals never touch each other, so each scales exactly
+        // uniformly about its center — proportions preserved — and the
+        // eight t-bone panels reflow to fill the remaining sphere.
+        key: "ovalSize",
+        label: "Oval size",
+        min: 60,
+        max: 140,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      scaleFeaturePanels(teamgeist(radius), (params?.ovalSize ?? 100) / 100),
+  },
   {
     id: "cubocta",
     label: "Cuboctahedron",

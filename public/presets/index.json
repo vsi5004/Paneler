@@ -57,7 +57,18 @@
     "label": "Teamgeist 2006",
     "glbPath": "/presets/teamgeist.glb",
     "panelCount": 14,
-    "shapeSignature": "14g"
+    "shapeSignature": "14g",
+    "params": [
+      {
+        "key": "ovalSize",
+        "label": "Oval size",
+        "min": 60,
+        "max": 140,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "cubocta",

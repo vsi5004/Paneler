@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Vector3 } from "three";
 
 import {
   cube,
@@ -7,8 +8,11 @@ import {
   icosahedron,
   octahedron,
   tetrahedron,
+  presetById,
+  resolvePresetParams,
   PRESETS,
 } from "@/lib/topology/presets";
+import { scaleFeaturePanels } from "@/lib/topology/panelScaleWarp";
 import { goldberg11, goldbergClassI } from "@/lib/topology/goldberg";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
@@ -230,6 +234,109 @@ describe("subdivideTopology", () => {
       const key = `${v.x.toFixed(9)},${v.y.toFixed(9)},${v.z.toFixed(9)}`;
       expect(seen.has(key)).toBe(false);
       seen.add(key);
+    }
+  });
+});
+
+describe("scaleFeaturePanels (Teamgeist oval-size param)", () => {
+  const preset = () => presetById("teamgeist")!;
+  const topoAt = (pct: number) =>
+    preset().topology(2, resolvePresetParams(preset(), { ovalSize: pct }));
+
+  const panelAreas = (topo: import("@/lib/types").PanelTopology) => {
+    const cross = new Vector3();
+    return topo.panels.map((pnl) => {
+      const av = new Vector3();
+      const loop = pnl.vertexIndices;
+      for (let i = 0; i < loop.length; i++) {
+        cross.crossVectors(
+          topo.vertices[loop[i]],
+          topo.vertices[loop[(i + 1) % loop.length]],
+        );
+        av.add(cross);
+      }
+      return av.length() / 2;
+    });
+  };
+
+  it("scales the six ovals, t-bones fill the rest", () => {
+    const base = panelAreas(topoAt(100));
+    const grown = panelAreas(topoAt(130));
+    const sorted = [...base].sort((a, b) => a - b);
+    const threshold = (sorted[7] + sorted[8]) / 2; // 8 t-bones below, 6 ovals above
+    let ovals = 0;
+    base.forEach((a, i) => {
+      if (a > threshold) {
+        ovals++;
+        expect(grown[i]).toBeGreaterThan(a * 1.2); // oval grows
+      } else {
+        expect(grown[i]).toBeLessThan(a); // t-bone shrinks
+      }
+    });
+    expect(ovals).toBe(6);
+    // (No total-area assertion: vector-area is chord-based and lags true
+    // solid angle more as caps grow. Full sphere coverage is structural —
+    // panels share every boundary vertex — and meshing is covered below.)
+  });
+
+  it("preserves the oval's proportions exactly", () => {
+    // Ovals never touch each other, so each scales uniformly about its
+    // own center: the RATIO between any two of an oval's boundary-run
+    // lengths must survive the warp.
+    const runLensOf = (topo: import("@/lib/types").PanelTopology) => {
+      const areas = panelAreas(topo);
+      const sorted = [...areas].sort((a, b) => a - b);
+      const threshold = (sorted[7] + sorted[8]) / 2;
+      const ovalIdx = areas.findIndex((a) => a > threshold);
+      const oval = topo.panels[ovalIdx];
+      const loop = oval.vertexIndices;
+      const n = loop.length;
+      const neighborOf = new Map<string, string | null>();
+      for (const e of topo.edges) {
+        const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+        neighborOf.set(key, e.panelA === oval.id ? e.panelB : e.panelA);
+      }
+      const nb = (i: number) =>
+        neighborOf.get(
+          `${Math.min(loop[i], loop[(i + 1) % n])}-${Math.max(loop[i], loop[(i + 1) % n])}`,
+        ) ?? null;
+      let startIdx = 0;
+      for (let i = 0; i < n; i++) {
+        if (nb(i) !== nb((i - 1 + n) % n)) {
+          startIdx = i;
+          break;
+        }
+      }
+      const lens: number[] = [];
+      let cur = 0;
+      let curNb = nb(startIdx);
+      for (let k = 0; k < n; k++) {
+        const i = (startIdx + k) % n;
+        if (nb(i) !== curNb) {
+          lens.push(cur);
+          cur = 0;
+          curNb = nb(i);
+        }
+        cur += topo.vertices[loop[i]].angleTo(topo.vertices[loop[(i + 1) % n]]);
+      }
+      lens.push(cur);
+      return lens;
+    };
+    const base = runLensOf(topoAt(100));
+    const grown = runLensOf(topoAt(130));
+    expect(grown.length).toBe(base.length);
+    for (let i = 1; i < base.length; i++) {
+      expect(grown[i] / grown[0]).toBeCloseTo(base[i] / base[0], 2);
+    }
+  });
+
+  it("is a no-op for single-class balls (trionda)", () => {
+    const tri = presetById("trionda")!;
+    const topo = tri.topology(2);
+    const before = topo.vertices.map((v) => v.clone());
+    scaleFeaturePanels(topo, 0.7);
+    for (let i = 0; i < before.length; i++) {
+      expect(topo.vertices[i].distanceTo(before[i])).toBeLessThan(1e-9);
     }
   });
 });
