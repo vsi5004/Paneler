@@ -48,6 +48,12 @@ export interface LaserTemplate {
   cutPath: string;
   /** Stitch hole centers, on the seam line. */
   holes: Vec2[];
+  /**
+   * Holes per seam run (boundary order) as a maker counts them along one
+   * edge: pattern holes plus both endpoint corner anchors / extras.
+   * 0 = deliberately unstitched short edge.
+   */
+  edgeHoles: number[];
   /** Bounding box including margin. */
   bounds: { minX: number; minY: number; width: number; height: number };
 }

@@ -3,6 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
+/**
+ * "3x13 · 3x0" — how many edges carry how many holes, descending count.
+ * Zero-hole edges are the deliberately unstitched short edges.
+ */
+function edgeSummary(edgeHoles: number[]): string {
+  const tally = new Map<number, number>();
+  for (const c of edgeHoles) tally.set(c, (tally.get(c) ?? 0) + 1);
+  return [...tally.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([holes, edges]) => `${edges}\u00d7${holes}`)
+    .join(" \u00b7 ");
+}
+
 import type { PanelTopology } from "@/lib/types";
 import type { LaserSettings, LaserTemplate } from "@/lib/laser/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
@@ -255,6 +268,12 @@ export function LaserTemplatePane({
                 />
                 {current.holes.length} holes
               </button>
+              <span
+                className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
+                title="Holes per edge (count x holes); adjust hole spacing to tune"
+              >
+                {edgeSummary(current.edgeHoles)}
+              </span>
               <Button
                 size="sm"
                 variant="outline"

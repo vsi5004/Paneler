@@ -45,7 +45,7 @@ export function buildLaserTemplate(
   const seamPath = buildCurvedPanelPath(flatMm);
   const cutPoints = offsetOutline(samples, settings.biteDepthMm);
   const cutPath = polylinePath(cutPoints);
-  const holes = placeStitchHoles(topo, cls, samples, scale, settings);
+  const { holes, edgeHoles } = placeStitchHoles(topo, cls, samples, scale, settings);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -64,6 +64,7 @@ export function buildLaserTemplate(
     seamPath,
     cutPath,
     holes,
+    edgeHoles,
     bounds: {
       minX: minX - MARGIN_MM,
       minY: minY - MARGIN_MM,
@@ -327,7 +328,7 @@ function placeStitchHoles(
   samples: OutlineSample[],
   mmScale: number,
   settings: LaserSettings,
-): Vec2[] {
+): { holes: Vec2[]; edgeHoles: number[] } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
   // Pair bunching only on simple polygon panels, where the palindromic
@@ -524,6 +525,7 @@ function placeStitchHoles(
   const cornerHoles = isWavy && runs.length > 1;
 
   const holes: Vec2[] = [];
+  const edgeHoles: number[] = [];
   for (const resolved of runSpans) {
     if (!resolved) continue;
     // Short-edge rule, judged on the shared 3D length so both panels of
@@ -544,15 +546,26 @@ function placeStitchHoles(
       // own START corner, so skipping a short run entirely would also
       // erase the shared corner — the long edge's LAST stitch.
       placeFlat(0);
-      if (skipShort) continue;
+      if (skipShort) {
+        edgeHoles.push(0);
+        continue;
+      }
       const nInterior = Math.max(0, Math.round(patternLen / spacing) - 1);
       const gap = flatSpan / (nInterior + 1);
       for (let k = 1; k <= nInterior; k++) placeFlat(k * gap);
+      // As a maker counts one edge: interior + both endpoint corners.
+      edgeHoles.push(nInterior + 2);
       continue;
     }
-    if (skipShort) continue;
+    if (skipShort) {
+      edgeHoles.push(0);
+      continue;
+    }
     const usable = patternLen - 2 * cornerMargin;
-    if (usable < 1 || flatSpan <= 0) continue;
+    if (usable < 1 || flatSpan <= 0) {
+      edgeHoles.push(0);
+      continue;
+    }
 
     let n = 2 * Math.floor((usable + bunching + spacing) / (2 * spacing));
     while (n >= 2 && (n - 1) * spacing - bunching > usable) {
@@ -593,8 +606,9 @@ function placeStitchHoles(
         Math.min(flatSpan - 0.3, sFlat + spacing * gapScale),
       );
     }
+    edgeHoles.push(n + (extras ? 2 : 0));
   }
-  return holes;
+  return { holes, edgeHoles };
 }
 
 function pointAtArcLength(
