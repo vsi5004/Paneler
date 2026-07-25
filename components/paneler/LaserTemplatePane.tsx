@@ -130,7 +130,7 @@ export function LaserTemplatePane({
         aria-expanded={!collapsed}
       >
         <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-          Laser · Templates
+          Cut · Templates
         </span>
         <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
           {templates.length} {templates.length === 1 ? "type" : "types"}

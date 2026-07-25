@@ -31,7 +31,7 @@ interface LaserSettingsPanelProps {
 }
 
 /**
- * Sidebar "Laser" section: footbag size and bite depth. Everything else
+ * Sidebar "Templates" section: footbag size and bite depth. Everything else
  * (hole size/spacing/bunching, gather correction) is hard-coded to proven
  * values in lib/laser/constants.ts.
  */
@@ -46,10 +46,10 @@ export function LaserSettingsPanel({
     <section>
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
-          Laser
+          Templates
         </h2>
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-          cut templates
+          cut settings
         </span>
       </div>
       <div className="flex flex-col gap-4">
