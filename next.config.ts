@@ -75,7 +75,7 @@ const nextConfig: NextConfig = {
               // R2 presigned URLs for GLB upload/download go directly from
               // the browser to Cloudflare R2 (bypassing our pod). They use
               // the bucket-specific subdomain `*.r2.cloudflarestorage.com`.
-              "connect-src 'self' https://*.r2.cloudflarestorage.com",
+              "connect-src 'self' blob: https://*.r2.cloudflarestorage.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "object-src 'none'",

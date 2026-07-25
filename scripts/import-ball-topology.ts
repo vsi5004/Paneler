@@ -18,7 +18,7 @@ import {
   overrideJunctions,
   traceCurveSegments,
 } from "./lib/seam-detect.js";
-import { enumerateFaces } from "./lib/planar-dual.js";
+import { enumerateFaces, pruneSpuriousFace } from "./lib/planar-dual.js";
 import { sphericalRdpIndices } from "./lib/spherical-rdp.js";
 import {
   computeTopologyStats,
@@ -424,42 +424,3 @@ function slugToFunctionName(slug: string): string {
 // Topology cleanup
 // ----------------------------------------------------------------------------
 
-/**
- * Drop the spurious "outer" face if the rotation-system walk produced one
- * too many. On a sphere with N panels, Euler χ = V − E + F = 2 → F = N.
- * If we instead got F = N + 1, the largest face is the spurious one.
- */
-function pruneSpuriousFace(
-  panels: number[][],
-  graph: { vertices: Set<number>; edges: ReadonlyArray<readonly [number, number]> },
-): number[][] {
-  // Compute χ as-is to decide whether to prune.
-  const vSet = new Set<number>();
-  const eSet = new Set<string>();
-  for (const loop of panels) {
-    for (let i = 0; i < loop.length; i++) {
-      const a = loop[i];
-      const b = loop[(i + 1) % loop.length];
-      vSet.add(a);
-      vSet.add(b);
-      eSet.add(a < b ? `${a}-${b}` : `${b}-${a}`);
-    }
-  }
-  const chi = vSet.size - eSet.size + panels.length;
-  if (chi === 2) return panels;
-  if (chi !== 3) {
-    // Something more serious is wrong; return panels and let validation flag it.
-    return panels;
-  }
-  // χ = 3 → one spurious face. Drop the one with the largest perimeter
-  // (the outer face winds around all the inner faces, so it's longest).
-  let worstIdx = -1;
-  let worstLen = -1;
-  for (let i = 0; i < panels.length; i++) {
-    if (panels[i].length > worstLen) {
-      worstLen = panels[i].length;
-      worstIdx = i;
-    }
-  }
-  return panels.filter((_, i) => i !== worstIdx);
-}

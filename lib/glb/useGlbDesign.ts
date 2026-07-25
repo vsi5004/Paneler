@@ -13,6 +13,7 @@ import { defaultLaserSettings } from "@/lib/laser/constants";
 import { linearRgbaToHex } from "@/lib/glb/build";
 import {
   generateTemplateDocument,
+  generateDocumentFromTopology,
   TARGET_TOTAL_TRIANGLES,
   DRAFT_TOTAL_TRIANGLES,
 } from "@/lib/glb/generate";
@@ -103,6 +104,10 @@ export function useGlbDesign(): UseGlbDesignResult {
   const regenTimerRef = useRef<number | null>(null);
   // Monotonic counter; stale async regen completions are dropped.
   const regenCounterRef = useRef(0);
+  // Import-time notice (e.g. ball extraction failed, viewing raw model).
+  // The parse effect clears `error` on success, so a notice set by
+  // loadFromBytes must ride through it instead of being wiped.
+  const importNoticeRef = useRef<string | null>(null);
 
   useEffect(() => {
     panelColorsRef.current = panelColors;
@@ -149,7 +154,8 @@ export function useGlbDesign(): UseGlbDesignResult {
         setLaserSettingsState(laser);
         laserSettingsRef.current = laser;
         setVersion((v) => v + 1);
-        setError(null);
+        setError(importNoticeRef.current);
+        importNoticeRef.current = null;
       })
       .catch((err) => {
         if (cancelled) return;
@@ -184,8 +190,31 @@ export function useGlbDesign(): UseGlbDesignResult {
     cancelRegen();
     setLoading(true);
     setError(null);
+    let finalBytes = newBytes;
+    // Foreign ball GLBs (artist models with no panelId structure) get the
+    // same seam-extraction pipeline as scripts/import-ball-topology.ts and
+    // are rebuilt as a real Paneler design — panels, flat net, and laser
+    // templates all work, and the source's textures are dropped. If
+    // extraction fails, fall back to viewing the raw GLB and say why.
+    try {
+      const probe = await parseGlb(newBytes);
+      if (probe.topology.panels.length === 0) {
+        const { extractBallTopology } = await import(
+          "@/lib/topology/extractBall"
+        );
+        const raw = extractBallTopology(probe.document);
+        const doc = generateDocumentFromTopology(raw, {
+          assetName: "imported-ball",
+        });
+        finalBytes = await serializeDocument(doc);
+      }
+    } catch (err) {
+      importNoticeRef.current = `GLB has no Paneler panels and ball extraction failed (${
+        err instanceof Error ? err.message : String(err)
+      }) — showing the raw model`;
+    }
     // Trigger the parse effect — actual parse is async there.
-    setBytes(newBytes);
+    setBytes(finalBytes);
     setLoading(false);
   }, [cancelRegen]);
 

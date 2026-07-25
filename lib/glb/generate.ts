@@ -53,7 +53,29 @@ export function generateTemplateDocument(
   }
   const resolved = resolvePresetParams(preset, params);
 
-  const raw = preset.topology(1, resolved);
+  return generateDocumentFromTopology(preset.topology(1, resolved), {
+    assetName: presetId,
+    panelColors,
+    design: { presetId, params: resolved },
+    ...options,
+  });
+}
+
+/**
+ * The preset-independent tail of the pipeline (topology → subdivide →
+ * sphere-project → puff → GLB document). Used directly for foreign ball
+ * GLBs whose panel topology was extracted at import time — those have
+ * no preset provenance, so `design` is omitted and the result carries
+ * no Shape sliders, exactly like a Blender upload.
+ */
+export function generateDocumentFromTopology(
+  raw: PanelTopology,
+  options: GenerateOptions & {
+    assetName: string;
+    panelColors?: PanelColors;
+    design?: { presetId: string; params: PresetParams };
+  },
+): Document {
   const target = options.targetTriangles ?? TARGET_TOTAL_TRIANGLES;
   const level = Math.max(1, Math.ceil(Math.sqrt(target / totalFanTriangles(raw))));
   const subdivided = subdivideTopology(raw, level);
@@ -61,8 +83,8 @@ export function generateTemplateDocument(
   puffPanels(subdivided, SPHERE_RADIUS, PANEL_PUFF);
 
   return buildGlbDocument(subdivided, {
-    assetName: presetId,
-    panelColors,
-    design: { presetId, params: resolved },
+    assetName: options.assetName,
+    panelColors: options.panelColors,
+    design: options.design,
   });
 }
