@@ -32,13 +32,6 @@
     "shapeSignature": "4t"
   },
   {
-    "slug": "orbita",
-    "label": "Orbita 2022",
-    "glbPath": "/presets/orbita.glb",
-    "panelCount": 6,
-    "shapeSignature": "6g"
-  },
-  {
     "slug": "cube",
     "label": "Cube",
     "glbPath": "/presets/cube.glb",

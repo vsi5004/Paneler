@@ -170,7 +170,7 @@ describe("unfoldNet", () => {
     }
   });
 
-  it.each(["trionda", "teamgeist", "orbita"])(
+  it.each(["trionda", "teamgeist"])(
     "re-wrap: flat %s panels lie back on the sphere with small smooth strain",
     (presetId) => {
       // The direct check that the unwrap is correct: every flat point has a

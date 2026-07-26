@@ -69,6 +69,8 @@ export interface ValidateOptions {
   closureTolerance: number;
   /** Max per-panel area variation as fraction of mean. */
   areaVarianceTolerance: number;
+  /** Fail unless the panel count matches (from the real ball's spec). */
+  expectPanels?: number;
 }
 
 /** Compute topology stats from panel loops + the welded vertex pool. */
@@ -207,6 +209,15 @@ export function validateTopology(
     pass: worst < options.areaVarianceTolerance && singletons === 0,
     detail: `${clusters.length} size class(es) [${clusters.map((c) => c.length).join("+")}], worst in-class (max - min) / mean = ${(worst * 100).toFixed(2)}%, ${singletons} singleton(s)`,
   });
+
+  // 6b. Expected panel count (opt-in, from the real ball's spec)
+  if (options.expectPanels !== undefined) {
+    checks.push({
+      name: `Panel count = ${options.expectPanels} (--expect-panels)`,
+      pass: panels.length === options.expectPanels,
+      detail: `extracted ${panels.length} panel(s) — a mismatch usually means the source model does not encode every physical seam (merged UV islands, decorative-only seam lines)`,
+    });
+  }
 
   // 7. Euler characteristic = 2
   checks.push({

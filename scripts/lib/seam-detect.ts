@@ -102,6 +102,13 @@ function runMode(
   const graph = buildSeamGraph(edges);
   if (graph.junctions.size === 0) return null;
   notes.push(`${edges.length} seam edges, ${graph.vertices.size} seam verts`);
+  if (graph.droppedLoops && graph.droppedLoops.length > 0) {
+    notes.push(
+      `⚠ dropped ${graph.droppedLoops.length} junction-free closed seam loop(s) ` +
+        `(${graph.droppedLoops.join(", ")} verts) — valve rings and island panels ` +
+        `are invisible to face enumeration`,
+    );
+  }
   return { graph, notes };
 }
 
@@ -119,7 +126,7 @@ function runMode(
  * Quantizing UVs is essential: float noise on the same UV coord produces
  * artifact "seams" along every triangle edge.
  */
-function detectUvSeams(mesh: WeldedMesh, uvQuant: number): SeamEdge[] {
+export function detectUvSeams(mesh: WeldedMesh, uvQuant: number): SeamEdge[] {
   const { triangles, weldOf, uvs } = mesh;
   if (!uvs) return [];
 
@@ -371,6 +378,40 @@ function buildSeamGraph(edges: SeamEdge[]): SeamGraph {
       adjacency.get(n)?.delete(v);
     }
   }
+  // Drop junction-free closed loops (components with no degree>=3
+  // vertex): valve rings, decorative circles, island-panel boundaries.
+  // Curve tracing starts from junctions, so these are invisible to face
+  // enumeration — silently keeping them would misreport the seam count.
+  // Record their sizes so the report can surface what was ignored.
+  const droppedLoops: number[] = [];
+  {
+    const seen = new Set<number>();
+    for (const start of [...adjacency.keys()]) {
+      if (seen.has(start)) continue;
+      const stack = [start];
+      seen.add(start);
+      const members: number[] = [];
+      let hasJunction = false;
+      while (stack.length > 0) {
+        const v = stack.pop()!;
+        members.push(v);
+        if ((adjacency.get(v)?.size ?? 0) >= 3) hasJunction = true;
+        for (const n of adjacency.get(v) ?? []) {
+          if (!seen.has(n)) {
+            seen.add(n);
+            stack.push(n);
+          }
+        }
+      }
+      if (!hasJunction) {
+        droppedLoops.push(members.length);
+        for (const v of members) {
+          adjacency.delete(v);
+          vertices.delete(v);
+        }
+      }
+    }
+  }
   const keptEdges = edges.filter(
     ([a, b]) => adjacency.get(a)?.has(b) ?? false,
   );
@@ -379,7 +420,7 @@ function buildSeamGraph(edges: SeamEdge[]): SeamGraph {
   for (const [v, neighbors] of adjacency) {
     if (neighbors.size >= 3) junctions.add(v);
   }
-  return { edges: keptEdges, vertices, adjacency, junctions };
+  return { edges: keptEdges, vertices, adjacency, junctions, droppedLoops };
 }
 
 /** Replace the auto-detected junctions with a user-specified list (advanced).

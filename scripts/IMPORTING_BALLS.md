@@ -103,6 +103,12 @@ The preview shows an equirectangular (Plate Carrée) projection of the unit sphe
 | Hard-edges finds too many edges (jagged green) | Raise `--hard-edge-threshold` (45, 60) |
 | Hard-edges finds too few edges (huge panels) | Lower `--hard-edge-threshold` (15, 10) |
 | Sphericity check fails | The mesh isn't a sphere. Likely an American football or non-ball object. |
+| Fewer panels than the real ball has | The model doesn't encode every physical seam (merged UV islands; seams only painted/normal-mapped). No detector can find seams that aren't in the data — split the mesh along the missing seams in Blender/Maya and re-export. |
+| `⚠ dropped N junction-free closed seam loop(s)` | Valve rings and decorative circles are ignored (harmless). If a dropped loop is a real island panel, its host would need annulus topology, which Paneler panels don't support. |
+
+**Always pass `--expect-panels <n>`** with the real ball's documented
+panel count — a silent undercount (the LaLiga Orbita's FBX merges its 12
+panels into 6 UV islands) otherwise looks like a perfectly valid ball.
 
 ---
 

@@ -4,7 +4,6 @@ import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
-import { orbita } from "./orbita";
 import { morphFeaturePanels } from "./panelScaleWarp";
 import {
   truncatedIcosahedronFamily,
@@ -267,7 +266,6 @@ export const PRESETS: PresetEntry[] = [
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },
-  { id: "orbita", label: "Orbita 2022", panels: 6, topology: orbita },
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
