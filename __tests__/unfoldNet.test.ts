@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { flattenPanelUnscaled, unfoldNet } from "@/lib/flatten/unfoldNet";
 import { arapFlattenMesh } from "@/lib/flatten/arap";
-import { PRESETS } from "@/lib/topology/presets";
+import { PRESETS, resolvePresetParams } from "@/lib/topology/presets";
 import { baseball } from "@/lib/topology/baseball";
 import { goldberg11 } from "@/lib/topology/goldberg";
 
@@ -170,9 +170,14 @@ describe("unfoldNet", () => {
     }
   });
 
-  it.each(["trionda", "teamgeist"])(
-    "re-wrap: flat %s panels lie back on the sphere with small smooth strain",
-    (presetId) => {
+  it.each([
+    ["trionda", undefined],
+    ["teamgeist", undefined],
+    // the elongation morph's far end — circles + reshaped t-bones
+    ["teamgeist", { ovalSize: 100, elongation: 0 }],
+  ] as const)(
+    "re-wrap: flat %s panels lie back on the sphere with small smooth strain (%o)",
+    (presetId, params) => {
       // The direct check that the unwrap is correct: every flat point has a
       // known 3D mate, so per-triangle principal stretches of the map
       // FLAT -> SPHERE measure exactly how much the cut fabric must stretch
@@ -181,7 +186,10 @@ describe("unfoldNet", () => {
       // sewing ease). The rejected Lambert flatten measures 19% RMS / 58%
       // max on the same meshes — the physical "panels don't line up".
       const preset = PRESETS.find((p) => p.id === presetId)!;
-      const topo = preset.topology(2);
+      const topo = preset.topology(
+        2,
+        params ? resolvePresetParams(preset, { ...params }) : undefined,
+      );
       for (const panel of topo.panels) {
         const mesh = arapFlattenMesh(panel, topo)!;
         expect(mesh).not.toBeNull();
