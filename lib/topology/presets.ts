@@ -4,7 +4,7 @@ import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
-import { scaleFeaturePanels } from "./panelScaleWarp";
+import { morphFeaturePanels } from "./panelScaleWarp";
 import {
   truncatedIcosahedronFamily,
   truncatedOctahedronFamily,
@@ -287,9 +287,24 @@ export const PRESETS: PresetEntry[] = [
         defaultValue: 100,
         unit: "%",
       },
+      {
+        // Length of the ovals along their own axis: 100% = the real
+        // 2006 outline, 0% = the two lobes slid together until length
+        // equals width. The cross profile (waist indent) is preserved.
+        key: "elongation",
+        label: "Elongation",
+        min: 0,
+        max: 100,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
     ],
     topology: (radius?: number, params?: PresetParams) =>
-      scaleFeaturePanels(teamgeist(radius), (params?.ovalSize ?? 100) / 100),
+      morphFeaturePanels(teamgeist(radius), {
+        scale: (params?.ovalSize ?? 100) / 100,
+        elongation: (params?.elongation ?? 100) / 100,
+      }),
   },
   {
     id: "cubocta",

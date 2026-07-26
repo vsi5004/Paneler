@@ -12,7 +12,7 @@ import {
   resolvePresetParams,
   PRESETS,
 } from "@/lib/topology/presets";
-import { scaleFeaturePanels } from "@/lib/topology/panelScaleWarp";
+import { morphFeaturePanels } from "@/lib/topology/panelScaleWarp";
 import { goldberg11, goldbergClassI } from "@/lib/topology/goldberg";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
@@ -238,7 +238,7 @@ describe("subdivideTopology", () => {
   });
 });
 
-describe("scaleFeaturePanels (Teamgeist oval-size param)", () => {
+describe("morphFeaturePanels (Teamgeist oval params)", () => {
   const preset = () => presetById("teamgeist")!;
   const topoAt = (pct: number) =>
     preset().topology(2, resolvePresetParams(preset(), { ovalSize: pct }));
@@ -330,11 +330,101 @@ describe("scaleFeaturePanels (Teamgeist oval-size param)", () => {
     }
   });
 
+  it("elongation: mid-values keep the waist, 0 is a perfect circle", () => {
+    const base = topoAt(100);
+    const at = (elongation: number) =>
+      preset().topology(
+        2,
+        resolvePresetParams(preset(), { ovalSize: 100, elongation }),
+      );
+    const areasBase = panelAreas(base);
+    const sorted = [...areasBase].sort((a, b) => a - b);
+    const threshold = (sorted[7] + sorted[8]) / 2;
+    const cross = new Vector3();
+    const profile = (topo: typeof base, pi: number) => {
+      const loop = topo.panels[pi].vertexIndices;
+      const av = new Vector3();
+      for (let i = 0; i < loop.length; i++) {
+        cross.crossVectors(
+          topo.vertices[loop[i]],
+          topo.vertices[loop[(i + 1) % loop.length]],
+        );
+        av.add(cross);
+      }
+      const center = av.normalize();
+      const helper =
+        Math.abs(center.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+      const e1 = new Vector3().crossVectors(center, helper).normalize();
+      const e2 = new Vector3().crossVectors(center, e1).normalize();
+      const coords = loop.map((vi) => {
+        const vN = topo.vertices[vi].clone().normalize();
+        const theta = center.angleTo(vN);
+        const az = vN.clone().sub(center.clone().multiplyScalar(vN.dot(center)));
+        az.normalize();
+        return { x: theta * az.dot(e1), y: theta * az.dot(e2) };
+      });
+      let sxx = 0;
+      let sxy = 0;
+      let syy = 0;
+      for (const c of coords) {
+        sxx += c.x * c.x;
+        sxy += c.x * c.y;
+        syy += c.y * c.y;
+      }
+      const phi = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+      const ab = coords.map((c) => ({
+        a: c.x * Math.cos(phi) + c.y * Math.sin(phi),
+        b: -c.x * Math.sin(phi) + c.y * Math.cos(phi),
+      }));
+      const len = Math.max(...ab.map((c) => Math.abs(c.a)));
+      const wid = Math.max(...ab.map((c) => Math.abs(c.b)));
+      const waist = Math.max(
+        ...ab.filter((c) => Math.abs(c.a) < len * 0.15).map((c) => Math.abs(c.b)),
+      );
+      const thetas = coords.map((c) => Math.hypot(c.x, c.y));
+      return { len, wid, waist, thetas };
+    };
+    const half = at(50);
+    const round = at(0);
+    base.panels.forEach((_, pi) => {
+      if (areasBase[pi] <= threshold) return; // t-bones
+      const before = profile(base, pi);
+      const mid = profile(half, pi);
+      const after = profile(round, pi);
+      // 50%: lobes half-slid, waist indent still clearly present with
+      // near its original relative depth (rounding is cubic: 12.5% here)
+      expect(mid.len / mid.wid).toBeLessThan(before.len / before.wid);
+      expect(mid.len / mid.wid).toBeGreaterThan(1.15);
+      const beforeDepth = 1 - before.waist / before.wid;
+      const midDepth = 1 - mid.waist / mid.wid;
+      expect(midDepth).toBeGreaterThan(beforeDepth * 0.6);
+      // 0%: a perfect circle — every boundary point at the same angular
+      // radius from the panel center
+      const mean =
+        after.thetas.reduce((s, t) => s + t, 0) / after.thetas.length;
+      for (const t of after.thetas) {
+        expect(Math.abs(t - mean)).toBeLessThan(0.01);
+      }
+    });
+    expect(() => subdivideTopology(round, 2)).not.toThrow();
+  });
+
+  it("elongation 100 is the identity", () => {
+    const a = topoAt(100);
+    const b = preset().topology(
+      2,
+      resolvePresetParams(preset(), { ovalSize: 100, elongation: 100 }),
+    );
+    for (let i = 0; i < a.vertices.length; i++) {
+      expect(a.vertices[i].distanceTo(b.vertices[i])).toBeLessThan(1e-9);
+    }
+  });
+
   it("is a no-op for single-class balls (trionda)", () => {
     const tri = presetById("trionda")!;
     const topo = tri.topology(2);
     const before = topo.vertices.map((v) => v.clone());
-    scaleFeaturePanels(topo, 0.7);
+    morphFeaturePanels(topo, { scale: 0.7, elongation: 0.5 });
     for (let i = 0; i < before.length; i++) {
       expect(topo.vertices[i].distanceTo(before[i])).toBeLessThan(1e-9);
     }
