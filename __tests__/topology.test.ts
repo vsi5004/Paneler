@@ -438,3 +438,68 @@ describe("morphFeaturePanels (Teamgeist oval params)", () => {
     }
   });
 });
+
+describe("scaleSeamAmplitude (Orbita spoke-length param)", () => {
+  it("0% straightens every seam onto its junction great circle", () => {
+    const preset = presetById("orbita")!;
+    const topo = preset.topology(
+      2,
+      resolvePresetParams(preset, { spokeLength: 0 }),
+    );
+    const useCount = new Map<number, number>();
+    for (const p of topo.panels) {
+      for (const vi of p.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    for (const p of topo.panels) {
+      const loop = p.vertexIndices;
+      const n = loop.length;
+      const junctionIdx = loop
+        .map((vi, i) => ({ vi, i }))
+        .filter(({ vi }) => (useCount.get(vi) ?? 0) >= 3)
+        .map(({ i }) => i);
+      expect(junctionIdx.length).toBe(5);
+      for (let k = 0; k < junctionIdx.length; k++) {
+        const a = junctionIdx[k];
+        const b = junctionIdx[(k + 1) % junctionIdx.length];
+        const A = topo.vertices[loop[a]].clone().normalize();
+        const B = topo.vertices[loop[b]].clone().normalize();
+        const axis = new Vector3().crossVectors(A, B).normalize();
+        for (let i = (a + 1) % n; i !== b; i = (i + 1) % n) {
+          const d = Math.abs(topo.vertices[loop[i]].clone().normalize().dot(axis));
+          expect(d).toBeLessThan(2e-3); // on the great circle
+        }
+      }
+    }
+  });
+
+  it("100% is the identity; junctions never move", () => {
+    const preset = presetById("orbita")!;
+    const base = preset.topology(2);
+    const same = preset.topology(
+      2,
+      resolvePresetParams(preset, { spokeLength: 100 }),
+    );
+    for (let i = 0; i < base.vertices.length; i++) {
+      expect(base.vertices[i].distanceTo(same.vertices[i])).toBeLessThan(1e-9);
+    }
+    const long = preset.topology(
+      2,
+      resolvePresetParams(preset, { spokeLength: 130 }),
+    );
+    const useCount = new Map<number, number>();
+    for (const p of base.panels) {
+      for (const vi of p.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    base.panels.forEach((p) => {
+      p.vertexIndices.forEach((vi) => {
+        if ((useCount.get(vi) ?? 0) >= 3) {
+          expect(base.vertices[vi].distanceTo(long.vertices[vi])).toBeLessThan(1e-9);
+        }
+      });
+    });
+  });
+});

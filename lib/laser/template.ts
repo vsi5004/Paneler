@@ -24,10 +24,16 @@ import type { LaserSettings, LaserTemplate, PanelClass } from "./types";
  * flattened panel at physical scale), cut outline (seam offset outward by
  * bite depth, round corner joins), and stitch holes on the seam line.
  */
+export interface LaserTemplateOptions {
+  /** Anchor holes exactly on sharp in-run bends (Orbita-style stars). */
+  sharpBendAnchors?: boolean;
+}
+
 export function buildLaserTemplate(
   topo: PanelTopology,
   cls: PanelClass,
   settings: LaserSettings,
+  options: LaserTemplateOptions = {},
 ): LaserTemplate {
   const scale = mmPerUnit(settings.diameterIn);
   const unscaled = laserPanelOutline(topo, cls.representative);
@@ -49,6 +55,7 @@ export function buildLaserTemplate(
     samples,
     scale,
     settings,
+    options,
   );
   const cutPoints = offsetOutline(
     extendShortEdges(samples, unstitchedSpans, settings.shortEdgeExtensionMm),
@@ -382,12 +389,62 @@ function extendShortEdges(
   });
 }
 
+/**
+ * Arc positions (relative to `s0`) of sharp bends strictly inside a
+ * seam run — direction changes above 45° measured over a ±1.2mm window
+ * on the sampled outline, clustered to the single sharpest sample.
+ * These are the star-panel zigzag apexes; sewing needs an anchor hole
+ * exactly on each. Bends within 1.5mm of a run end are ignored (the
+ * corner hole covers them).
+ */
+function sharpBendsInRun(
+  samples: OutlineSample[],
+  s0: number,
+  flatSpan: number,
+  totalLength: number,
+): number[] {
+  const WINDOW_MM = 1.2;
+  const THRESHOLD_RAD = (45 * Math.PI) / 180;
+  const END_MARGIN_MM = 1.5;
+  const at = (s: number) => pointAtArcLength(samples, s, totalLength);
+  const bends: Array<{ s: number; turn: number }> = [];
+  const STEP = 0.4;
+  for (let s = END_MARGIN_MM; s <= flatSpan - END_MARGIN_MM; s += STEP) {
+    const p0 = at(s0 + s - WINDOW_MM);
+    const p1 = at(s0 + s);
+    const p2 = at(s0 + s + WINDOW_MM);
+    const v1x = p1.x - p0.x;
+    const v1y = p1.y - p0.y;
+    const v2x = p2.x - p1.x;
+    const v2y = p2.y - p1.y;
+    const dot = v1x * v2x + v1y * v2y;
+    const cross = v1x * v2y - v1y * v2x;
+    const turn = Math.abs(Math.atan2(cross, dot));
+    if (turn > THRESHOLD_RAD) bends.push({ s, turn });
+  }
+  // cluster consecutive candidates (within 2mm) to the sharpest one
+  const apexes: number[] = [];
+  let cluster: Array<{ s: number; turn: number }> = [];
+  const flush = () => {
+    if (cluster.length === 0) return;
+    apexes.push(cluster.reduce((m, c) => (c.turn > m.turn ? c : m)).s);
+    cluster = [];
+  };
+  for (const b of bends) {
+    if (cluster.length > 0 && b.s - cluster[cluster.length - 1].s > 2) flush();
+    cluster.push(b);
+  }
+  flush();
+  return apexes;
+}
+
 function placeStitchHoles(
   topo: PanelTopology,
   cls: PanelClass,
   samples: OutlineSample[],
   mmScale: number,
   settings: LaserSettings,
+  options: LaserTemplateOptions = {},
 ): { holes: Vec2[]; edgeHoles: number[]; unstitchedSpans: Span[] } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
@@ -612,11 +669,34 @@ function placeStitchHoles(
         unstitchedSpans.push({ s0, len: flatSpan });
         continue;
       }
-      const nInterior = Math.max(0, Math.round(patternLen / spacing) - 1);
-      const gap = flatSpan / (nInterior + 1);
-      for (let k = 1; k <= nInterior; k++) placeFlat(k * gap);
-      // As a maker counts one edge: interior + both endpoint corners.
-      edgeHoles.push(nInterior + 2);
+      // Sharp bends WITHIN the run (the Orbita star's zigzag apexes)
+      // are anchor points too: a stitch hole lands exactly on each one,
+      // and the pattern spaces evenly between consecutive anchors. The
+      // apexes are physical features of the shared seam curve, so both
+      // panels of a seam anchor at the same spots. Smooth runs (trionda
+      // arms, Teamgeist ovals) have no bends past the threshold and
+      // keep plain corner-to-corner spacing.
+      const apexes = options.sharpBendAnchors
+        ? sharpBendsInRun(samples, s0, flatSpan, totalLength)
+        : [];
+      const anchors = [0, ...apexes, flatSpan];
+      let holeCount = 1; // the start corner placed above
+      for (let a = 0; a + 1 < anchors.length; a++) {
+        const subLen = anchors[a + 1] - anchors[a];
+        if (a > 0) {
+          placeFlat(anchors[a]); // the apex itself
+          holeCount++;
+        }
+        const subPattern = (patternLen * subLen) / flatSpan;
+        const nInterior = Math.max(0, Math.round(subPattern / spacing) - 1);
+        const gap = subLen / (nInterior + 1);
+        for (let k = 1; k <= nInterior; k++) {
+          placeFlat(anchors[a] + k * gap);
+        }
+        holeCount += nInterior;
+      }
+      // As a maker counts one edge: interiors + apexes + both corners.
+      edgeHoles.push(holeCount + 1);
       continue;
     }
     if (skipShort) {

@@ -5,6 +5,7 @@ import { baseball } from "./baseball";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
+import { scaleSeamAmplitude } from "./seamAmplitudeWarp";
 import { morphFeaturePanels } from "./panelScaleWarp";
 import {
   truncatedIcosahedronFamily,
@@ -214,6 +215,14 @@ export interface PresetEntry {
   panels: number;
   /** Shape parameters this preset supports. Absent → no Shape sliders. */
   params?: PresetParamDef[];
+  /**
+   * Anchor stitch holes exactly on sharp bends inside seam runs (the
+   * Orbita star's outer tips and inner notches). Opt-in per preset:
+   * other wavy balls (trionda, Teamgeist) also carry bends above any
+   * geometric threshold, but their proven hole conventions are plain
+   * corner-to-corner spacing.
+   */
+  laserSharpBendAnchors?: boolean;
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
 }
 
@@ -270,7 +279,27 @@ export const PRESETS: PresetEntry[] = [
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
-  { id: "orbita", label: "Orbita 2022", panels: 12, topology: orbita },
+  {
+    id: "orbita",
+    label: "Orbita 2022",
+    panels: 12,
+    laserSharpBendAnchors: true,
+    params: [
+      {
+        // Wave amplitude of every seam: 100% = the imported star arms,
+        // 0% = straight seams (a plain spherical dodecahedron).
+        key: "spokeLength",
+        label: "Spoke length",
+        min: 0,
+        max: 130,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      scaleSeamAmplitude(orbita(radius), (params?.spokeLength ?? 100) / 100),
+  },
   {
     id: "teamgeist",
     label: "Teamgeist 2006",

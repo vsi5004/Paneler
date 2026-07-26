@@ -744,6 +744,78 @@ describe("stitch holes", () => {
     }
   });
 
+  it("orbita: anchor holes land exactly on the star's sharp bends", () => {
+    // The Orbita's 12 star panels have sharp outer tips and inner
+    // notches mid-seam; sewing needs an anchor hole exactly on each.
+    // The behavior is opt-in per preset (laserSharpBendAnchors) so the
+    // trionda/Teamgeist keep their plain corner-to-corner convention
+    // despite also having bends past any geometric threshold.
+    const topo = topoOf("orbita");
+    const cls = groupPanelsByCongruence(topo)[0];
+    expect(cls.panelIds.length).toBe(12);
+    const withAnchors = buildLaserTemplate(topo, cls, SETTINGS, {
+      sharpBendAnchors: true,
+    });
+    // counts may match (apex anchors displace interior holes one-for-one
+    // through sub-span rounding); the POSITIONS are what changes
+    const plain = buildLaserTemplate(topo, cls, SETTINGS);
+    const moved = withAnchors.holes.filter(
+      (h) => !plain.holes.some((q) => Math.hypot(q.x - h.x, q.y - h.y) < 0.01),
+    );
+    expect(moved.length).toBeGreaterThan(5);
+
+    // find sharp outline bends independently and require a hole on each
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = laserPanelOutline(topo, cls.representative);
+    const flatMm = {
+      corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
+      sagittaRatios: flat.sagittaRatios,
+    };
+    const samples = sampleOutline(flatMm, 0.4);
+    const total = samples[samples.length - 1].s;
+    const at = (s: number) => {
+      const ss = ((s % total) + total) % total;
+      let i = 0;
+      while (i + 1 < samples.length && samples[i + 1].s < ss) i++;
+      return samples[i].p;
+    };
+    // junction corner positions (already anchored by corner holes)
+    const useCount = new Map<number, number>();
+    for (const pnl of topo.panels) {
+      for (const vi of pnl.vertexIndices) {
+        useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
+      }
+    }
+    const junctionPts = cls.representative.vertexIndices
+      .map((vi, i) => ({ vi, i }))
+      .filter(({ vi }) => (useCount.get(vi) ?? 0) >= 3)
+      .map(({ i }) => flatMm.corners[i]);
+    let sharpBends = 0;
+    for (let s = 0; s < total; s += 0.4) {
+      const p0 = at(s - 1.2);
+      const p1 = at(s);
+      const p2 = at(s + 1.2);
+      const v1x = p1.x - p0.x;
+      const v1y = p1.y - p0.y;
+      const v2x = p2.x - p1.x;
+      const v2y = p2.y - p1.y;
+      const turn =
+        (Math.abs(Math.atan2(v1x * v2y - v1y * v2x, v1x * v2x + v1y * v2y)) *
+          180) /
+        Math.PI;
+      if (turn < 50) continue; // solidly sharp, away from threshold noise
+      if (junctionPts.some((j) => Math.hypot(j.x - p1.x, j.y - p1.y) < 2)) {
+        continue; // junction corners are anchored by corner holes
+      }
+      sharpBends++;
+      const nearest = Math.min(
+        ...withAnchors.holes.map((h) => Math.hypot(h.x - p1.x, h.y - p1.y)),
+      );
+      expect(nearest, `no anchor near sharp bend at s=${s.toFixed(1)}`).toBeLessThan(1.2);
+    }
+    expect(sharpBends).toBeGreaterThan(5); // the star really has them
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
