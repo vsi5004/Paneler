@@ -406,6 +406,14 @@ describe("morphFeaturePanels (Teamgeist oval params)", () => {
         expect(Math.abs(t - mean)).toBeLessThan(0.01);
       }
     });
+    // Area preservation: the ovals keep their solid angle through the
+    // morph (vector-area is chord-based, so compare with slack).
+    const areasRound = panelAreas(round);
+    base.panels.forEach((_, pi) => {
+      if (areasBase[pi] <= threshold) return;
+      expect(areasRound[pi] / areasBase[pi]).toBeGreaterThan(0.9);
+      expect(areasRound[pi] / areasBase[pi]).toBeLessThan(1.12);
+    });
     expect(() => subdivideTopology(round, 2)).not.toThrow();
   });
 

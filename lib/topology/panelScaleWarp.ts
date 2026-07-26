@@ -13,7 +13,9 @@ export interface FeatureMorph {
    * (the two lobes slide together; the waist indent survives), with a
    * late-onset radial rounding — cubic in (1 - elongation), so it is
    * negligible early and total at 0, where the merged lobes become one
-   * exact circle.
+   * exact circle. AREA-PRESERVING: the outline is renormalized to the
+   * panel's original solid angle at every value, so a shorter oval gets
+   * correspondingly wider/larger instead of just losing fabric.
    */
   elongation?: number;
 }
@@ -123,36 +125,71 @@ export function morphFeaturePanels(
       halfWid = Math.max(halfWid, Math.abs(-c.x * uy + c.y * ux));
     }
     const k0 = halfLen > 1e-9 ? Math.min(1, halfWid / halfLen) : 1;
-    const k = (k0 + (1 - k0) * elongation) * scale;
-    // First pass: compressed tangent coordinates + their mean radius
-    // (the circle the rounding blends toward — using the mean keeps the
-    // panel's size continuous through the final merge).
+    const k = k0 + (1 - k0) * elongation;
+    // Compressed tangent coordinates + their mean radius (the circle the
+    // rounding blends toward — the mean keeps size continuous through
+    // the final merge).
     const compressed = coords.map((c) => {
       const a = (c.x * ux + c.y * uy) * k;
-      const b = (-c.x * uy + c.y * ux) * scale;
+      const b = -c.x * uy + c.y * ux;
       return { x: a * ux - b * uy, y: a * uy + b * ux };
     });
     const meanTheta =
       compressed.reduce((s, c) => s + Math.hypot(c.x, c.y), 0) /
       compressed.length;
     const rounding = (1 - elongation) ** 3;
-    loop.forEach((vi, idx) => {
-      const c = compressed[idx];
+    const shaped = compressed.map((c) => {
       const theta = Math.hypot(c.x, c.y);
-      if (theta < 1e-12) {
-        moved.set(vi, center.clone().setLength(radius));
-        return;
+      if (theta < 1e-12) return { theta: 0, dx: 1, dy: 0 };
+      return {
+        theta: theta + (meanTheta - theta) * rounding,
+        dx: c.x / theta,
+        dy: c.y / theta,
+      };
+    });
+    // Area preservation: renormalize the shaped outline to the panel's
+    // ORIGINAL solid angle, so elongation trades length for width/size
+    // instead of losing fabric. Solved by fixed-point iteration on a
+    // uniform angular factor (exact on the sphere; converges in 2-3
+    // rounds). The user's ovalSize scale applies on top.
+    const pointAt = (s: { theta: number; dx: number; dy: number }, f: number) => {
+      const t = s.theta * f;
+      const dir = e1.clone().multiplyScalar(s.dx).addScaledVector(e2, s.dy);
+      return center
+        .clone()
+        .multiplyScalar(Math.cos(t))
+        .addScaledVector(dir, Math.sin(t));
+    };
+    const solidAngleAt = (f: number) => {
+      let solid = 0;
+      for (let i = 0; i < shaped.length; i++) {
+        const a = pointAt(shaped[i], f);
+        const b = pointAt(shaped[(i + 1) % shaped.length], f);
+        const triple = a.clone().cross(b).dot(center);
+        const denom = 1 + a.dot(b) + b.dot(center) + center.dot(a);
+        solid += 2 * Math.atan2(triple, denom);
       }
-      const thetaNew = theta + (meanTheta - theta) * rounding;
-      const dir = e1
-        .clone()
-        .multiplyScalar(c.x / theta)
-        .addScaledVector(e2, c.y / theta);
-      const target = center
-        .clone()
-        .multiplyScalar(Math.cos(thetaNew))
-        .addScaledVector(dir, Math.sin(thetaNew));
-      moved.set(vi, target.setLength(radius));
+      return Math.abs(solid);
+    };
+    const originalSolid = (() => {
+      let solid = 0;
+      for (let i = 0; i < loop.length; i++) {
+        const a = original[loop[i]].clone().normalize();
+        const b = original[loop[(i + 1) % loop.length]].clone().normalize();
+        const triple = a.clone().cross(b).dot(center);
+        const denom = 1 + a.dot(b) + b.dot(center) + center.dot(a);
+        solid += 2 * Math.atan2(triple, denom);
+      }
+      return Math.abs(solid);
+    })();
+    let f = 1;
+    for (let iter = 0; iter < 3; iter++) {
+      const current = solidAngleAt(f);
+      if (current < 1e-12) break;
+      f *= Math.sqrt(originalSolid / current);
+    }
+    loop.forEach((vi, idx) => {
+      moved.set(vi, pointAt(shaped[idx], f * scale).setLength(radius));
     });
   }
 
