@@ -57,7 +57,18 @@
     "label": "Orbita 2022",
     "glbPath": "/presets/orbita.glb",
     "panelCount": 12,
-    "shapeSignature": "12g"
+    "shapeSignature": "12g",
+    "params": [
+      {
+        "key": "spokeLength",
+        "label": "Spoke length",
+        "min": 0,
+        "max": 130,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "teamgeist",
