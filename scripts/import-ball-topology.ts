@@ -61,6 +61,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let mode: ImportOptions["mode"] = "auto";
   let rdpToleranceDegrees = 0.5;
   let hardEdgeThresholdDegrees = 30;
+  let expectPanels: number | undefined;
   let weldEpsilon = 1e-4;
   let noPreview = false;
   let overrideJunctionsPath: string | undefined;
@@ -80,6 +81,9 @@ function parseArgs(argv: string[]): ParsedArgs {
         break;
       case "--hard-edge-threshold":
         hardEdgeThresholdDegrees = parseFloat(next());
+        break;
+      case "--expect-panels":
+        expectPanels = parseInt(next(), 10);
         break;
       case "--weld-epsilon":
         weldEpsilon = parseFloat(next());
@@ -114,6 +118,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       mode,
       rdpToleranceDegrees,
       hardEdgeThresholdDegrees,
+      expectPanels,
       weldEpsilon,
       noPreview,
       overrideJunctions: overrideJunctionsValue,
@@ -145,6 +150,7 @@ Options:
                                      Detection mode. default: auto
   --rdp-tolerance <degrees>          Spherical RDP tolerance. default: 0.5
   --hard-edge-threshold <degrees>    For hard-edges mode. default: 30
+  --expect-panels <n>                Fail unless exactly n panels extract (use the real ball's spec)
   --weld-epsilon <units>             Vertex welding distance. default: 1e-4
   --label "<Display Name>"           Human label. default: derived from slug
   --no-preview                       Skip the SVG preview output.
@@ -233,6 +239,7 @@ async function main() {
   const checks = validateTopology(panels, mesh.positions, preprocReport, topoStats, {
     closureTolerance: 0.01,
     areaVarianceTolerance: 0.3,
+    expectPanels: options.expectPanels,
   });
 
   const report: VerificationReport = {

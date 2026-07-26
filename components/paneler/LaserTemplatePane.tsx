@@ -34,6 +34,8 @@ interface LaserTemplatePaneProps {
   onSettingsChange: (partial: Partial<LaserSettings>) => void;
   /** Design name used for download filenames. */
   designName: string;
+  /** Per-preset template options (e.g. Orbita sharp-bend anchors). */
+  templateOptions?: { sharpBendAnchors?: boolean };
 }
 
 /**
@@ -47,6 +49,7 @@ export function LaserTemplatePane({
   laserSettings,
   onSettingsChange,
   designName,
+  templateOptions,
 }: LaserTemplatePaneProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -62,8 +65,10 @@ export function LaserTemplatePane({
 
   const templates = useMemo(() => {
     const classes = groupPanelsByCongruence(topology);
-    return classes.map((cls) => buildLaserTemplate(topology, cls, laserSettings));
-  }, [topology, laserSettings]);
+    return classes.map((cls) =>
+      buildLaserTemplate(topology, cls, laserSettings, templateOptions),
+    );
+  }, [topology, laserSettings, templateOptions]);
 
   // Clamp selection when the design changes shape.
   useEffect(() => {

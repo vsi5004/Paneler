@@ -50,6 +50,13 @@ export type ExtractionMode = "uv-seams" | "hard-edges" | "primitives";
 
 /** Output of seam detection — input to face enumeration. */
 export interface SeamGraph {
+  /**
+   * Junction-free closed seam loops removed from the graph (valve rings,
+   * decorative circles, island-panel boundaries). Face enumeration can't
+   * see them — each entry is the loop's vertex count so reports can
+   * surface what was ignored.
+   */
+  droppedLoops?: number[];
   /** All detected seam edges (canonical lo-hi pairs). */
   edges: SeamEdge[];
   /** Vertices that lie on any seam edge. */
@@ -65,6 +72,13 @@ export type PanelLoop = number[];
 
 /** Configuration for the full importer pipeline. */
 export interface ImportOptions {
+  /**
+   * Expected panel count from the real ball's spec. When set, extraction
+   * FAILS if it disagrees — catches seams the source model simply does
+   * not encode (the LaLiga Orbita FBX merges its 12 panels into 6 UV
+   * islands; nothing in the geometry says otherwise).
+   */
+  expectPanels?: number;
   glbPath: string;
   slug: string;
   label: string;

@@ -93,7 +93,15 @@ export function subdivideTopology(
     // Fan triangulation is only valid when the panel is star-shaped about
     // the centroid — otherwise fan lines exit the panel and the surface
     // overlaps its neighbours. Concave panels take the ear-clipping path.
-    if (!isStarShapedAbout(newVertices, panel.vertexIndices, centroid)) {
+    // Densely-sampled wavy boundaries also take it even when technically
+    // star-shaped: a fan from the centroid to boundary points fractions
+    // of a degree apart makes sliver triangles (the Orbita's star panels
+    // measured 0.5-degree min angles), which wreck the ARAP flatten.
+    const denseWavyBoundary = panel.vertexIndices.length > 40;
+    if (
+      denseWavyBoundary ||
+      !isStarShapedAbout(newVertices, panel.vertexIndices, centroid)
+    ) {
       subdivideConcavePanel({
         pool: newVertices,
         loop: panel.vertexIndices,
@@ -587,26 +595,40 @@ function subdivideConcavePanel({
     const h = Math.sqrt(area / (0.433 * Math.max(1, targetTris)));
 
     // Interior Steiner points on a hex lattice, kept clear of the contour
-    // (closer than ~half a cell would make boundary slivers).
-    const cell = new Map<string, MeshPoint[]>();
-    const cellKey = (x: number, y: number) =>
-      `${Math.floor(x / h)}:${Math.floor(y / h)}`;
-    for (const p of contour) {
-      const k = cellKey(p.x, p.y);
-      if (!cell.has(k)) cell.set(k, []);
-      cell.get(k)!.push(p);
-    }
-    const clearOfContour = (x: number, y: number): boolean => {
-      const cx = Math.floor(x / h);
-      const cy = Math.floor(y / h);
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const bucket = cell.get(`${cx + dx}:${cy + dy}`);
-          if (!bucket) continue;
-          for (const p of bucket) {
-            if (Math.hypot(p.x - x, p.y - y) < 0.5 * h) return false;
-          }
+    // EDGES (closer than ~half a cell makes boundary slivers — checking
+    // only contour vertices misses points that land mid-segment; the
+    // Orbita's star panels produced 0.5-degree sliver triangles that
+    // way, which wreck the ARAP flatten locally).
+    const cell = new Map<string, number[]>();
+    const cellOf = (x: number, y: number) => [Math.floor(x / h), Math.floor(y / h)];
+    for (let i = 0; i < contour.length; i++) {
+      const a = contour[i];
+      const b = contour[(i + 1) % contour.length];
+      const [ax, ay] = cellOf(a.x, a.y);
+      const [bx, by] = cellOf(b.x, b.y);
+      for (let cx = Math.min(ax, bx) - 1; cx <= Math.max(ax, bx) + 1; cx++) {
+        for (let cy = Math.min(ay, by) - 1; cy <= Math.max(ay, by) + 1; cy++) {
+          const k = `${cx}:${cy}`;
+          if (!cell.has(k)) cell.set(k, []);
+          cell.get(k)!.push(i);
         }
+      }
+    }
+    const segDist = (x: number, y: number, i: number): number => {
+      const a = contour[i];
+      const b = contour[(i + 1) % contour.length];
+      const abx = b.x - a.x;
+      const aby = b.y - a.y;
+      const lsq = abx * abx + aby * aby || 1e-18;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (y - a.y) * aby) / lsq));
+      return Math.hypot(x - (a.x + abx * t), y - (a.y + aby * t));
+    };
+    const clearOfContour = (x: number, y: number): boolean => {
+      const [cx, cy] = cellOf(x, y);
+      const bucket = cell.get(`${cx}:${cy}`);
+      if (!bucket) return true;
+      for (const i of bucket) {
+        if (segDist(x, y, i) < 0.4 * h) return false;
       }
       return true;
     };
@@ -633,6 +655,54 @@ function subdivideConcavePanel({
           steiner.push(new MeshPoint(x, y));
         }
       }
+    }
+    // Inset ring: one point ~0.45h inside the boundary at every contour
+    // vertex, so the boundary strip triangulates against a parallel row.
+    // Without it, straight densely-sampled boundary stretches sit in the
+    // empty clearance band and poly2tri joins three near-collinear
+    // boundary points into zero-angle slivers (the Orbita's star panels
+    // hit exactly this; slivers locally wreck the ARAP flatten).
+    for (let i = 0; i < contour.length; i++) {
+      const prev = contour[(i - 1 + contour.length) % contour.length];
+      const cur = contour[i];
+      const next = contour[(i + 1) % contour.length];
+      // inward normal from the two adjacent edges (contour is CCW in
+      // this tangent frame, so interior is to the left)
+      const e1x = cur.x - prev.x;
+      const e1y = cur.y - prev.y;
+      const e2x = next.x - cur.x;
+      const e2y = next.y - cur.y;
+      const l1 = Math.hypot(e1x, e1y) || 1;
+      const l2 = Math.hypot(e2x, e2y) || 1;
+      let nx = -(e1y / l1 + e2y / l2);
+      let ny = e1x / l1 + e2x / l2;
+      const ln = Math.hypot(nx, ny);
+      if (ln < 1e-9) continue;
+      nx /= ln;
+      ny /= ln;
+      const px = cur.x + nx * 0.45 * h;
+      const py = cur.y + ny * 0.45 * h;
+      if (!insidePolygon(px, py)) continue;
+      // keep the ring off the contour and off already-placed points
+      let ok = true;
+      const bucket = cell.get(`${Math.floor(px / h)}:${Math.floor(py / h)}`);
+      if (bucket) {
+        for (const si of bucket) {
+          if (segDist(px, py, si) < 0.3 * h) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      if (ok) {
+        for (const q of steiner) {
+          if (Math.hypot(q.x - px, q.y - py) < 0.35 * h) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      if (ok) steiner.push(new MeshPoint(px, py));
     }
 
     const sweep = new SweepContext(contour);

@@ -104,6 +104,16 @@ export function PanelerDesigner({
     return defs && defs.length > 0 ? defs : null;
   }, [designInfo]);
 
+  // Per-preset laser template options (Orbita: anchor holes on sharp
+  // star bends). Memoized so the pane's template memo doesn't churn.
+  const laserTemplateOptions = useMemo(
+    () =>
+      designInfo && presetById(designInfo.presetId)?.laserSharpBendAnchors
+        ? { sharpBendAnchors: true }
+        : undefined,
+    [designInfo],
+  );
+
   // Design nav + persistence (DB mode only).
   const ds = useDesigns({ enabled: dbEnabled });
   const [navCollapsed, setNavCollapsed] = useState(false);
