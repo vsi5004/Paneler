@@ -53,6 +53,13 @@
     "shapeSignature": "12p"
   },
   {
+    "slug": "orbita",
+    "label": "Orbita 2022",
+    "glbPath": "/presets/orbita.glb",
+    "panelCount": 12,
+    "shapeSignature": "12g"
+  },
+  {
     "slug": "teamgeist",
     "label": "Teamgeist 2006",
     "glbPath": "/presets/teamgeist.glb",
