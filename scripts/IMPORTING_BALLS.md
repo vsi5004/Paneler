@@ -52,6 +52,20 @@ The importer works on any mesh that's approximately a sphere with visible panel 
 
 Auto-detect tries all three in order and uses the first that produces a valid graph.
 
+**Not a GLB?** FBX (and most Maya/Blender exports) convert cleanly with
+the `fbx2gltf` npm package:
+
+```bash
+npm install fbx2gltf   # in a scratch dir
+./node_modules/fbx2gltf/bin/Darwin/FBX2glTF --binary \
+  --input ball.fbx --output ball.glb
+```
+
+If a model ships several FBX variants, prefer the densest "smooth" one
+(better seam fidelity) and avoid "ID"-map variants — their UV islands
+are per-face, not per-panel. Decorative logo meshes are fine; the
+component filter drops them.
+
 **Copyright**: only import GLBs you have a license for, or your own work. Many vendor models are licensed for personal/educational use only — check the original source.
 
 ---

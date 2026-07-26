@@ -350,11 +350,36 @@ function buildSeamGraph(edges: SeamEdge[]): SeamGraph {
     adjacency.get(a)!.add(b);
     adjacency.get(b)!.add(a);
   }
+
+  // Prune dangling spurs: a closed panel layout's seam graph has no
+  // degree-1 vertices, but UV-driven detection picks up texture-packing
+  // splits that dead-end mid-panel (an island cut inside one panel).
+  // Left in place they crash face enumeration ("junction has only 1
+  // outgoing half-edge"). Peel degree-1 chains until none remain.
+  for (;;) {
+    const spurs: number[] = [];
+    for (const [v, neighbors] of adjacency) {
+      if (neighbors.size === 1) spurs.push(v);
+    }
+    if (spurs.length === 0) break;
+    for (const v of spurs) {
+      const neighbors = adjacency.get(v);
+      if (!neighbors || neighbors.size !== 1) continue;
+      const [n] = neighbors;
+      adjacency.delete(v);
+      vertices.delete(v);
+      adjacency.get(n)?.delete(v);
+    }
+  }
+  const keptEdges = edges.filter(
+    ([a, b]) => adjacency.get(a)?.has(b) ?? false,
+  );
+
   const junctions = new Set<number>();
   for (const [v, neighbors] of adjacency) {
     if (neighbors.size >= 3) junctions.add(v);
   }
-  return { edges, vertices, adjacency, junctions };
+  return { edges: keptEdges, vertices, adjacency, junctions };
 }
 
 /** Replace the auto-detected junctions with a user-specified list (advanced).
