@@ -3,6 +3,8 @@
 import { Slider } from "@/components/ui/slider";
 import {
   MAX_BITE_DEPTH_MM,
+  MAX_GATHER_PCT,
+  MIN_GATHER_PCT,
   MAX_SHORT_EDGE_EXTENSION_MM,
   MIN_SHORT_EDGE_EXTENSION_MM,
   MAX_CORNER_MARGIN_MM,
@@ -68,6 +70,23 @@ export function LaserSettingsPanel({
             max={MAX_DIAMETER_IN}
             step={0.05}
             onValueChange={(v) => onChange({ diameterIn: first(v) })}
+          />
+        </div>
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              Gather
+            </label>
+            <span className="font-mono text-[10px] tabular-nums text-foreground">
+              {values.gatherPct.toFixed(0)}%
+            </span>
+          </div>
+          <Slider
+            value={[values.gatherPct]}
+            min={MIN_GATHER_PCT}
+            max={MAX_GATHER_PCT}
+            step={1}
+            onValueChange={(v) => onChange({ gatherPct: first(v) })}
           />
         </div>
         <div>

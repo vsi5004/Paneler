@@ -16,6 +16,12 @@ export interface LaserSettings {
   /** Empty space between each hole row's ends and the panel corners, mm. */
   cornerMarginMm: number;
   /**
+   * Linear oversize for seam take-up, percent. ~18 for loose-gather
+   * multi-seam sewing (the proven 32-panel bags); near 0 for tight
+   * stitches on single-seam designs.
+   */
+  gatherPct: number;
+  /**
    * Extra fabric beyond the cut line along UNSTITCHED short edges,
    * millimeters (0 = off). Widens the strip behind the corner stitch so
    * it can't pull out; ignored when short-edge holes are on (nothing is

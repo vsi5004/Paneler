@@ -14,6 +14,8 @@ interface PanelerFlatViewProps {
   panelColors: PanelColors;
   selectedPanelId: string | null;
   onPanelClick: (panelId: string) => void;
+  /** Per-preset flatten routing (Spiral: seam-true bands). */
+  flattenOptions?: { seamTrueBands?: boolean };
 }
 
 /**
@@ -32,14 +34,15 @@ export default function PanelerFlatView({
   panelColors,
   selectedPanelId,
   onPanelClick,
+  flattenOptions,
 }: PanelerFlatViewProps) {
   // Memoise by topology reference; PanelerDesigner's `useMemo` already
   // gives us a stable identity per preset / OBJ upload.
   const { layout, viewBox } = useMemo(() => {
-    const layout = unfoldNet(topology);
+    const layout = unfoldNet(topology, flattenOptions);
     const viewBox = computeViewBox(layout);
     return { layout, viewBox };
-  }, [topology]);
+  }, [topology, flattenOptions]);
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
