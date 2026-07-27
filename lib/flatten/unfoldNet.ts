@@ -418,12 +418,13 @@ export function symmetrizeWavyPanel(
   const hasJunctions = panel.vertexIndices.some(
     (vi) => (useCount.get(vi) ?? 0) >= 3,
   );
-  // Panels that WIND — their boundary sweeps more than a full turn of
-  // longitude about the spine frame (the Spiral's bands) — also need
-  // ARAP: the equirectangular spine-unroll folds over past ±180°, and
-  // Lambert folds at the antipode. The Baseball stays on its proven
-  // spine-unroll (its lobes never exceed a half-turn each way).
-  if (!hasJunctions && !windsFullTurn(panel, topo)) {
+  // Wrap-around panels (boundary reaching past ~99° of the center: the
+  // Baseball's hemispheres, the Spiral's bands) also take ARAP: single-
+  // chart projections are measurably poor there — the equirectangular
+  // spine-unroll runs 25-59% perimeter error with local edge stretch in
+  // the hundreds of percent, vs ARAP's few percent. ARAP seeds from the
+  // BFS hinge-unfold for these panels (see arap.ts).
+  if (!hasJunctions && !isWrapAround(panel, topo)) {
     return null;
   }
 
@@ -440,52 +441,15 @@ export function symmetrizeWavyPanel(
  * about its spine frame (center direction x farthest boundary point)?
  * Beyond that the equirectangular unroll self-overlaps.
  */
-function windsFullTurn(panel: Panel, topo: PanelTopology): boolean {
+function isWrapAround(panel: Panel, topo: PanelTopology): boolean {
   const normal = panelCenterDirection(panel, topo);
-  const units = panel.vertexIndices.map((vi) =>
-    topo.vertices[vi].clone().normalize(),
-  );
   let maxAngDist = 0;
-  let farthest = units[0];
-  for (const unit of units) {
+  for (const vi of panel.vertexIndices) {
+    const unit = topo.vertices[vi].clone().normalize();
     const d = Math.acos(Math.min(1, Math.max(-1, unit.dot(normal))));
-    if (d > maxAngDist) {
-      maxAngDist = d;
-      farthest = unit;
-    }
+    if (d > maxAngDist) maxAngDist = d;
   }
-  if (maxAngDist <= Math.PI * 0.55) return false; // compact: Lambert fine
-  const spineY = normal;
-  const spineX = farthest
-    .clone()
-    .sub(spineY.clone().multiplyScalar(farthest.dot(spineY)));
-  if (spineX.lengthSq() < 1e-18) return false;
-  spineX.normalize();
-  const spineN = new Vector3().crossVectors(spineX, spineY).normalize();
-  // Unwrapped longitude RANGE along the boundary. Total travel would
-  // trip on the Baseball (its lobes go out and back, ~4x the lobe span)
-  // — the range only exceeds a full turn when the panel actually WINDS.
-  let unwrapped = 0;
-  let minLon = 0;
-  let maxLon = 0;
-  let prev: number | null = null;
-  for (const unit of units) {
-    const inPlane = unit
-      .clone()
-      .sub(spineN.clone().multiplyScalar(unit.dot(spineN)));
-    if (inPlane.lengthSq() < 1e-18) continue;
-    const lon = Math.atan2(inPlane.dot(spineX), inPlane.dot(spineY));
-    if (prev !== null) {
-      let d = lon - prev;
-      if (d > Math.PI) d -= 2 * Math.PI;
-      if (d < -Math.PI) d += 2 * Math.PI;
-      unwrapped += d;
-      minLon = Math.min(minLon, unwrapped);
-      maxLon = Math.max(maxLon, unwrapped);
-    }
-    prev = lon;
-  }
-  return maxLon - minLon > 2 * Math.PI * 0.95;
+  return maxAngDist > Math.PI * 0.55;
 }
 
 const arapBoundaryCache = new WeakMap<PanelTopology, Map<string, Vec2[] | null>>();

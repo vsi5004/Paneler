@@ -286,7 +286,7 @@ export const PRESETS: PresetEntry[] = [
         key: "twist",
         label: "Twist",
         min: 0,
-        max: 150,
+        max: 250,
         step: 5,
         defaultValue: 100,
         unit: "%",

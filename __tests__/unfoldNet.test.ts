@@ -180,7 +180,9 @@ describe("unfoldNet", () => {
     ["orbita", undefined, 0.03, 0.15],
     // full-winding bands exercise the BFS hinge-unfold ARAP init
     ["spiral", undefined, 0.08, 0.35],
-    ["spiral", { twist: 150 }, 0.05, 0.3],
+    ["spiral", { twist: 250 }, 0.05, 0.3],
+    // half-sphere lobed panels, also ARAP + hinge-unfold now
+    ["baseball", undefined, 0.1, 0.6],
   ] as const)(
     "re-wrap: flat %s panels lie back on the sphere with small smooth strain (%o)",
     (presetId, params, rmsBound, maxBound) => {
@@ -259,8 +261,11 @@ describe("unfoldNet", () => {
       // Non-degenerate in absolute terms and not collapsed to a line.
       expect(Math.max(xExt, yExt)).toBeGreaterThan(0.01);
       expect(Math.min(xExt, yExt)).toBeGreaterThan(0.1 * Math.max(xExt, yExt));
-      // Spine-unrolled wrap-around panels read as elongated dog-bones.
-      expect(Math.max(xExt, yExt) / Math.min(xExt, yExt)).toBeGreaterThan(2);
+      // ARAP-flattened wrap-around panels read as elongated dog-bones.
+      // (The retired spine-unroll measured >2, but it was stretching the
+      // sides by up to 59% of perimeter; ARAP's honest development is a
+      // little fatter.)
+      expect(Math.max(xExt, yExt) / Math.min(xExt, yExt)).toBeGreaterThan(1.5);
     }
   });
 });
