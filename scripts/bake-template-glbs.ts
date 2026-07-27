@@ -27,6 +27,8 @@ interface ManifestEntry {
   shapeSignature: string;
   /** Shape param definitions, for gallery display; values live in the GLB. */
   params?: PresetParamDef[];
+  /** Listed only in local development builds. */
+  devOnly?: boolean;
 }
 
 async function main() {
@@ -52,6 +54,7 @@ async function main() {
       panelCount: panels.length,
       shapeSignature: shapeSignature(panels),
       ...(preset.params?.length ? { params: preset.params } : {}),
+      ...(preset.devOnly ? { devOnly: true } : {}),
     });
 
     console.log(`baked ${preset.id} (${panels.length} panels, ${bytes.byteLength} bytes)`);

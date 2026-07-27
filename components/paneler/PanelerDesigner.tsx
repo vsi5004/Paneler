@@ -39,6 +39,8 @@ interface TemplateEntry {
   glbPath: string;
   panelCount: number;
   shapeSignature: string;
+  /** Listed only in local development builds. */
+  devOnly?: boolean;
 }
 
 interface PanelerDesignerProps {
@@ -188,7 +190,14 @@ export function PanelerDesigner({
       .then((r) => r.json() as Promise<TemplateEntry[]>)
       .then((list) => {
         if (cancelled) return;
-        setTemplates(list);
+        // devOnly presets stay off the live picker; NODE_ENV is inlined
+        // at build time, so production bundles (k8s and the static
+        // export) filter them and `npm run dev` shows them.
+        setTemplates(
+          list.filter(
+            (e) => !e.devOnly || process.env.NODE_ENV === "development",
+          ),
+        );
       })
       .catch(() => {
         // Manifest fetch can fail in non-deployed test contexts; UI handles

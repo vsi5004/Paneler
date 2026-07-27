@@ -74,23 +74,44 @@ export function arapFlattenMesh(
     });
   }
 
-  // --- Initial guess: Lambert azimuthal about the panel center ---
+  // --- Initial guess ---
+  // Compact panels: Lambert azimuthal about the panel center. Panels
+  // that reach past ~99° of the center (the Spiral's full-sphere bands):
+  // Lambert folds at the far field, so seed with a BFS hinge-unfold
+  // instead — triangles placed one at a time, each rigidly hinged on an
+  // already-placed neighbour. Near-developable strips unroll almost
+  // exactly; ARAP then relaxes the small accumulated drift.
   const center = panelCenter(panel, topo, positions3D, boundaryMeshIndex);
-  const helper =
-    Math.abs(center.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
-  const tanU = new Vector3().crossVectors(center, helper).normalize();
-  const tanV = new Vector3().crossVectors(center, tanU).normalize();
   const sphereRadius = positions3D[0].length() || 1;
+  let maxAngDist = 0;
+  for (const p of positions3D) {
+    maxAngDist = Math.max(
+      maxAngDist,
+      Math.acos(
+        Math.min(1, Math.max(-1, p.clone().normalize().dot(center))),
+      ),
+    );
+  }
   let px: Float64Array = new Float64Array(nV);
   let py: Float64Array = new Float64Array(nV);
-  for (let i = 0; i < nV; i++) {
-    const u = positions3D[i].clone().normalize();
-    const cosD = Math.min(1, Math.max(-1, u.dot(center)));
-    const az = u.clone().sub(center.clone().multiplyScalar(cosD));
-    const azLen = az.length();
-    const r = 2 * Math.sin(Math.acos(cosD) / 2) * sphereRadius;
-    px[i] = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
-    py[i] = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
+  if (maxAngDist <= Math.PI * 0.55) {
+    const helper =
+      Math.abs(center.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+    const tanU = new Vector3().crossVectors(center, helper).normalize();
+    const tanV = new Vector3().crossVectors(center, tanU).normalize();
+    for (let i = 0; i < nV; i++) {
+      const u = positions3D[i].clone().normalize();
+      const cosD = Math.min(1, Math.max(-1, u.dot(center)));
+      const az = u.clone().sub(center.clone().multiplyScalar(cosD));
+      const azLen = az.length();
+      const r = 2 * Math.sin(Math.acos(cosD) / 2) * sphereRadius;
+      px[i] = azLen > 1e-12 ? (r * az.dot(tanU)) / azLen : 0;
+      py[i] = azLen > 1e-12 ? (r * az.dot(tanV)) / azLen : 0;
+    }
+  } else {
+    const seeded = unfoldInit(nV, positions3D, triangles, refs);
+    px = seeded.px;
+    py = seeded.py;
   }
 
   // --- Laplacian structure (shared by x and y solves) ---
@@ -241,6 +262,108 @@ export function arapFlattenBoundary(
     const m = mesh.boundaryMeshIndex.get(vi)!;
     return { ...mesh.flat[m] };
   });
+}
+
+/**
+ * BFS hinge-unfold: place the seed triangle by its isometric reference
+ * coordinates, then walk triangle adjacency, rigidly placing each new
+ * triangle on its already-placed shared edge (third vertex on the side
+ * that preserves winding). Vertices keep their first computed position;
+ * later triangles reuse them, so the layout is single-valued. For
+ * near-developable surfaces the drift is tiny; ARAP absorbs the rest.
+ */
+function unfoldInit(
+  nV: number,
+  positions3D: Vector3[],
+  triangles: [number, number, number][],
+  refs: { x: [Vec2, Vec2, Vec2]; w: [number, number, number] }[],
+): { px: Float64Array; py: Float64Array } {
+  const px = new Float64Array(nV);
+  const py = new Float64Array(nV);
+  const placedV = new Uint8Array(nV);
+  const placedT = new Uint8Array(triangles.length);
+
+  // triangle adjacency by shared edge
+  const edgeTri = new Map<string, number[]>();
+  triangles.forEach(([a, b, c], t) => {
+    for (const [u, v] of [
+      [a, b],
+      [b, c],
+      [c, a],
+    ]) {
+      const k = u < v ? `${u}-${v}` : `${v}-${u}`;
+      if (!edgeTri.has(k)) edgeTri.set(k, []);
+      edgeTri.get(k)!.push(t);
+    }
+  });
+
+  const place3rd = (t: number): void => {
+    const [a, b, c] = triangles[t];
+    const verts = [a, b, c];
+    const missingIdx = verts.findIndex((v) => !placedV[v]);
+    if (missingIdx === -1) return;
+    const m = verts[missingIdx];
+    const u = verts[(missingIdx + 1) % 3];
+    const v = verts[(missingIdx + 2) % 3];
+    // 3D edge lengths from this triangle
+    const lum = positions3D[u].distanceTo(positions3D[m]);
+    const lvm = positions3D[v].distanceTo(positions3D[m]);
+    const ux = px[u];
+    const uy = py[u];
+    const vx = px[v];
+    const vy = py[v];
+    const d = Math.hypot(vx - ux, vy - uy) || 1e-12;
+    // circle-circle intersection: point at distance lum from u, lvm from v
+    const along = (d * d + lum * lum - lvm * lvm) / (2 * d);
+    const h2 = Math.max(0, lum * lum - along * along);
+    const h = Math.sqrt(h2);
+    const ex = (vx - ux) / d;
+    const ey = (vy - uy) / d;
+    // winding: (u → v → m) must be CCW to match the 3D orientation
+    // (triangles arrive consistently wound from the subdivider)
+    const mx1 = ux + along * ex - h * ey;
+    const my1 = uy + along * ey + h * ex;
+    const mx2 = ux + along * ex + h * ey;
+    const my2 = uy + along * ey - h * ex;
+    const ccw1 = (vx - ux) * (my1 - uy) - (vy - uy) * (mx1 - ux) > 0;
+    px[m] = ccw1 ? mx1 : mx2;
+    py[m] = ccw1 ? my1 : my2;
+    placedV[m] = 1;
+  };
+
+  // seed
+  const [a0, b0, c0] = triangles[0];
+  px[a0] = refs[0].x[0].x;
+  py[a0] = refs[0].x[0].y;
+  px[b0] = refs[0].x[1].x;
+  py[b0] = refs[0].x[1].y;
+  px[c0] = refs[0].x[2].x;
+  py[c0] = refs[0].x[2].y;
+  placedV[a0] = 1;
+  placedV[b0] = 1;
+  placedV[c0] = 1;
+  placedT[0] = 1;
+  const queue = [0];
+  while (queue.length > 0) {
+    const t = queue.shift()!;
+    const [a, b, c] = triangles[t];
+    for (const [u, v] of [
+      [a, b],
+      [b, c],
+      [c, a],
+    ]) {
+      const k = u < v ? `${u}-${v}` : `${v}-${u}`;
+      for (const nt of edgeTri.get(k) ?? []) {
+        if (placedT[nt]) continue;
+        // only expand across an edge whose two vertices are placed
+        if (!placedV[u] || !placedV[v]) continue;
+        place3rd(nt);
+        placedT[nt] = 1;
+        queue.push(nt);
+      }
+    }
+  }
+  return { px, py };
 }
 
 function panelCenter(

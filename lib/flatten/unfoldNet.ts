@@ -415,7 +415,16 @@ export function symmetrizeWavyPanel(
       useCount.set(vi, (useCount.get(vi) ?? 0) + 1);
     }
   }
-  if (!panel.vertexIndices.some((vi) => (useCount.get(vi) ?? 0) >= 3)) {
+  const hasJunctions = panel.vertexIndices.some(
+    (vi) => (useCount.get(vi) ?? 0) >= 3,
+  );
+  // Wrap-around panels (boundary reaching past ~99° of the center: the
+  // Baseball's hemispheres, the Spiral's bands) also take ARAP: single-
+  // chart projections are measurably poor there — the equirectangular
+  // spine-unroll runs 25-59% perimeter error with local edge stretch in
+  // the hundreds of percent, vs ARAP's few percent. ARAP seeds from the
+  // BFS hinge-unfold for these panels (see arap.ts).
+  if (!hasJunctions && !isWrapAround(panel, topo)) {
     return null;
   }
 
@@ -425,6 +434,22 @@ export function symmetrizeWavyPanel(
     corners: boundary.map((c) => ({ ...c })),
     sagittaRatios: new Array(panel.vertexIndices.length).fill(0),
   };
+}
+
+/**
+ * Does the panel's boundary sweep more than a full turn of longitude
+ * about its spine frame (center direction x farthest boundary point)?
+ * Beyond that the equirectangular unroll self-overlaps.
+ */
+function isWrapAround(panel: Panel, topo: PanelTopology): boolean {
+  const normal = panelCenterDirection(panel, topo);
+  let maxAngDist = 0;
+  for (const vi of panel.vertexIndices) {
+    const unit = topo.vertices[vi].clone().normalize();
+    const d = Math.acos(Math.min(1, Math.max(-1, unit.dot(normal))));
+    if (d > maxAngDist) maxAngDist = d;
+  }
+  return maxAngDist > Math.PI * 0.55;
 }
 
 const arapBoundaryCache = new WeakMap<PanelTopology, Map<string, Vec2[] | null>>();
