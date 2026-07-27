@@ -299,7 +299,13 @@ export const PRESETS: PresetEntry[] = [
     panels: 2,
     devOnly: true,
     seamTrueFlatten: true,
-    gatherCorrection: 1.02,
+    // Seam-density gather model, calibrated on the proven 32-panel
+    // bags: their 1.18 linear correction ↔ gathering consumes a
+    // ~0.135 rad strip along every seam; the spiral's single seam at
+    // its usual twists (100-135%) gives 1.055-1.067. A tight-stitch
+    // no-gather prototype measured ~1.02 — sew with a normal gather
+    // and this factor lands the target diameter.
+    gatherCorrection: 1.07,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of
