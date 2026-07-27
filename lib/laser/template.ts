@@ -38,7 +38,7 @@ export function buildLaserTemplate(
   settings: LaserSettings,
   options: LaserTemplateOptions = {},
 ): LaserTemplate {
-  const scale = mmPerUnit(settings.diameterIn, settings.gatherPct);
+  const scale = mmPerUnit(settings.diameterIn, settings.seamStyle);
   const unscaled = laserPanelOutline(topo, cls.representative, {
     seamTrueBands: options.seamTrueBands,
   });

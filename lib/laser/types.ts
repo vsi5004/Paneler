@@ -16,11 +16,12 @@ export interface LaserSettings {
   /** Empty space between each hole row's ends and the panel corners, mm. */
   cornerMarginMm: number;
   /**
-   * Linear oversize for seam take-up, percent. ~18 for loose-gather
-   * multi-seam sewing (the proven 32-panel bags); near 0 for tight
-   * stitches on single-seam designs.
+   * How the seams will be sewn — the meaningful unit for a stitcher.
+   * "gathered": loose gathered hand-stitch (the proven 32-panel bags);
+   * fabric take-up calibrated at 18% linear. "tight": flat tight
+   * stitches; a stitched Spiral showed essentially no take-up (~2%).
    */
-  gatherPct: number;
+  seamStyle: "gathered" | "tight";
   /**
    * Extra fabric beyond the cut line along UNSTITCHED short edges,
    * millimeters (0 = off). Widens the strip behind the corner stitch so

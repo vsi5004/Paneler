@@ -31,7 +31,7 @@ const SETTINGS: LaserSettings = {
   cornerMarginMm: 0,
   shortEdgeHoles: false,
   shortEdgeExtensionMm: 0,
-  gatherPct: 18,
+  seamStyle: "gathered" as const,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -641,7 +641,7 @@ describe("stitch holes", () => {
         ...SETTINGS,
         shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-      gatherPct: 18,
+      seamStyle: "gathered" as const,
       });
       const rep = cls.representative;
       const flat = laserPanelOutline(topo, rep);
@@ -950,7 +950,7 @@ describe("SVG output", () => {
       cornerMarginMm: 4,
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-      gatherPct: 18,
+      seamStyle: "gathered" as const,
     });
     expect(margined.holes.length).toBeLessThanOrEqual(base.holes.length);
     const scale = mmPerUnit(SETTINGS.diameterIn);

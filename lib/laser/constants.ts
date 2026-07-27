@@ -77,23 +77,28 @@ export const MAX_CORNER_MARGIN_MM = 5;
  * area = the proven total, regardless of panel tiling.
  */
 export const GATHER_CORRECTION = 1.18;
-/** Gather slider bounds (percent linear oversize for seam take-up). */
-export const DEFAULT_GATHER_PCT = 18;
-export const MIN_GATHER_PCT = 0;
-export const MAX_GATHER_PCT = 30;
+/** Linear oversize per seam style — see LaserSettings.seamStyle. */
+export const SEAM_STYLE_GATHER: Record<"gathered" | "tight", number> = {
+  gathered: 1.18,
+  tight: 1.02,
+};
 
 /**
- * Millimeters of physical fabric per topology sphere unit. The gather
- * percent is sewing-style-dependent: ~18% matches the proven 32-panel
- * bags (loose gather at every seam); tight-stitch single-seam designs
- * gather far less — a Spiral sewn tight with the default came out ~18%
- * oversize, exactly the ungathered prediction.
+ * Millimeters of physical fabric per topology sphere unit. Fabric
+ * take-up depends on the sewing style, not on anything a slider with
+ * abstract units can express: "gathered" (loose gathered hand-stitch,
+ * the proven 32-panel bags) is calibrated at 1.18 linear; "tight"
+ * (flat tight stitches) at 1.02 — a Spiral sewn tight with the
+ * gathered factor came out ~18% oversize, i.e. essentially zero
+ * take-up.
  */
 export function mmPerUnit(
   diameterIn: number,
-  gatherPct: number = DEFAULT_GATHER_PCT,
+  seamStyle: "gathered" | "tight" = "gathered",
 ): number {
-  return ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * (1 + gatherPct / 100);
+  return (
+    ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * SEAM_STYLE_GATHER[seamStyle]
+  );
 }
 
 /** Fresh default settings object (new designs, missing extras). */
@@ -106,7 +111,7 @@ export function defaultLaserSettings(): {
   cornerMarginMm: number;
   shortEdgeHoles: boolean;
   shortEdgeExtensionMm: number;
-  gatherPct: number;
+  seamStyle: "gathered" | "tight";
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
@@ -117,7 +122,7 @@ export function defaultLaserSettings(): {
     cornerMarginMm: CORNER_MARGIN_MM,
     shortEdgeHoles: false,
     shortEdgeExtensionMm: 0,
-    gatherPct: DEFAULT_GATHER_PCT,
+    seamStyle: "gathered",
   };
 }
 

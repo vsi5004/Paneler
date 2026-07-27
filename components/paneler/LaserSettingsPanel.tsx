@@ -3,8 +3,6 @@
 import { Slider } from "@/components/ui/slider";
 import {
   MAX_BITE_DEPTH_MM,
-  MAX_GATHER_PCT,
-  MIN_GATHER_PCT,
   MAX_SHORT_EDGE_EXTENSION_MM,
   MIN_SHORT_EDGE_EXTENSION_MM,
   MAX_CORNER_MARGIN_MM,
@@ -72,22 +70,26 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ diameterIn: first(v) })}
           />
         </div>
-        <div>
-          <div className="mb-2 flex items-baseline justify-between">
-            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              Gather
-            </label>
-            <span className="font-mono text-[10px] tabular-nums text-foreground">
-              {values.gatherPct.toFixed(0)}%
-            </span>
+        <div className="flex items-center justify-between">
+          <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+            Seam style
+          </label>
+          <div className="flex gap-1">
+            {(["gathered", "tight"] as const).map((style) => (
+              <button
+                key={style}
+                type="button"
+                onClick={() => onChange({ seamStyle: style })}
+                className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors ${
+                  values.seamStyle === style
+                    ? "border-primary bg-primary/20 text-foreground"
+                    : "border-border text-muted-foreground"
+                }`}
+              >
+                {style}
+              </button>
+            ))}
           </div>
-          <Slider
-            value={[values.gatherPct]}
-            min={MIN_GATHER_PCT}
-            max={MAX_GATHER_PCT}
-            step={1}
-            onValueChange={(v) => onChange({ gatherPct: first(v) })}
-          />
         </div>
         <div>
           <div className="mb-2 flex items-baseline justify-between">
