@@ -32,7 +32,31 @@ import { arapFlattenBoundary } from "./arap";
  * decide.
  */
 
+const bandCache = new WeakMap<PanelTopology, Map<string, PanelFlat | null>>();
+
 export function developBand(
+  panel: Panel,
+  topo: PanelTopology,
+): PanelFlat | null {
+  let perTopo = bandCache.get(topo);
+  if (!perTopo) {
+    perTopo = new Map();
+    bandCache.set(topo, perTopo);
+  }
+  const hit = perTopo.get(panel.id);
+  if (hit !== undefined) {
+    return hit
+      ? { corners: hit.corners.map((c) => ({ ...c })), sagittaRatios: [...hit.sagittaRatios] }
+      : null;
+  }
+  const result = developBandUncached(panel, topo);
+  perTopo.set(panel.id, result);
+  return result
+    ? { corners: result.corners.map((c) => ({ ...c })), sagittaRatios: [...result.sagittaRatios] }
+    : null;
+}
+
+function developBandUncached(
   panel: Panel,
   topo: PanelTopology,
 ): PanelFlat | null {

@@ -479,15 +479,7 @@ function isWrapAround(panel: Panel, topo: PanelTopology): boolean {
   return maxAngDist > Math.PI * 0.55;
 }
 
-const arapBoundaryCache = new WeakMap<PanelTopology, Map<string, Vec2[] | null>>();
+// arapFlattenBoundary caches internally per (topology, panel).
 function arapCached(panel: Panel, topo: PanelTopology): Vec2[] | null {
-  let perTopo = arapBoundaryCache.get(topo);
-  if (!perTopo) {
-    perTopo = new Map();
-    arapBoundaryCache.set(topo, perTopo);
-  }
-  if (!perTopo.has(panel.id)) {
-    perTopo.set(panel.id, arapFlattenBoundary(panel, topo));
-  }
-  return perTopo.get(panel.id) ?? null;
+  return arapFlattenBoundary(panel, topo);
 }
