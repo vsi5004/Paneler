@@ -33,7 +33,8 @@
         "defaultValue": 100,
         "unit": "%"
       }
-    ]
+    ],
+    "devOnly": true
   },
   {
     "slug": "trionda",

@@ -217,6 +217,12 @@ export interface PresetEntry {
   /** Shape parameters this preset supports. Absent → no Shape sliders. */
   params?: PresetParamDef[];
   /**
+   * Show this preset's template only in local development builds — for
+   * designs kept off the live picker. The baked GLB still ships (the
+   * repo is public); this is presentation, not secrecy.
+   */
+  devOnly?: boolean;
+  /**
    * Anchor stitch holes exactly on sharp bends inside seam runs (the
    * Orbita star's outer tips and inner notches). Opt-in per preset:
    * other wavy balls (trionda, Teamgeist) also carry bends above any
@@ -279,6 +285,7 @@ export const PRESETS: PresetEntry[] = [
     id: "spiral",
     label: "Spiral",
     panels: 2,
+    devOnly: true,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of
