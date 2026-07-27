@@ -223,6 +223,18 @@ export interface PresetEntry {
    */
   devOnly?: boolean;
   /**
+   * Seam-true band flatten (net + templates): boundary lengths exact,
+   * interior absorbs the strain. For single-seam band designs whose
+   * sewn shape is dictated by the seam — see lib/flatten/bandDevelop.ts.
+   */
+  seamTrueFlatten?: boolean;
+  /**
+   * Per-design gather correction (linear). Default 1.18 (proven
+   * 32-panel calibration); single-seam designs take up far less —
+   * the Spiral is calibrated at 1.02 from a stitched prototype.
+   */
+  gatherCorrection?: number;
+  /**
    * Anchor stitch holes exactly on sharp bends inside seam runs (the
    * Orbita star's outer tips and inner notches). Opt-in per preset:
    * other wavy balls (trionda, Teamgeist) also carry bends above any
@@ -286,6 +298,8 @@ export const PRESETS: PresetEntry[] = [
     label: "Spiral",
     panels: 2,
     devOnly: true,
+    seamTrueFlatten: true,
+    gatherCorrection: 1.02,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of

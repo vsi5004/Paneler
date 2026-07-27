@@ -640,7 +640,7 @@ describe("stitch holes", () => {
         ...SETTINGS,
         shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-      });
+          });
       const rep = cls.representative;
       const flat = laserPanelOutline(topo, rep);
       rep.vertexIndices.forEach((vi, i) => {
@@ -816,6 +816,46 @@ describe("stitch holes", () => {
     expect(sharpBends).toBeGreaterThan(5); // the star really has them
   });
 
+  it("spiral: seam-true flatten keeps boundary length exact", () => {
+    // From a stitched prototype: the seam's length is what sewing
+    // enforces, and ARAP's +12% boundary excess made the ball oblate
+    // (2.4in equator on 1.9in height). With seamTrueBands the outline's
+    // total boundary length matches the 3D seam within 0.1%.
+    const topo = topoOf("spiral");
+    for (const panel of topo.panels) {
+      const flat = laserPanelOutline(topo, panel, { seamTrueBands: true });
+      const pts = flat.corners;
+      const n = pts.length;
+      let flatLen = 0;
+      let trueLen = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        flatLen += Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+        trueLen += topo.vertices[panel.vertexIndices[i]].distanceTo(
+          topo.vertices[panel.vertexIndices[j]],
+        );
+      }
+      expect(Math.abs(flatLen / trueLen - 1)).toBeLessThan(0.001);
+      // and the outline is simple (no self-crossings)
+      let crossings = 0;
+      for (let i = 0; i < n; i += 2) {
+        for (let j = i + 4; j < n; j += 2) {
+          if (i === 0 && j >= n - 2) continue;
+          const a1 = pts[i];
+          const a2 = pts[(i + 1) % n];
+          const b1 = pts[j];
+          const b2 = pts[(j + 1) % n];
+          const d = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x);
+          if (Math.abs(d) < 1e-12) continue;
+          const t = ((b1.x - a1.x) * (b2.y - b1.y) - (b1.y - a1.y) * (b2.x - b1.x)) / d;
+          const u = ((b1.x - a1.x) * (a2.y - a1.y) - (b1.y - a1.y) * (a2.x - a1.x)) / d;
+          if (t > 0 && t < 1 && u > 0 && u < 1) crossings++;
+        }
+      }
+      expect(crossings).toBe(0);
+    }
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
@@ -908,7 +948,7 @@ describe("SVG output", () => {
       cornerMarginMm: 4,
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-    });
+        });
     expect(margined.holes.length).toBeLessThanOrEqual(base.holes.length);
     const scale = mmPerUnit(SETTINGS.diameterIn);
     const flat = flattenPanelUnscaled(cls.representative, topo);

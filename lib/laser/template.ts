@@ -2,6 +2,7 @@ import type { PanelTopology } from "@/lib/types";
 import {
   flattenPanelUnscaled,
   symmetrizeWavyPanel,
+  type FlattenOptions,
 } from "@/lib/flatten/unfoldNet";
 import { groupPanelsByCongruence } from "./congruence";
 import {
@@ -27,6 +28,10 @@ import type { LaserSettings, LaserTemplate, PanelClass } from "./types";
 export interface LaserTemplateOptions {
   /** Anchor holes exactly on sharp in-run bends (Orbita-style stars). */
   sharpBendAnchors?: boolean;
+  /** Seam-true band flatten (the Spiral) — see lib/flatten/bandDevelop.ts. */
+  seamTrueBands?: boolean;
+  /** Per-design gather correction override (linear factor). */
+  gatherCorrection?: number;
 }
 
 export function buildLaserTemplate(
@@ -35,8 +40,10 @@ export function buildLaserTemplate(
   settings: LaserSettings,
   options: LaserTemplateOptions = {},
 ): LaserTemplate {
-  const scale = mmPerUnit(settings.diameterIn);
-  const unscaled = laserPanelOutline(topo, cls.representative);
+  const scale = mmPerUnit(settings.diameterIn, options.gatherCorrection);
+  const unscaled = laserPanelOutline(topo, cls.representative, {
+    seamTrueBands: options.seamTrueBands,
+  });
   // Curvature scales each edge's bulge: 100% = the true spherical
   // sagitta, 0% = straight polygon edges. Everything downstream (seam
   // path, sampled outline, cut offset, stitch holes) derives from these
@@ -103,9 +110,10 @@ export function buildLaserTemplate(
 export function laserPanelOutline(
   topo: PanelTopology,
   panel: PanelClass["representative"],
+  flatten: FlattenOptions = {},
 ): PanelFlat {
   if (panel.vertexIndices.length > 6) {
-    const symmetrized = symmetrizeWavyPanel(panel, topo);
+    const symmetrized = symmetrizeWavyPanel(panel, topo, flatten);
     if (symmetrized) return symmetrized;
   }
   return flattenPanelUnscaled(panel, topo);

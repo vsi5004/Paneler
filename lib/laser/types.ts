@@ -15,6 +15,7 @@ export interface LaserSettings {
   holeSpacingMm: number;
   /** Empty space between each hole row's ends and the panel corners, mm. */
   cornerMarginMm: number;
+
   /**
    * Extra fabric beyond the cut line along UNSTITCHED short edges,
    * millimeters (0 = off). Widens the strip behind the corner stitch so

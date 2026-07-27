@@ -1,6 +1,7 @@
 import { Vector3 } from "three";
 import type { Panel, PanelTopology } from "@/lib/types";
 import { arapFlattenBoundary } from "./arap";
+import { developBand } from "./bandDevelop";
 import { chooseRoot } from "./chooseRoot";
 import type { FlatLayout, PanelFlat, Vec2 } from "./types";
 
@@ -28,7 +29,10 @@ const RING_FIT_PADDING = 1.25; // crowding-fit multiplier so panels stay separat
  * but the design preview reads cleanly and shows every panel at a
  * glance.
  */
-export function unfoldNet(topo: PanelTopology): FlatLayout {
+export function unfoldNet(
+  topo: PanelTopology,
+  options: FlattenOptions = {},
+): FlatLayout {
   const result: FlatLayout = new Map();
   if (topo.panels.length === 0) return result;
 
@@ -92,11 +96,12 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
 
   for (const [d, panels] of byDepth) {
     if (d === 0) {
-      const local = flattenPanelLocal(rootPanel, topo, circumradius);
+      const local = flattenPanelLocal(rootPanel, topo, circumradius, options);
       result.set(rootPanel.id, local);
       continue;
     }
     placeRing({
+      options,
       result,
       panels,
       depth: d,
@@ -112,6 +117,7 @@ export function unfoldNet(topo: PanelTopology): FlatLayout {
 }
 
 function placeRing({
+  options,
   result,
   panels,
   depth,
@@ -121,6 +127,7 @@ function placeRing({
   tanX,
   tanY,
 }: {
+  options: FlattenOptions;
   result: FlatLayout;
   panels: Panel[];
   depth: number;
@@ -167,7 +174,7 @@ function placeRing({
     const cosO = Math.cos(orient);
     const sinO = Math.sin(orient);
 
-    const local = flattenPanelLocal(panel, topo, circumradius);
+    const local = flattenPanelLocal(panel, topo, circumradius, options);
     const corners = local.corners.map((p) => ({
       x: p.x * cosO - p.y * sinO + cx,
       y: p.x * sinO + p.y * cosO + cy,
@@ -183,12 +190,13 @@ function flattenPanelLocal(
   panel: Panel,
   topo: PanelTopology,
   circumradius: number,
+  options: FlattenOptions = {},
 ): PanelFlat {
   // Wavy junction panels display the same seam-symmetrized outline the
   // laser templates cut, so the net matches the templates exactly.
   const flat =
     (panel.vertexIndices.length > 6
-      ? symmetrizeWavyPanel(panel, topo)
+      ? symmetrizeWavyPanel(panel, topo, options)
       : null) ?? flattenPanelUnscaled(panel, topo);
   let maxR = 0;
   for (const c of flat.corners) {
@@ -405,9 +413,19 @@ function estimateAvgCircumradius(topo: PanelTopology): number {
  * Returns null for panels without junction corners (the baseball) —
  * callers fall back to the plain flatten.
  */
+export interface FlattenOptions {
+  /**
+   * Seam-true development for band panels (the Spiral): boundary lengths
+   * exact, interior absorbs the strain. Explicit per-preset routing —
+   * see lib/flatten/bandDevelop.ts.
+   */
+  seamTrueBands?: boolean;
+}
+
 export function symmetrizeWavyPanel(
   panel: Panel,
   topo: PanelTopology,
+  options: FlattenOptions = {},
 ): PanelFlat | null {
   const useCount = new Map<number, number>();
   for (const p of topo.panels) {
@@ -426,6 +444,15 @@ export function symmetrizeWavyPanel(
   // BFS hinge-unfold for these panels (see arap.ts).
   if (!hasJunctions && !isWrapAround(panel, topo)) {
     return null;
+  }
+
+  // Seam-true band development (opt-in per preset): sewing enforces the
+  // seam's length stitch-to-stitch, so the boundary must be exact and
+  // the interior absorbs the strain — ARAP allocates the other way and
+  // produced an oblate stitched Spiral (2.4in equator, 1.9in height).
+  if (!hasJunctions && options.seamTrueBands) {
+    const band = developBand(panel, topo);
+    if (band) return band;
   }
 
   const boundary = arapCached(panel, topo);

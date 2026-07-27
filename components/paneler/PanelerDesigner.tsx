@@ -108,10 +108,29 @@ export function PanelerDesigner({
 
   // Per-preset laser template options (Orbita: anchor holes on sharp
   // star bends). Memoized so the pane's template memo doesn't churn.
-  const laserTemplateOptions = useMemo(
+  const laserTemplateOptions = useMemo(() => {
+    const preset = designInfo ? presetById(designInfo.presetId) : undefined;
+    if (
+      !preset?.laserSharpBendAnchors &&
+      !preset?.seamTrueFlatten &&
+      preset?.gatherCorrection === undefined
+    ) {
+      return undefined;
+    }
+    return {
+      ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
+      ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
+      ...(preset.gatherCorrection !== undefined
+        ? { gatherCorrection: preset.gatherCorrection }
+        : {}),
+    };
+  }, [designInfo]);
+
+  // Same preset knowledge for the flat net's unfold.
+  const flattenOptions = useMemo(
     () =>
-      designInfo && presetById(designInfo.presetId)?.laserSharpBendAnchors
-        ? { sharpBendAnchors: true }
+      designInfo && presetById(designInfo.presetId)?.seamTrueFlatten
+        ? { seamTrueBands: true }
         : undefined,
     [designInfo],
   );
@@ -466,6 +485,7 @@ export function PanelerDesigner({
                               panelColors={panelColors}
                               selectedPanelId={selectedPanelId}
                               onPanelClick={handlePanelClick}
+                              flattenOptions={flattenOptions}
                             />
                           </div>
                           <LaserTemplatePane

@@ -78,9 +78,18 @@ export const MAX_CORNER_MARGIN_MM = 5;
  */
 export const GATHER_CORRECTION = 1.18;
 
-/** Millimeters of physical fabric per topology sphere unit. */
-export function mmPerUnit(diameterIn: number): number {
-  return ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * GATHER_CORRECTION;
+/**
+ * Millimeters of physical fabric per topology sphere unit. The gather
+ * correction is a per-design constant, not a user control: 1.18 is
+ * calibrated on the proven 32-panel bags; single-seam designs override
+ * it via their preset (the Spiral stitched at 1.18 came out ~18%
+ * oversize — its seams take up almost nothing, so it carries 1.02).
+ */
+export function mmPerUnit(
+  diameterIn: number,
+  gatherCorrection: number = GATHER_CORRECTION,
+): number {
+  return ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * gatherCorrection;
 }
 
 /** Fresh default settings object (new designs, missing extras). */

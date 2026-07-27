@@ -93,7 +93,7 @@ describe("laser settings persistence", () => {
       cornerMarginMm: 0,
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-    });
+        });
   });
 
   it("ignores junk laser extras", async () => {
