@@ -2,6 +2,7 @@ import type { PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
+import { spiral } from "./spiral";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -273,6 +274,26 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       baseball(radius, ((params?.seamAmplitude ?? 50) / 100) * (Math.PI / 2)),
+  },
+  {
+    id: "spiral",
+    label: "Spiral",
+    panels: 2,
+    params: [
+      {
+        // Full turns the seam makes from pole to pole, as a percent of
+        // one turn. 0% = two hemispheres split by a meridian.
+        key: "twist",
+        label: "Twist",
+        min: 0,
+        max: 150,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      spiral(radius, (params?.twist ?? 100) / 100),
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Vector3 } from "three";
 import { flattenPanelUnscaled, unfoldNet } from "@/lib/flatten/unfoldNet";
 import { arapFlattenMesh } from "@/lib/flatten/arap";
-import { PRESETS } from "@/lib/topology/presets";
+import { PRESETS, resolvePresetParams } from "@/lib/topology/presets";
 import { baseball } from "@/lib/topology/baseball";
 import { goldberg11 } from "@/lib/topology/goldberg";
 
@@ -170,9 +170,20 @@ describe("unfoldNet", () => {
     }
   });
 
-  it.each(["trionda", "teamgeist", "orbita"])(
-    "re-wrap: flat %s panels lie back on the sphere with small smooth strain",
-    (presetId) => {
+  // Per-preset strain bounds: many-panel balls flatten with a couple
+  // percent of ease; the Spiral's two half-sphere bands are inherently
+  // the least developable shape going (mildest twist ~= a hemisphere)
+  // and carry more — like a real baseball cover.
+  it.each([
+    ["trionda", undefined, 0.03, 0.15],
+    ["teamgeist", undefined, 0.03, 0.15],
+    ["orbita", undefined, 0.03, 0.15],
+    // full-winding bands exercise the BFS hinge-unfold ARAP init
+    ["spiral", undefined, 0.08, 0.35],
+    ["spiral", { twist: 150 }, 0.05, 0.3],
+  ] as const)(
+    "re-wrap: flat %s panels lie back on the sphere with small smooth strain (%o)",
+    (presetId, params, rmsBound, maxBound) => {
       // The direct check that the unwrap is correct: every flat point has a
       // known 3D mate, so per-triangle principal stretches of the map
       // FLAT -> SPHERE measure exactly how much the cut fabric must stretch
@@ -181,7 +192,10 @@ describe("unfoldNet", () => {
       // sewing ease). The rejected Lambert flatten measures 19% RMS / 58%
       // max on the same meshes — the physical "panels don't line up".
       const preset = PRESETS.find((p) => p.id === presetId)!;
-      const topo = preset.topology(2);
+      const topo = preset.topology(
+        2,
+        params ? resolvePresetParams(preset, { ...params }) : undefined,
+      );
       for (const panel of topo.panels) {
         const mesh = arapFlattenMesh(panel, topo)!;
         expect(mesh).not.toBeNull();
@@ -224,8 +238,8 @@ describe("unfoldNet", () => {
         const rms = Math.sqrt(
           strains.reduce((s, x) => s + x * x, 0) / strains.length,
         );
-        expect(rms).toBeLessThan(0.03);
-        expect(Math.max(...strains)).toBeLessThan(0.15);
+        expect(rms).toBeLessThan(rmsBound);
+        expect(Math.max(...strains)).toBeLessThan(maxBound);
       }
     },
   );
