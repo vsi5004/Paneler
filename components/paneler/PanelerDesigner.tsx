@@ -495,6 +495,7 @@ export function PanelerDesigner({
                             designName={
                               uploadedName ?? activeTemplateSlug ?? "design"
                             }
+                            templateOptions={laserTemplateOptions}
                           />
                         </div>
                       ) : (
