@@ -77,28 +77,19 @@ export const MAX_CORNER_MARGIN_MM = 5;
  * area = the proven total, regardless of panel tiling.
  */
 export const GATHER_CORRECTION = 1.18;
-/** Linear oversize per seam style — see LaserSettings.seamStyle. */
-export const SEAM_STYLE_GATHER: Record<"gathered" | "tight", number> = {
-  gathered: 1.18,
-  tight: 1.02,
-};
 
 /**
- * Millimeters of physical fabric per topology sphere unit. Fabric
- * take-up depends on the sewing style, not on anything a slider with
- * abstract units can express: "gathered" (loose gathered hand-stitch,
- * the proven 32-panel bags) is calibrated at 1.18 linear; "tight"
- * (flat tight stitches) at 1.02 — a Spiral sewn tight with the
- * gathered factor came out ~18% oversize, i.e. essentially zero
- * take-up.
+ * Millimeters of physical fabric per topology sphere unit. The gather
+ * correction is a per-design constant, not a user control: 1.18 is
+ * calibrated on the proven 32-panel bags; single-seam designs override
+ * it via their preset (the Spiral stitched at 1.18 came out ~18%
+ * oversize — its seams take up almost nothing, so it carries 1.02).
  */
 export function mmPerUnit(
   diameterIn: number,
-  seamStyle: "gathered" | "tight" = "gathered",
+  gatherCorrection: number = GATHER_CORRECTION,
 ): number {
-  return (
-    ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * SEAM_STYLE_GATHER[seamStyle]
-  );
+  return ((diameterIn * 25.4) / 2 / SPHERE_RADIUS) * gatherCorrection;
 }
 
 /** Fresh default settings object (new designs, missing extras). */
@@ -111,7 +102,6 @@ export function defaultLaserSettings(): {
   cornerMarginMm: number;
   shortEdgeHoles: boolean;
   shortEdgeExtensionMm: number;
-  seamStyle: "gathered" | "tight";
 } {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
@@ -122,7 +112,6 @@ export function defaultLaserSettings(): {
     cornerMarginMm: CORNER_MARGIN_MM,
     shortEdgeHoles: false,
     shortEdgeExtensionMm: 0,
-    seamStyle: "gathered",
   };
 }
 

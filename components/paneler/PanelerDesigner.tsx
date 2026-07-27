@@ -110,12 +110,19 @@ export function PanelerDesigner({
   // star bends). Memoized so the pane's template memo doesn't churn.
   const laserTemplateOptions = useMemo(() => {
     const preset = designInfo ? presetById(designInfo.presetId) : undefined;
-    if (!preset?.laserSharpBendAnchors && !preset?.seamTrueFlatten) {
+    if (
+      !preset?.laserSharpBendAnchors &&
+      !preset?.seamTrueFlatten &&
+      preset?.gatherCorrection === undefined
+    ) {
       return undefined;
     }
     return {
       ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
       ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
+      ...(preset.gatherCorrection !== undefined
+        ? { gatherCorrection: preset.gatherCorrection }
+        : {}),
     };
   }, [designInfo]);
 

@@ -21,7 +21,6 @@ const LASER = {
   cornerMarginMm: 1.5,
   shortEdgeHoles: true,
   shortEdgeExtensionMm: 2.5,
-  seamStyle: "tight" as const,
 };
 
 function bareCubeDoc() {
@@ -94,8 +93,7 @@ describe("laser settings persistence", () => {
       cornerMarginMm: 0,
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
-      seamStyle: "gathered" as const,
-    });
+        });
   });
 
   it("ignores junk laser extras", async () => {

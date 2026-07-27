@@ -229,6 +229,12 @@ export interface PresetEntry {
    */
   seamTrueFlatten?: boolean;
   /**
+   * Per-design gather correction (linear). Default 1.18 (proven
+   * 32-panel calibration); single-seam designs take up far less —
+   * the Spiral is calibrated at 1.02 from a stitched prototype.
+   */
+  gatherCorrection?: number;
+  /**
    * Anchor stitch holes exactly on sharp bends inside seam runs (the
    * Orbita star's outer tips and inner notches). Opt-in per preset:
    * other wavy balls (trionda, Teamgeist) also carry bends above any
@@ -293,6 +299,7 @@ export const PRESETS: PresetEntry[] = [
     panels: 2,
     devOnly: true,
     seamTrueFlatten: true,
+    gatherCorrection: 1.02,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of

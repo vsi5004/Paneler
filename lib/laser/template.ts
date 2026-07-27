@@ -30,6 +30,8 @@ export interface LaserTemplateOptions {
   sharpBendAnchors?: boolean;
   /** Seam-true band flatten (the Spiral) — see lib/flatten/bandDevelop.ts. */
   seamTrueBands?: boolean;
+  /** Per-design gather correction override (linear factor). */
+  gatherCorrection?: number;
 }
 
 export function buildLaserTemplate(
@@ -38,7 +40,7 @@ export function buildLaserTemplate(
   settings: LaserSettings,
   options: LaserTemplateOptions = {},
 ): LaserTemplate {
-  const scale = mmPerUnit(settings.diameterIn, settings.seamStyle);
+  const scale = mmPerUnit(settings.diameterIn, options.gatherCorrection);
   const unscaled = laserPanelOutline(topo, cls.representative, {
     seamTrueBands: options.seamTrueBands,
   });
