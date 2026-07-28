@@ -329,7 +329,7 @@ describe("stitch holes", () => {
     const hex = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 6)!;
     const t = buildLaserTemplate(topo, hex, SETTINGS);
     const scale = mmPerUnit(SETTINGS.diameterIn);
-    const flat = flattenPanelUnscaled(hex.representative, topo);
+    const flat = laserPanelOutline(topo, hex.representative);
     const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
     const n = corners.length;
     const edges = corners.map((a, i) => {
