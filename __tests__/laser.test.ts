@@ -856,6 +856,28 @@ describe("stitch holes", () => {
     }
   });
 
+  it("closed single-seam loops space holes uniformly through the closure", () => {
+    // The open-run pattern left the remainder after (n-1) even gaps as
+    // the closure gap — the spiral's first and last holes landed a
+    // fraction of a pitch apart. Closed loops distribute round(L/pitch)
+    // holes at one uniform gap; consecutive gaps must all agree.
+    for (const id of ["spiral", "baseball"] as const) {
+      const topo = topoOf(id);
+      const cls = groupPanelsByCongruence(topo)[0];
+      const t = buildLaserTemplate(topo, cls, SETTINGS, {
+        seamTrueBands: id === "spiral",
+      });
+      const ds: number[] = [];
+      for (let i = 0; i < t.holes.length; i++) {
+        const j = (i + 1) % t.holes.length;
+        ds.push(Math.hypot(t.holes[j].x - t.holes[i].x, t.holes[j].y - t.holes[i].y));
+      }
+      const min = Math.min(...ds);
+      const max = Math.max(...ds);
+      expect(max - min, `${id} closure gap spread`).toBeLessThan(0.3);
+    }
+  });
+
   it("is reversal-symmetric per run (mating panels line up)", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];

@@ -767,6 +767,21 @@ function placeStitchHoles(
       unstitchedSpans.push({ s0, len: flatSpan });
       continue;
     }
+    // Closed single-run seams (Baseball, Spiral): the run IS the whole
+    // loop, so the open-run pattern below would leave whatever length
+    // remains after (n−1) even gaps as the closure gap — routinely a
+    // fraction of the pitch, putting the first and last holes almost on
+    // top of each other. Distribute n = round(len/pitch) holes at a
+    // perfectly uniform gap around the loop instead.
+    if (runs.length === 1) {
+      const nLoop = Math.max(1, Math.round(patternLen / spacing));
+      const gap = flatSpan / nLoop;
+      for (let k = 0; k < nLoop; k++) {
+        holes.push(pointAtArcLength(samples, s0 + k * gap, totalLength));
+      }
+      edgeHoles.push(nLoop);
+      continue;
+    }
     const usable = patternLen - 2 * cornerMargin;
     if (usable < 1 || flatSpan <= 0) {
       edgeHoles.push(0);
