@@ -280,6 +280,21 @@ export function arapFlattenBoundary(
         return { ...mesh.flat[m] };
       })
     : null;
+  // Pin the handedness convention: vertexIndices walk CCW from outside,
+  // and the y-flip for SVG (arapFlattenMesh negates y) mirrors that to
+  // CLOCKWISE — negative signed area — which is what every preset's
+  // panels measure. ARAP itself keeps whatever handedness its init
+  // picked, so a mirrored solve would silently mirror the cut template
+  // (no dimension-based test can catch it); flip it back here instead.
+  if (result) {
+    let area = 0;
+    for (let i = 0; i < result.length; i++) {
+      const a = result[i];
+      const b = result[(i + 1) % result.length];
+      area += a.x * b.y - b.x * a.y;
+    }
+    if (area > 0) for (const p of result) p.x = -p.x;
+  }
   perTopo.set(panel.id, result);
   return result ? result.map((p) => ({ ...p })) : null;
 }

@@ -81,6 +81,12 @@ describe("groupPanelsByCongruence", () => {
     expect(groupPanelsByCongruence(topoOf("gp4"))).toHaveLength(4);
     expect(groupPanelsByCongruence(topoOf("soccer"))).toHaveLength(2);
     expect(groupPanelsByCongruence(topoOf("cube"))).toHaveLength(1);
+    // knot: two panels, MIRROR-congruent (cut the second face-down)
+    expect(groupPanelsByCongruence(topoOf("knot"))).toHaveLength(1);
+    // weave: 8 lenses + 4 & 2 ribbon segments from the crossing graph
+    expect(
+      groupPanelsByCongruence(topoOf("weave")).map((c) => c.panelIds.length),
+    ).toEqual([8, 4, 2]);
   });
 
   it("merges trionda's numerically-noisy congruent panels into one class", () => {
@@ -861,7 +867,7 @@ describe("stitch holes", () => {
     // the closure gap — the spiral's first and last holes landed a
     // fraction of a pitch apart. Closed loops distribute round(L/pitch)
     // holes at one uniform gap; consecutive gaps must all agree.
-    for (const id of ["spiral", "baseball"] as const) {
+    for (const id of ["spiral", "baseball", "knot"] as const) {
       const topo = topoOf(id);
       const cls = groupPanelsByCongruence(topo)[0];
       const t = buildLaserTemplate(topo, cls, SETTINGS, {
@@ -875,6 +881,81 @@ describe("stitch holes", () => {
       const min = Math.min(...ds);
       const max = Math.max(...ds);
       expect(max - min, `${id} closure gap spread`).toBeLessThan(0.3);
+    }
+  });
+
+  it("knot: template outline stays simple across the whole twist range", () => {
+    // The knot's twist slider is capped at 60% BECAUSE beyond that the
+    // panels' developments self-overlap and no cuttable template exists
+    // (lib/topology/knot.ts). Pin the guarantee at the range's corners
+    // and default.
+    for (const twist of [0, 40, 60]) {
+      const topo = topoOf("knot", { twist });
+      for (const panel of topo.panels) {
+        const pts = laserPanelOutline(topo, panel).corners;
+        const n = pts.length;
+        let crossings = 0;
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 2; j < n; j++) {
+            if (i === 0 && j === n - 1) continue;
+            const a1 = pts[i];
+            const a2 = pts[(i + 1) % n];
+            const b1 = pts[j];
+            const b2 = pts[(j + 1) % n];
+            const d = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x);
+            if (Math.abs(d) < 1e-12) continue;
+            const t = ((b1.x - a1.x) * (b2.y - b1.y) - (b1.y - a1.y) * (b2.x - b1.x)) / d;
+            const u = ((b1.x - a1.x) * (a2.y - a1.y) - (b1.y - a1.y) * (a2.x - a1.x)) / d;
+            if (t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9) crossings++;
+          }
+        }
+        expect(crossings, `knot twist=${twist} ${panel.id}`).toBe(0);
+      }
+    }
+  });
+
+  it("weave: every class builds a template and every seam run is holed", () => {
+    const topo = topoOf("weave");
+    const classes = groupPanelsByCongruence(topo);
+    expect(classes).toHaveLength(3);
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    for (const cls of classes) {
+      const t = buildLaserTemplate(topo, cls, SETTINGS);
+      expect(t.holes.length).toBeGreaterThan(0);
+      // run count = number of distinct neighbors around the boundary;
+      // every run must carry at least one hole (all seams are stitched)
+      const rep = cls.representative;
+      const loop = rep.vertexIndices;
+      const n = loop.length;
+      const neighborOf = new Map<string, string>();
+      for (const e of topo.edges) {
+        const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+        neighborOf.set(key, e.panelA === rep.id ? e.panelB : e.panelA);
+      }
+      const nb = (i: number) =>
+        neighborOf.get(
+          `${Math.min(loop[i], loop[(i + 1) % n])}-${Math.max(loop[i], loop[(i + 1) % n])}`,
+        )!;
+      let runs = 0;
+      for (let i = 0; i < n; i++) {
+        if (nb(i) !== nb((i - 1 + n) % n)) runs++;
+      }
+      expect(runs).toBeGreaterThan(0);
+      // enough holes that no run went empty: at least one per run plus
+      // the corner anchors
+      expect(t.holes.length).toBeGreaterThanOrEqual(runs);
+      // holes sit on the seam line (mirrors the global on-seam test)
+      const flat = laserPanelOutline(topo, rep);
+      const flatMm = {
+        corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
+        sagittaRatios: flat.sagittaRatios,
+      };
+      const seam = sampleOutline(flatMm, 0.2).map((s) => s.p);
+      for (const h of t.holes) {
+        let best = Infinity;
+        for (const p of seam) best = Math.min(best, Math.hypot(p.x - h.x, p.y - h.y));
+        expect(best).toBeLessThan(0.25);
+      }
     }
   });
 

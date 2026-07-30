@@ -183,6 +183,12 @@ describe("unfoldNet", () => {
     ["spiral", { twist: 250 }, 0.05, 0.3],
     // half-sphere lobed panels, also ARAP + hinge-unfold now
     ["baseball", undefined, 0.1, 0.6],
+    // twisted-baseball wrap panels; max strain concentrates in the
+    // hairpin turnarounds and grows with twist
+    ["knot", undefined, 0.13, 0.6],
+    ["knot", { twist: 60 }, 0.13, 0.9],
+    // computed faces of two crossed spirals: compact, easy panels
+    ["weave", undefined, 0.05, 0.2],
   ] as const)(
     "re-wrap: flat %s panels lie back on the sphere with small smooth strain (%o)",
     (presetId, params, rmsBound, maxBound) => {

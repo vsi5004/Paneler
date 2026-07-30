@@ -37,6 +37,44 @@
     "devOnly": true
   },
   {
+    "slug": "knot",
+    "label": "Knot",
+    "glbPath": "/presets/knot.glb",
+    "panelCount": 2,
+    "shapeSignature": "2g",
+    "params": [
+      {
+        "key": "twist",
+        "label": "Twist",
+        "min": 0,
+        "max": 60,
+        "step": 5,
+        "defaultValue": 40,
+        "unit": "%"
+      }
+    ],
+    "devOnly": true
+  },
+  {
+    "slug": "weave",
+    "label": "Weave",
+    "glbPath": "/presets/weave.glb",
+    "panelCount": 14,
+    "shapeSignature": "14g",
+    "params": [
+      {
+        "key": "twist",
+        "label": "Twist",
+        "min": 30,
+        "max": 185,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ],
+    "devOnly": true
+  },
+  {
     "slug": "trionda",
     "label": "Trionda 2026",
     "glbPath": "/presets/trionda.glb",

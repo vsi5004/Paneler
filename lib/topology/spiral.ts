@@ -33,6 +33,39 @@ import {
  * the visible seam stays smooth.
  */
 export function spiral(radius = 1, twist = 1): PanelTopology {
+  const vertices = spiralSeamPoints(twist, radius);
+
+  const n = vertices.length;
+  const indicesAsc = Array.from({ length: n }, (_, i) => i);
+  const indicesDesc = [...indicesAsc].reverse();
+
+  const shape = shapeForVertexCount(n); // > 6 → "polygon"
+  const panels = [
+    { id: panelId(0, shape), vertexIndices: indicesAsc, shape },
+    { id: panelId(1, shape), vertexIndices: indicesDesc, shape },
+  ];
+
+  const edges: PanelEdge[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = i;
+    const b = (i + 1) % n;
+    edges.push({
+      vertexA: Math.min(a, b),
+      vertexB: Math.max(a, b),
+      panelA: panels[0].id,
+      panelB: panels[1].id,
+    });
+  }
+
+  return { vertices, panels, edges };
+}
+
+/**
+ * The spiral's closed seam curve — south pole, up spiral A, north pole,
+ * down spiral B — sampled uniformly in arc length. Exported for the
+ * Weave preset, which crosses two of these on perpendicular axes.
+ */
+export function spiralSeamPoints(twist: number, radius = 1): Vector3[] {
   // Longitude advance per unit polar angle.
   const T = (twist * 2 * Math.PI) / Math.PI;
 
@@ -85,27 +118,5 @@ export function spiral(radius = 1, twist = 1): PanelTopology {
     vertices.push(pointAt(thetaAtArc((i / perBranch) * arc), Math.PI));
   }
 
-  const n = vertices.length;
-  const indicesAsc = Array.from({ length: n }, (_, i) => i);
-  const indicesDesc = [...indicesAsc].reverse();
-
-  const shape = shapeForVertexCount(n); // > 6 → "polygon"
-  const panels = [
-    { id: panelId(0, shape), vertexIndices: indicesAsc, shape },
-    { id: panelId(1, shape), vertexIndices: indicesDesc, shape },
-  ];
-
-  const edges: PanelEdge[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = i;
-    const b = (i + 1) % n;
-    edges.push({
-      vertexA: Math.min(a, b),
-      vertexB: Math.max(a, b),
-      panelA: panels[0].id,
-      panelB: panels[1].id,
-    });
-  }
-
-  return { vertices, panels, edges };
+  return vertices;
 }

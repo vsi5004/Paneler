@@ -3,6 +3,8 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
+import { knot } from "./knot";
+import { weave } from "./weave";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -320,6 +322,56 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       spiral(radius, (params?.twist ?? 100) / 100),
+  },
+  {
+    id: "knot",
+    label: "Knot",
+    panels: 2,
+    devOnly: true,
+    params: [
+      {
+        // Full turns the equator shears against the poles, as a percent
+        // of one turn. 0% = a slim-lobed baseball seam. Capped at 60%:
+        // beyond that the panels' flat developments self-overlap and no
+        // cuttable template exists (see lib/topology/knot.ts).
+        key: "twist",
+        label: "Twist",
+        min: 0,
+        max: 60,
+        step: 5,
+        defaultValue: 40,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      knot(radius, (params?.twist ?? 40) / 100),
+  },
+  {
+    id: "weave",
+    label: "Weave",
+    panels: 14,
+    devOnly: true,
+    params: [
+      {
+        // Twist of both crossed spirals. UNLIKE every other slider, the
+        // PANEL COUNT changes with twist (crossing-count plateaus:
+        // 4 / 6 / 14 / 10 / 12 / 16 panels at 30-65 / 70-90 / 95-110 /
+        // 115-130 / 135-165 / 170-185%), so painted colors only survive
+        // moves within a plateau. Range ends where the counts are
+        // verified stable and every twist meshes: below 30% the two
+        // seams run nearly parallel, above 185% the crossing count
+        // fluctuates tangentially.
+        key: "twist",
+        label: "Twist",
+        min: 30,
+        max: 185,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      weave(radius, (params?.twist ?? 100) / 100),
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },
