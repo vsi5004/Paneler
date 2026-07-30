@@ -3,6 +3,10 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
+import { weave } from "./weave";
+import { borromean, borromeanColors } from "./borromean";
+import { goreWeave, goreWeaveColors } from "./goreWeave";
+import { torusKnotBand, knotBandColors } from "./knotBand";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -242,6 +246,13 @@ export interface PresetEntry {
    * corner-to-corner spacing.
    */
   laserSharpBendAnchors?: boolean;
+  /**
+   * Default panel colors for a freshly generated design (keyed by panel
+   * id, computed from the same topology instance the generator built).
+   * The band-weave designs use this so the over/under weave reads
+   * without manual painting.
+   */
+  defaultColors?: (topo: PanelTopology) => Record<string, string>;
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
 }
 
@@ -320,6 +331,152 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       spiral(radius, (params?.twist ?? 100) / 100),
+  },
+  {
+    id: "weave",
+    label: "Weave",
+    panels: 14,
+    devOnly: true,
+    params: [
+      {
+        // Twist of both crossed spirals. UNLIKE every other slider, the
+        // PANEL COUNT changes with twist (crossing-count plateaus:
+        // 4 / 6 / 14 / 10 / 12 / 16 panels at 30-65 / 70-90 / 95-110 /
+        // 115-130 / 135-165 / 170-185%), so painted colors only survive
+        // moves within a plateau. Range ends where the counts are
+        // verified stable and every twist meshes: below 30% the two
+        // seams run nearly parallel, above 185% the crossing count
+        // fluctuates tangentially.
+        key: "twist",
+        label: "Twist",
+        min: 30,
+        max: 185,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      weave(radius, (params?.twist ?? 100) / 100),
+  },
+  {
+    id: "triquetra",
+    label: "Triquetra",
+    panels: 8,
+    devOnly: true,
+    params: [
+      {
+        // Latitude the lobes reach toward the poles. Capped at 50°:
+        // beyond that (jointly with width) the three lobes' bands
+        // overlap each other around the poles — physically impossible
+        // fabric, detected as a panel-count jump in the sweep.
+        key: "reach",
+        label: "Reach",
+        min: 35,
+        max: 50,
+        step: 1,
+        defaultValue: 45,
+        unit: "°",
+      },
+      {
+        key: "bandWidth",
+        label: "Band width",
+        min: 10,
+        max: 30,
+        step: 1,
+        defaultValue: 20,
+        unit: "°",
+      },
+    ],
+    defaultColors: knotBandColors,
+    topology: (radius?: number, params?: PresetParams) =>
+      torusKnotBand(radius ?? 1, 2, 3, params?.reach ?? 45, params?.bandWidth ?? 20),
+  },
+  {
+    id: "turkshead",
+    label: "Turk's Head",
+    panels: 18,
+    devOnly: true,
+    params: [
+      {
+        key: "reach",
+        label: "Reach",
+        min: 30,
+        max: 60,
+        step: 1,
+        defaultValue: 45,
+        unit: "°",
+      },
+      {
+        key: "bandWidth",
+        label: "Band width",
+        min: 8,
+        max: 20,
+        step: 1,
+        defaultValue: 14,
+        unit: "°",
+      },
+    ],
+    defaultColors: knotBandColors,
+    topology: (radius?: number, params?: PresetParams) =>
+      torusKnotBand(radius ?? 1, 3, 4, params?.reach ?? 45, params?.bandWidth ?? 14),
+  },
+  {
+    id: "gores",
+    label: "Gore Weave",
+    panels: 22,
+    devOnly: true,
+    params: [
+      {
+        // Spiral winds of the ribbon. The crossing count with the gore
+        // seams — and the panel count — changes with twist (20 panels
+        // at 50% up to ~44 at 250%), so painted colors survive only
+        // small moves; regenerated panels fall back to the design's
+        // default ribbon/gore colors.
+        key: "twist",
+        label: "Twist",
+        min: 50,
+        max: 250,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+      {
+        key: "bandWidth",
+        label: "Band width",
+        min: 10,
+        max: 30,
+        step: 1,
+        defaultValue: 18,
+        unit: "°",
+      },
+    ],
+    defaultColors: goreWeaveColors,
+    topology: (radius?: number, params?: PresetParams) =>
+      goreWeave(radius, (params?.twist ?? 100) / 100, params?.bandWidth ?? 18),
+  },
+  {
+    id: "borromean",
+    label: "Borromean",
+    panels: 14,
+    devOnly: true,
+    params: [
+      {
+        // Geodesic width of each ring band. The crossing structure —
+        // and with it the 14-panel layout and frozen ids — is the same
+        // at every width in range.
+        key: "bandWidth",
+        label: "Band width",
+        min: 10,
+        max: 40,
+        step: 1,
+        defaultValue: 20,
+        unit: "°",
+      },
+    ],
+    defaultColors: borromeanColors,
+    topology: (radius?: number, params?: PresetParams) =>
+      borromean(radius, params?.bandWidth ?? 20),
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },

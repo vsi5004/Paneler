@@ -81,6 +81,10 @@ describe("groupPanelsByCongruence", () => {
     expect(groupPanelsByCongruence(topoOf("gp4"))).toHaveLength(4);
     expect(groupPanelsByCongruence(topoOf("soccer"))).toHaveLength(2);
     expect(groupPanelsByCongruence(topoOf("cube"))).toHaveLength(1);
+    // weave: 8 lenses + 4 & 2 ribbon segments from the crossing graph
+    expect(
+      groupPanelsByCongruence(topoOf("weave")).map((c) => c.panelIds.length),
+    ).toEqual([8, 4, 2]);
   });
 
   it("merges trionda's numerically-noisy congruent panels into one class", () => {
@@ -875,6 +879,61 @@ describe("stitch holes", () => {
       const min = Math.min(...ds);
       const max = Math.max(...ds);
       expect(max - min, `${id} closure gap spread`).toBeLessThan(0.3);
+    }
+  });
+
+  it.each([
+    // [preset, expected classes, expected panel count]
+    ["weave", 3, 14],
+    ["borromean", 2, 14],
+    ["gores", 6, 22],
+    ["triquetra", 4, 8],
+    ["turkshead", 3, 18],
+  ] as const)(
+    "%s: every class builds a template and every seam run is holed",
+    (id, classCount, panelCount) => {
+    const topo = topoOf(id);
+    expect(topo.panels).toHaveLength(panelCount);
+    const classes = groupPanelsByCongruence(topo);
+    expect(classes).toHaveLength(classCount);
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    for (const cls of classes) {
+      const t = buildLaserTemplate(topo, cls, SETTINGS);
+      expect(t.holes.length).toBeGreaterThan(0);
+      // run count = number of distinct neighbors around the boundary;
+      // every run must carry at least one hole (all seams are stitched)
+      const rep = cls.representative;
+      const loop = rep.vertexIndices;
+      const n = loop.length;
+      const neighborOf = new Map<string, string>();
+      for (const e of topo.edges) {
+        const key = `${Math.min(e.vertexA, e.vertexB)}-${Math.max(e.vertexA, e.vertexB)}`;
+        neighborOf.set(key, e.panelA === rep.id ? e.panelB : e.panelA);
+      }
+      const nb = (i: number) =>
+        neighborOf.get(
+          `${Math.min(loop[i], loop[(i + 1) % n])}-${Math.max(loop[i], loop[(i + 1) % n])}`,
+        )!;
+      let runs = 0;
+      for (let i = 0; i < n; i++) {
+        if (nb(i) !== nb((i - 1 + n) % n)) runs++;
+      }
+      expect(runs).toBeGreaterThan(0);
+      // enough holes that no run went empty: at least one per run plus
+      // the corner anchors
+      expect(t.holes.length).toBeGreaterThanOrEqual(runs);
+      // holes sit on the seam line (mirrors the global on-seam test)
+      const flat = laserPanelOutline(topo, rep);
+      const flatMm = {
+        corners: flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
+        sagittaRatios: flat.sagittaRatios,
+      };
+      const seam = sampleOutline(flatMm, 0.2).map((s) => s.p);
+      for (const h of t.holes) {
+        let best = Infinity;
+        for (const p of seam) best = Math.min(best, Math.hypot(p.x - h.x, p.y - h.y));
+        expect(best).toBeLessThan(0.25);
+      }
     }
   });
 
