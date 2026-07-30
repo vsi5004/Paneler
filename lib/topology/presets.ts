@@ -299,13 +299,12 @@ export const PRESETS: PresetEntry[] = [
     panels: 2,
     devOnly: true,
     seamTrueFlatten: true,
-    // Seam-density gather model, calibrated on the proven 32-panel
-    // bags: their 1.18 linear correction ↔ gathering consumes a
-    // ~0.135 rad strip along every seam; the spiral's single seam at
-    // its usual twists (100-135%) gives 1.055-1.067. A tight-stitch
-    // no-gather prototype measured ~1.02 — sew with a normal gather
-    // and this factor lands the target diameter.
-    gatherCorrection: 1.07,
+    // Calibrated from stitched prototypes: at 1.07 a normal-gather bag
+    // measured 1.85in around the equator against a 1.9in target
+    // (seam-driven, -2.6%); 1.11 aims the equator at ~1.9-1.95. (The
+    // seam-density model's 1.055-1.067 prediction ran slightly lean —
+    // physical measurements win.)
+    gatherCorrection: 1.11,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of
