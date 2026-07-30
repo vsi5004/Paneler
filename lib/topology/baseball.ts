@@ -150,9 +150,8 @@ const SPINE_B_E = new Vector3(0, 1, 0);
 /**
  * Latitude of the equidistant seam at the given longitude, found by
  * bisection: north of the seam is closer to spine A, south to spine B.
- * Exported for the Knot preset, which twists this same seam.
  */
-export function seamLatitude(theta: number, halfLength: number): number {
+function seamLatitude(theta: number, halfLength: number): number {
   const cosT = Math.cos(theta);
   const sinT = Math.sin(theta);
   const balance = (phi: number): number => {
@@ -181,6 +180,6 @@ export function seamLatitude(theta: number, halfLength: number): number {
  * ℓ < π, i.e. any amplitude below π/2 — the spine arcs wrap past the
  * equator for amplitudes above 45°, just like real baseball cover spines.
  */
-export function spineHalfLengthForAmplitude(amplitude: number): number {
+function spineHalfLengthForAmplitude(amplitude: number): number {
   return 2 * amplitude;
 }

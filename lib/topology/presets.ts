@@ -3,7 +3,6 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
-import { knot } from "./knot";
 import { weave } from "./weave";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
@@ -322,29 +321,6 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       spiral(radius, (params?.twist ?? 100) / 100),
-  },
-  {
-    id: "knot",
-    label: "Knot",
-    panels: 2,
-    devOnly: true,
-    params: [
-      {
-        // Full turns the equator shears against the poles, as a percent
-        // of one turn. 0% = a slim-lobed baseball seam. Capped at 60%:
-        // beyond that the panels' flat developments self-overlap and no
-        // cuttable template exists (see lib/topology/knot.ts).
-        key: "twist",
-        label: "Twist",
-        min: 0,
-        max: 60,
-        step: 5,
-        defaultValue: 40,
-        unit: "%",
-      },
-    ],
-    topology: (radius?: number, params?: PresetParams) =>
-      knot(radius, (params?.twist ?? 40) / 100),
   },
   {
     id: "weave",

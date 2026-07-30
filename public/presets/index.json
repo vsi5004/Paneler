@@ -37,25 +37,6 @@
     "devOnly": true
   },
   {
-    "slug": "knot",
-    "label": "Knot",
-    "glbPath": "/presets/knot.glb",
-    "panelCount": 2,
-    "shapeSignature": "2g",
-    "params": [
-      {
-        "key": "twist",
-        "label": "Twist",
-        "min": 0,
-        "max": 60,
-        "step": 5,
-        "defaultValue": 40,
-        "unit": "%"
-      }
-    ],
-    "devOnly": true
-  },
-  {
     "slug": "weave",
     "label": "Weave",
     "glbPath": "/presets/weave.glb",
