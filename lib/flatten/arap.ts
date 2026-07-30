@@ -251,17 +251,37 @@ export function arapFlattenMesh(
 /**
  * The flattened positions of the panel's boundary loop (same order as
  * `panel.vertexIndices`), y-flipped for SVG, in sphere units.
+ *
+ * Cached per (topology, panel): the solve costs ~1s on wrap panels and
+ * several independent consumers need the same boundary (the net's
+ * unfold, the seam-true band development, the laser templates — the
+ * last rebuilt on EVERY laser-slider tick). Topologies are immutable
+ * once built, so a WeakMap keyed on the topology is safe.
  */
+const boundaryCache = new WeakMap<PanelTopology, Map<string, Vec2[] | null>>();
+
 export function arapFlattenBoundary(
   panel: Panel,
   topo: PanelTopology,
 ): Vec2[] | null {
+  let perTopo = boundaryCache.get(topo);
+  if (!perTopo) {
+    perTopo = new Map();
+    boundaryCache.set(topo, perTopo);
+  }
+  const hit = perTopo.get(panel.id);
+  if (hit !== undefined) {
+    return hit ? hit.map((p) => ({ ...p })) : null;
+  }
   const mesh = arapFlattenMesh(panel, topo);
-  if (!mesh) return null;
-  return panel.vertexIndices.map((vi) => {
-    const m = mesh.boundaryMeshIndex.get(vi)!;
-    return { ...mesh.flat[m] };
-  });
+  const result = mesh
+    ? panel.vertexIndices.map((vi) => {
+        const m = mesh.boundaryMeshIndex.get(vi)!;
+        return { ...mesh.flat[m] };
+      })
+    : null;
+  perTopo.set(panel.id, result);
+  return result ? result.map((p) => ({ ...p })) : null;
 }
 
 /**

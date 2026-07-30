@@ -329,7 +329,7 @@ describe("stitch holes", () => {
     const hex = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 6)!;
     const t = buildLaserTemplate(topo, hex, SETTINGS);
     const scale = mmPerUnit(SETTINGS.diameterIn);
-    const flat = flattenPanelUnscaled(hex.representative, topo);
+    const flat = laserPanelOutline(topo, hex.representative);
     const corners = flat.corners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
     const n = corners.length;
     const edges = corners.map((a, i) => {
@@ -853,6 +853,28 @@ describe("stitch holes", () => {
         }
       }
       expect(crossings).toBe(0);
+    }
+  });
+
+  it("closed single-seam loops space holes uniformly through the closure", () => {
+    // The open-run pattern left the remainder after (n-1) even gaps as
+    // the closure gap — the spiral's first and last holes landed a
+    // fraction of a pitch apart. Closed loops distribute round(L/pitch)
+    // holes at one uniform gap; consecutive gaps must all agree.
+    for (const id of ["spiral", "baseball"] as const) {
+      const topo = topoOf(id);
+      const cls = groupPanelsByCongruence(topo)[0];
+      const t = buildLaserTemplate(topo, cls, SETTINGS, {
+        seamTrueBands: id === "spiral",
+      });
+      const ds: number[] = [];
+      for (let i = 0; i < t.holes.length; i++) {
+        const j = (i + 1) % t.holes.length;
+        ds.push(Math.hypot(t.holes[j].x - t.holes[i].x, t.holes[j].y - t.holes[i].y));
+      }
+      const min = Math.min(...ds);
+      const max = Math.max(...ds);
+      expect(max - min, `${id} closure gap spread`).toBeLessThan(0.3);
     }
   });
 

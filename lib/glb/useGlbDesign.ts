@@ -29,7 +29,16 @@ export interface DesignInfo {
 /** Draft = coarse mesh while a slider drags; full = final quality on release. */
 export type RegenQuality = "draft" | "full";
 
-const DRAFT_DEBOUNCE_MS = 100;
+/**
+ * Trailing debounce for mid-drag regens. Long enough that the natural
+ * micro-pauses while aiming a slider never fire a regen (each one runs
+ * a full synchronous rebuild — subdivision + flatten — which freezes
+ * the thumb for a second on heavy presets like the Spiral, making fine
+ * adjustment nearly impossible). Releasing the slider always fires an
+ * immediate full-quality regen, so the only cost of the longer wait is
+ * a slightly later mid-drag preview.
+ */
+const DRAFT_DEBOUNCE_MS = 400;
 
 export interface UseGlbDesignResult {
   /** Latest GLB bytes — kept so the renderer can pass them to GLTFLoader. */

@@ -114,9 +114,64 @@ export function laserPanelOutline(
 ): PanelFlat {
   if (panel.vertexIndices.length > 6) {
     const symmetrized = symmetrizeWavyPanel(panel, topo, flatten);
-    if (symmetrized) return symmetrized;
+    if (symmetrized) return alignPrincipalAxis(symmetrized);
   }
-  return flattenPanelUnscaled(panel, topo);
+  return alignPrincipalAxis(flattenPanelUnscaled(panel, topo));
+}
+
+/**
+ * Rotate a flat outline so its principal axis lies horizontal: the
+ * developments come out at arbitrary headings (the Spiral's crescent
+ * lands tilted), which makes the preview ruler and the SVG bounding box
+ * measure a slanted box instead of the panel. Pure rotation about the
+ * centroid — every length, hole distance, and mating property is
+ * untouched.
+ */
+function alignPrincipalAxis(flat: PanelFlat): PanelFlat {
+  const pts = flat.corners;
+  const n = pts.length;
+  if (n < 3) return flat;
+  let cx = 0;
+  let cy = 0;
+  for (const p of pts) {
+    cx += p.x / n;
+    cy += p.y / n;
+  }
+  let sxx = 0;
+  let sxy = 0;
+  let syy = 0;
+  for (const p of pts) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    sxx += dx * dx;
+    sxy += dx * dy;
+    syy += dy * dy;
+  }
+  const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const rotated = pts.map((p) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+  });
+  // principal axis horizontal should mean width >= height; if the
+  // near-isotropic case landed tall, quarter-turn it.
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of rotated) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const finalPts =
+    maxX - minX >= maxY - minY
+      ? rotated
+      : rotated.map((p) => ({ x: p.y, y: -p.x }));
+  return { corners: finalPts, sagittaRatios: flat.sagittaRatios };
 }
 
 /**
@@ -710,6 +765,21 @@ function placeStitchHoles(
     if (skipShort) {
       edgeHoles.push(0);
       unstitchedSpans.push({ s0, len: flatSpan });
+      continue;
+    }
+    // Closed single-run seams (Baseball, Spiral): the run IS the whole
+    // loop, so the open-run pattern below would leave whatever length
+    // remains after (n−1) even gaps as the closure gap — routinely a
+    // fraction of the pitch, putting the first and last holes almost on
+    // top of each other. Distribute n = round(len/pitch) holes at a
+    // perfectly uniform gap around the loop instead.
+    if (runs.length === 1) {
+      const nLoop = Math.max(1, Math.round(patternLen / spacing));
+      const gap = flatSpan / nLoop;
+      for (let k = 0; k < nLoop; k++) {
+        holes.push(pointAtArcLength(samples, s0 + k * gap, totalLength));
+      }
+      edgeHoles.push(nLoop);
       continue;
     }
     const usable = patternLen - 2 * cornerMargin;

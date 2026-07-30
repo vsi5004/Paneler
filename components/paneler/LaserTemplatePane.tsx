@@ -19,7 +19,7 @@ function edgeSummary(edgeHoles: number[]): string {
 import type { PanelTopology } from "@/lib/types";
 import type { LaserSettings, LaserTemplate } from "@/lib/laser/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
-import { buildLaserTemplate } from "@/lib/laser/template";
+import { buildLaserTemplate, type LaserTemplateOptions } from "@/lib/laser/template";
 import { templateFilename, templateToSvg } from "@/lib/laser/svg";
 import { downloadSvg } from "@/lib/laser/download";
 import {
@@ -34,8 +34,8 @@ interface LaserTemplatePaneProps {
   onSettingsChange: (partial: Partial<LaserSettings>) => void;
   /** Design name used for download filenames. */
   designName: string;
-  /** Per-preset template options (e.g. Orbita sharp-bend anchors). */
-  templateOptions?: { sharpBendAnchors?: boolean };
+  /** Per-preset template options (anchors, seam-true bands, gather). */
+  templateOptions?: LaserTemplateOptions;
 }
 
 /**

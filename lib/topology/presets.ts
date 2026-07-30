@@ -299,7 +299,12 @@ export const PRESETS: PresetEntry[] = [
     panels: 2,
     devOnly: true,
     seamTrueFlatten: true,
-    gatherCorrection: 1.02,
+    // Calibrated from stitched prototypes: at 1.07 a normal-gather bag
+    // measured 1.85in around the equator against a 1.9in target
+    // (seam-driven, -2.6%); 1.11 aims the equator at ~1.9-1.95. (The
+    // seam-density model's 1.055-1.067 prediction ran slightly lean —
+    // physical measurements win.)
+    gatherCorrection: 1.11,
     params: [
       {
         // Full turns the seam makes from pole to pole, as a percent of
