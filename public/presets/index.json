@@ -56,6 +56,109 @@
     "devOnly": true
   },
   {
+    "slug": "triquetra",
+    "label": "Triquetra",
+    "glbPath": "/presets/triquetra.glb",
+    "panelCount": 8,
+    "shapeSignature": "8g",
+    "params": [
+      {
+        "key": "reach",
+        "label": "Reach",
+        "min": 35,
+        "max": 50,
+        "step": 1,
+        "defaultValue": 45,
+        "unit": "°"
+      },
+      {
+        "key": "bandWidth",
+        "label": "Band width",
+        "min": 10,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 20,
+        "unit": "°"
+      }
+    ],
+    "devOnly": true
+  },
+  {
+    "slug": "turkshead",
+    "label": "Turk's Head",
+    "glbPath": "/presets/turkshead.glb",
+    "panelCount": 18,
+    "shapeSignature": "18g",
+    "params": [
+      {
+        "key": "reach",
+        "label": "Reach",
+        "min": 30,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 45,
+        "unit": "°"
+      },
+      {
+        "key": "bandWidth",
+        "label": "Band width",
+        "min": 8,
+        "max": 20,
+        "step": 1,
+        "defaultValue": 14,
+        "unit": "°"
+      }
+    ],
+    "devOnly": true
+  },
+  {
+    "slug": "gores",
+    "label": "Gore Weave",
+    "glbPath": "/presets/gores.glb",
+    "panelCount": 22,
+    "shapeSignature": "22g",
+    "params": [
+      {
+        "key": "twist",
+        "label": "Twist",
+        "min": 50,
+        "max": 250,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      },
+      {
+        "key": "bandWidth",
+        "label": "Band width",
+        "min": 10,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 18,
+        "unit": "°"
+      }
+    ],
+    "devOnly": true
+  },
+  {
+    "slug": "borromean",
+    "label": "Borromean",
+    "glbPath": "/presets/borromean.glb",
+    "panelCount": 14,
+    "shapeSignature": "14g",
+    "params": [
+      {
+        "key": "bandWidth",
+        "label": "Band width",
+        "min": 10,
+        "max": 40,
+        "step": 1,
+        "defaultValue": 20,
+        "unit": "°"
+      }
+    ],
+    "devOnly": true
+  },
+  {
     "slug": "trionda",
     "label": "Trionda 2026",
     "glbPath": "/presets/trionda.glb",

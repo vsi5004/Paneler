@@ -882,10 +882,20 @@ describe("stitch holes", () => {
     }
   });
 
-  it("weave: every class builds a template and every seam run is holed", () => {
-    const topo = topoOf("weave");
+  it.each([
+    // [preset, expected classes, expected panel count]
+    ["weave", 3, 14],
+    ["borromean", 2, 14],
+    ["gores", 6, 22],
+    ["triquetra", 4, 8],
+    ["turkshead", 3, 18],
+  ] as const)(
+    "%s: every class builds a template and every seam run is holed",
+    (id, classCount, panelCount) => {
+    const topo = topoOf(id);
+    expect(topo.panels).toHaveLength(panelCount);
     const classes = groupPanelsByCongruence(topo);
-    expect(classes).toHaveLength(3);
+    expect(classes).toHaveLength(classCount);
     const scale = mmPerUnit(SETTINGS.diameterIn);
     for (const cls of classes) {
       const t = buildLaserTemplate(topo, cls, SETTINGS);
