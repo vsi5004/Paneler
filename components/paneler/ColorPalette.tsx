@@ -4,6 +4,10 @@ import { cn } from "@/lib/utils";
 import { DEFAULT_PALETTE, ULTRASUEDE_LX_PALETTE } from "@/lib/defaultPalettes";
 import type { PaletteEntry } from "@/lib/types";
 
+// Public assets live under the configured basePath (/app in the server
+// build, /Paneler on the GH Pages export) — absolute URLs 404 without it.
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 interface ColorPaletteProps {
   selected: string;
   onSelect: (color: string) => void;
@@ -35,7 +39,9 @@ function Swatch({
       style={
         {
           backgroundColor: entry.color,
-          backgroundImage: entry.swatch ? `url(${entry.swatch})` : undefined,
+          backgroundImage: entry.swatch
+            ? `url(${BASE_PATH}${entry.swatch})`
+            : undefined,
           "--current-color": entry.color,
         } as React.CSSProperties
       }
