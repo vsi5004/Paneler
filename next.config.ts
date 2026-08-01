@@ -1,5 +1,6 @@
 import path from "path";
 import type { NextConfig } from "next";
+import { withPlausibleProxy } from "next-plausible";
 
 // Two build modes:
 //   default          → Node.js server output (.next/standalone) for the
@@ -131,4 +132,13 @@ const nextConfig: NextConfig = {
       }),
 };
 
-export default nextConfig;
+// Proxy the Plausible script + event endpoint through this origin (same
+// pattern as the landing/nyfa sites): CSP stays at 'self' and blockers
+// don't see stats.korroni.com. Rewrites don't exist in static exports,
+// and the GH Pages preview shouldn't be tracked anyway, so the wrapper
+// only applies to the server build (the layout also skips the provider).
+export default isStaticExport
+  ? nextConfig
+  : withPlausibleProxy({ customDomain: "https://stats.korroni.com" })(
+      nextConfig,
+    );

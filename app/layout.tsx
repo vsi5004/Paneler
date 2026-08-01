@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, DM_Sans, JetBrains_Mono } from "next/font/google";
+import PlausibleProvider from "next-plausible";
 import "./globals.css";
+
+// Plausible only runs in the server build: the static export (GH Pages
+// preview) can't serve the proxy rewrites, and preview traffic would
+// pollute the paneler.app dashboard anyway.
+const isStaticExport = process.env.STATIC_EXPORT === "1";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -21,9 +27,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Paneler",
+  title: "Panel Designer — Paneler",
   description:
-    "Design your hacky sack before you sew it. Paint every panel in 3D, save the design as a link, stitch the bag you actually wanted.",
+    "Design any sewn ball before you sew it. Paint every panel in 3D and export laser-ready sewing templates.",
+  // The designer is an app, not a content page: the landing page at
+  // paneler.app/ is the indexable surface. This also keeps the GH Pages
+  // static preview from competing with the real domain in search.
+  robots: { index: false, follow: true },
 };
 
 export default function RootLayout({
@@ -36,7 +46,10 @@ export default function RootLayout({
       lang="en"
       className={`${bebasNeue.variable} ${dmSans.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {!isStaticExport && <PlausibleProvider domain="paneler.app" />}
+        {children}
+      </body>
     </html>
   );
 }

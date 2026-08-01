@@ -560,6 +560,18 @@ export function PanelerDesigner({
                       />
                     </div>
                   )}
+                  <div className="workshop-hairline mt-5" />
+                  <p className="mt-4 font-mono text-[10px] uppercase leading-relaxed tracking-[0.15em] text-muted-foreground">
+                    For supplies and materials, check out{" "}
+                    <a
+                      href="https://newyorkfootbag.com/shop?utm_source=paneler&utm_medium=referral&utm_campaign=panel-designer&utm_content=designer-sidebar"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary transition-colors hover:text-foreground"
+                    >
+                      newyorkfootbag.com
+                    </a>
+                  </p>
                 </aside>
               </div>
             </>
