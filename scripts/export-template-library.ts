@@ -23,7 +23,7 @@ import {
 } from "@/lib/laser/constants";
 import type { LaserSettings } from "@/lib/laser/types";
 
-const SIZES_IN = [1.6, 1.7, 1.8, 1.9, 2.0];
+const SIZES_IN = [1.8]; // preview only — downloads were dropped (unverified designs; the designer generates to spec)
 
 const outDir = resolve(process.argv[2] ?? "../paneler-business/public/templates");
 const manifestPath = resolve(outDir, "../../src/data/template-library.json");
