@@ -27,20 +27,21 @@ export const DEFAULT_PALETTE: PaletteEntry[] = [
 
 // Ultrasuede LX — the fabric footbags are actually sewn from. Colors
 // are measured from the fabric photos in public/lx (center-crop mean)
-// and lifted +15% brightness: the pile's micro-shadows bias the photos
-// darker than the fabric reads in person. Each swatch shows the photo
-// itself (64px thumb).
+// and lifted +32% brightness (two ×1.15 passes, tuned by eye against
+// the real fabric): the pile's micro-shadows bias the photos darker
+// than the fabric reads in person. Each swatch shows the photo itself
+// (64px thumb).
 export const ULTRASUEDE_LX_PALETTE: PaletteEntry[] = [
-  { id: "lx-white", label: "LX White", color: "#fffef7", swatch: "/lx/thumbs/white.webp" },
-  { id: "lx-ivory", label: "LX Ivory", color: "#d5c0a7", swatch: "/lx/thumbs/ivory.webp" },
-  { id: "lx-black", label: "LX Black", color: "#181818", swatch: "/lx/thumbs/black.webp" },
-  { id: "lx-citron", label: "LX Citron", color: "#aea24b", swatch: "/lx/thumbs/citron.webp" },
-  { id: "lx-orange", label: "LX Orange", color: "#ae5526", swatch: "/lx/thumbs/orange.webp" },
-  { id: "lx-red", label: "LX Red", color: "#9a0506", swatch: "/lx/thumbs/red.webp" },
-  { id: "lx-rose", label: "LX Rose", color: "#912452", swatch: "/lx/thumbs/rose.webp" },
-  { id: "lx-burgundy", label: "LX Burgundy", color: "#561e2e", swatch: "/lx/thumbs/burgundy.webp" },
-  { id: "lx-purple", label: "LX Purple", color: "#2e0c24", swatch: "/lx/thumbs/purple.webp" },
-  { id: "lx-sky", label: "LX Sky", color: "#6d85a1", swatch: "/lx/thumbs/sky.webp" },
-  { id: "lx-blue", label: "LX Blue", color: "#154062", swatch: "/lx/thumbs/blue.webp" },
-  { id: "lx-turquoise", label: "LX Turquoise", color: "#337584", swatch: "/lx/thumbs/turquoise.webp" },
+  { id: "lx-white", label: "LX White", color: "#ffffff", swatch: "/lx/thumbs/white.webp" },
+  { id: "lx-ivory", label: "LX Ivory", color: "#f5ddc0", swatch: "/lx/thumbs/ivory.webp" },
+  { id: "lx-black", label: "LX Black", color: "#1c1c1c", swatch: "/lx/thumbs/black.webp" },
+  { id: "lx-citron", label: "LX Citron", color: "#c8ba56", swatch: "/lx/thumbs/citron.webp" },
+  { id: "lx-orange", label: "LX Orange", color: "#c8622c", swatch: "/lx/thumbs/orange.webp" },
+  { id: "lx-red", label: "LX Red", color: "#b10607", swatch: "/lx/thumbs/red.webp" },
+  { id: "lx-rose", label: "LX Rose", color: "#a7295e", swatch: "/lx/thumbs/rose.webp" },
+  { id: "lx-burgundy", label: "LX Burgundy", color: "#632335", swatch: "/lx/thumbs/burgundy.webp" },
+  { id: "lx-purple", label: "LX Purple", color: "#350e29", swatch: "/lx/thumbs/purple.webp" },
+  { id: "lx-sky", label: "LX Sky", color: "#7d99b9", swatch: "/lx/thumbs/sky.webp" },
+  { id: "lx-blue", label: "LX Blue", color: "#184a71", swatch: "/lx/thumbs/blue.webp" },
+  { id: "lx-turquoise", label: "LX Turquoise", color: "#3b8798", swatch: "/lx/thumbs/turquoise.webp" },
 ];
