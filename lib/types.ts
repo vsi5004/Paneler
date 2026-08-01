@@ -91,4 +91,6 @@ export interface PaletteEntry {
   id: string;
   label: string;
   color: string;
+  /** Optional fabric-photo thumbnail shown as the swatch background. */
+  swatch?: string;
 }

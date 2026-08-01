@@ -3,7 +3,10 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
+import {
+  DEFAULT_PALETTE,
+  ULTRASUEDE_LX_PALETTE,
+} from "@/lib/defaultPalettes";
 import {
   applyColor,
   applyColorToUnpainted,
@@ -538,7 +541,8 @@ export function PanelerDesigner({
                         Palette
                       </h2>
                       <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        21 fabrics
+                        {DEFAULT_PALETTE.length + ULTRASUEDE_LX_PALETTE.length}{" "}
+                        fabrics
                       </span>
                     </div>
                     <ColorPalette
