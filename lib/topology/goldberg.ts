@@ -462,13 +462,137 @@ function dualToTopology(mesh: TriMesh): PanelTopology {
 }
 
 /**
+ * "Short edge" control for the higher Goldberg balls (GP 3,0 / GP 4,0).
+ *
+ * The short edge is the hex-hex edge — every other edge of the hexagons
+ * that ring a pentagon: the two "spokes" flanking the pentagon edge plus
+ * the edge opposite them. On the raw spherical Goldberg these come out at
+ * slightly different lengths, and the hexagons can't all be a clean
+ * 3-short/3-long shape while the seams still match (a topological parity
+ * conflict for m ≥ 3). So instead of authoring edge lengths, we CONSTRAIN
+ * the short edges to a single target and let the pentagons and the other
+ * hexagons relax to absorb it — a position-based edge relaxation on the
+ * sphere. That converges to a ball where all the short edges are equal
+ * and every panel is valid, exactly as the physical bags are cut.
+ *
+ * Connectivity (and the frozen panel ids) never changes — only vertex
+ * positions move — so painted colors, selection and saved designs stay
+ * valid. Shorter short edge ⇒ bigger pentagons.
+ */
+function relaxShortEdges(
+  topo: PanelTopology,
+  shortScale: number,
+  radius: number,
+): void {
+  const V = topo.vertices;
+  const pentIds = new Set(
+    topo.panels.filter((p) => p.shape === "pentagon").map((p) => p.id),
+  );
+  const ekey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+  const neighbor = new Map<string, string[]>();
+  for (const e of topo.edges) {
+    const k = ekey(e.vertexA, e.vertexB);
+    (neighbor.get(k) ?? neighbor.set(k, []).get(k)!).push(
+      ...([e.panelA, e.panelB].filter(Boolean) as string[]),
+    );
+  }
+
+  // Short edges: on each pentagon-ring hexagon, the alternating set that
+  // contains the two spokes — offsets −1, +1, +3 from its pentagon edge.
+  const shortKeys = new Set<string>();
+  for (const panel of topo.panels) {
+    if (panel.shape !== "hexagon") continue;
+    const loop = panel.vertexIndices;
+    let pentPos = -1;
+    for (let i = 0; i < 6; i++) {
+      const other = (neighbor.get(ekey(loop[i], loop[(i + 1) % 6])) ?? []).find(
+        (id) => id !== panel.id,
+      );
+      if (other && pentIds.has(other)) pentPos = i;
+    }
+    if (pentPos < 0) continue; // interior hexagon — no short edges
+    for (const off of [-1, 1, 3]) {
+      const i = (((pentPos + off) % 6) + 6) % 6;
+      shortKeys.add(ekey(loop[i], loop[(i + 1) % 6]));
+    }
+  }
+
+  // Rest lengths for the free (non-short) edges; target for the short ones.
+  const rest = new Map<string, number>();
+  let shortSum = 0;
+  let shortCount = 0;
+  for (const e of topo.edges) {
+    const k = ekey(e.vertexA, e.vertexB);
+    const len = V[e.vertexA].distanceTo(V[e.vertexB]);
+    rest.set(k, len);
+    if (shortKeys.has(k)) {
+      shortSum += len;
+      shortCount++;
+    }
+  }
+  const target = (shortSum / shortCount) * shortScale;
+
+  // Position-based relaxation: pull short edges hard toward `target`, hold
+  // the rest softly near their rest length, re-project to the sphere each
+  // pass. ITERS/weights tuned so short edges land within ~0.1% of equal.
+  const ITERS = 250;
+  const W_SHORT = 1.0;
+  const W_FREE = 0.15;
+  const disp = V.map(() => new Vector3());
+  const count = new Float64Array(V.length);
+  const dir = new Vector3();
+  for (let it = 0; it < ITERS; it++) {
+    for (const d of disp) d.set(0, 0, 0);
+    count.fill(0);
+    for (const e of topo.edges) {
+      const a = e.vertexA;
+      const b = e.vertexB;
+      const cur = V[a].distanceTo(V[b]);
+      if (cur < 1e-9) continue;
+      const k = ekey(a, b);
+      const isShort = shortKeys.has(k);
+      const corr =
+        ((cur - (isShort ? target : rest.get(k)!)) * 0.5 * (isShort ? W_SHORT : W_FREE)) /
+        cur;
+      dir.copy(V[b]).sub(V[a]).multiplyScalar(corr);
+      disp[a].add(dir);
+      disp[b].sub(dir);
+      count[a]++;
+      count[b]++;
+    }
+    for (let i = 0; i < V.length; i++) {
+      if (count[i]) V[i].addScaledVector(disp[i], 1 / count[i]);
+      V[i].setLength(radius);
+    }
+  }
+}
+
+/**
+ * Map the "short edge" slider percent to the short-edge target scale.
+ * 100% uniformizes the short edges at their natural mean length; below
+ * 100% shortens them (bigger pentagons), above 100% lengthens them. The
+ * achieved short edge tracks the percent nearly linearly.
+ */
+export function shortEdgePctToShortScale(pct: number): number {
+  return pct / 100;
+}
+
+/**
  * Class I Goldberg GP(m, 0):
  *   - m=1 → dodecahedron (12 pent, 0 hex)
  *   - m=2 → 42 panels    (12 pent, 30 hex)
  *   - m=3 → 92 panels    (12 pent, 80 hex)
  *   - m=4 → 162 panels   (12 pent, 150 hex)
+ *
+ * When `shortEdgePct` is given (GP 3,0 / GP 4,0), the short hex-hex edges
+ * are relaxed to a single length (see relaxShortEdges); GP(2,0) omits it
+ * and stays the raw spherical Goldberg.
  */
-export function goldbergClassI(m: number, radius = 1): PanelTopology {
+export function goldbergClassI(
+  m: number,
+  radius = 1,
+  shortEdgePct?: number,
+): PanelTopology {
   if (m < 1 || !Number.isInteger(m)) {
     throw new Error("goldbergClassI(m) requires a positive integer m");
   }
@@ -480,6 +604,10 @@ export function goldbergClassI(m: number, radius = 1): PanelTopology {
 
   // The dual's vertices (face centroids) are off the sphere; project them.
   for (const v of topo.vertices) v.setLength(radius);
+
+  if (shortEdgePct !== undefined) {
+    relaxShortEdges(topo, shortEdgePctToShortScale(shortEdgePct), radius);
+  }
   return topo;
 }
 

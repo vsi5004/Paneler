@@ -171,13 +171,35 @@
     "label": "GP(3,0)",
     "glbPath": "/presets/gp3.glb",
     "panelCount": 92,
-    "shapeSignature": "12p+80h"
+    "shapeSignature": "12p+80h",
+    "params": [
+      {
+        "key": "shortEdge",
+        "label": "Short edge",
+        "min": 60,
+        "max": 140,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "gp4",
     "label": "GP(4,0)",
     "glbPath": "/presets/gp4.glb",
     "panelCount": 162,
-    "shapeSignature": "12p+150h"
+    "shapeSignature": "12p+150h",
+    "params": [
+      {
+        "key": "shortEdge",
+        "label": "Short edge",
+        "min": 60,
+        "max": 140,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   }
 ]
