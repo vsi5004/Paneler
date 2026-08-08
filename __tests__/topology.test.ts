@@ -175,6 +175,112 @@ describe("goldbergClassI(m) — GP(m, 0)", () => {
       }
     }
   });
+
+  it("shortEdge param: uniform short edges, topology stable, inverse coupling", () => {
+    // GP(3,0)/GP(4,0) with the param relax so the short edges (spokes +
+    // opposite) are all EQUAL; GP(2,0) omits it and stays the raw
+    // Goldberg. The panel count/shapes are fixed across the range; and a
+    // shorter short edge ⟺ bigger pentagon (the physical bag's coupling).
+    const shortEdges = (t: ReturnType<typeof goldbergClassI>) => {
+      const pentIds = new Set(
+        t.panels.filter((p) => p.shape === "pentagon").map((p) => p.id),
+      );
+      const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+      const nb = new Map<string, string[]>();
+      for (const e of t.edges) {
+        const k = key(e.vertexA, e.vertexB);
+        (nb.get(k) ?? nb.set(k, []).get(k)!).push(
+          ...([e.panelA, e.panelB].filter(Boolean) as string[]),
+        );
+      }
+      const lens: number[] = [];
+      for (const panel of t.panels) {
+        if (panel.shape !== "hexagon") continue;
+        const loop = panel.vertexIndices;
+        let pentPos = -1;
+        for (let i = 0; i < 6; i++) {
+          const other = (nb.get(key(loop[i], loop[(i + 1) % 6])) ?? []).find(
+            (id) => id !== panel.id,
+          );
+          if (other && pentIds.has(other)) pentPos = i;
+        }
+        if (pentPos < 0) continue;
+        for (const off of [-1, 1, 3]) {
+          const i = (((pentPos + off) % 6) + 6) % 6;
+          lens.push(t.vertices[loop[i]].distanceTo(t.vertices[loop[(i + 1) % 6]]));
+        }
+      }
+      const mean = lens.reduce((s, x) => s + x, 0) / lens.length;
+      return { mean, spread: Math.max(...lens) - Math.min(...lens) };
+    };
+    const spokeAndPentEdge = (t: ReturnType<typeof goldbergClassI>) => {
+      const pentIds = new Set(
+        t.panels.filter((p) => p.shape === "pentagon").map((p) => p.id),
+      );
+      const corner = new Set<number>();
+      for (const p of t.panels)
+        if (p.shape === "pentagon") for (const vi of p.vertexIndices) corner.add(vi);
+      const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+      const nb = new Map<string, string[]>();
+      for (const e of t.edges) {
+        const k = key(e.vertexA, e.vertexB);
+        (nb.get(k) ?? nb.set(k, []).get(k)!).push(
+          ...([e.panelA, e.panelB].filter(Boolean) as string[]),
+        );
+      }
+      let spoke = 0,
+        sn = 0,
+        pentE = 0,
+        pn = 0;
+      for (const e of t.edges) {
+        const ids = nb.get(key(e.vertexA, e.vertexB)) ?? [];
+        const len = t.vertices[e.vertexA].distanceTo(t.vertices[e.vertexB]);
+        const hexHex = ids.length === 2 && !ids.some((id) => pentIds.has(id));
+        const oneCorner =
+          (corner.has(e.vertexA) ? 1 : 0) + (corner.has(e.vertexB) ? 1 : 0) === 1;
+        if (hexHex && oneCorner) {
+          spoke += len;
+          sn++;
+        }
+        if (ids.some((id) => pentIds.has(id))) {
+          pentE += len;
+          pn++;
+        }
+      }
+      return { spoke: spoke / sn, pentEdge: pentE / pn };
+    };
+
+    // The relaxation genuinely uniformizes: the raw Goldberg's short edges
+    // vary; after relaxation they collapse to (near) one length.
+    const rawGp3 = shortEdges(goldbergClassI(3, 1));
+    const relaxedGp3 = shortEdges(goldbergClassI(3, 1, 100));
+    expect(rawGp3.spread).toBeGreaterThan(relaxedGp3.spread * 5);
+
+    for (const m of [3, 4]) {
+      const def = goldbergClassI(m, 1, 100);
+      const short = goldbergClassI(m, 1, 70); // shorter short edge
+      const long = goldbergClassI(m, 1, 130); // longer short edge
+      // panel count + shape mix unchanged across the range
+      for (const t of [def, short, long]) {
+        expect(t.panels).toHaveLength(m === 3 ? 92 : 162);
+        expect(t.panels.filter((p) => p.shape === "pentagon")).toHaveLength(12);
+        // every vertex on the sphere
+        for (const v of t.vertices) expect(v.length()).toBeCloseTo(1, 4);
+      }
+      // short edges are all (near) equal after relaxation
+      for (const t of [def, short, long]) {
+        expect(shortEdges(t).spread).toBeLessThan(0.003);
+      }
+      const sM = spokeAndPentEdge(short);
+      const dM = spokeAndPentEdge(def);
+      const lM = spokeAndPentEdge(long);
+      // spoke grows with the %; pentagon edge moves the opposite way
+      expect(sM.spoke).toBeLessThan(dM.spoke);
+      expect(lM.spoke).toBeGreaterThan(dM.spoke);
+      expect(sM.pentEdge).toBeGreaterThan(dM.pentEdge); // shorter spoke → bigger pentagon
+      expect(lM.pentEdge).toBeLessThan(dM.pentEdge);
+    }
+  });
 });
 
 describe("projectToSphere", () => {

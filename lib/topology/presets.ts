@@ -270,6 +270,22 @@ export function presetById(id: string): PresetEntry | undefined {
   return PRESETS.find((p) => p.id === id);
 }
 
+// The Goldberg balls (GP 3,0 and GP 4,0) share one short-edge control: the
+// short hex-hex edges (spokes + opposite) are relaxed to one length, a
+// percent of the natural uniform length (100% = default). Validated valid
+// — no inverted or degenerate panels — across the whole 0–140% range;
+// toward 0% the short edges shrink to near-zero (huge pentagons) but the
+// free edges keep every panel non-degenerate.
+const SHORT_EDGE_PARAM: PresetParamDef = {
+  key: "shortEdge",
+  label: "Short edge",
+  min: 0,
+  max: 140,
+  step: 5,
+  defaultValue: 100,
+  unit: "%",
+};
+
 export const PRESETS: PresetEntry[] = [
   {
     id: "baseball",
@@ -427,6 +443,20 @@ export const PRESETS: PresetEntry[] = [
       truncatedIcosahedronFamily(radius, (params?.shortEdge ?? 100) / 100),
   },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
-  { id: "gp3", label: "GP(3,0)", panels: 92, topology: (r?: number) => goldbergClassI(3, r) },
-  { id: "gp4", label: "GP(4,0)", panels: 162, topology: (r?: number) => goldbergClassI(4, r) },
+  {
+    id: "gp3",
+    label: "GP(3,0)",
+    panels: 92,
+    params: [SHORT_EDGE_PARAM],
+    topology: (radius?: number, params?: PresetParams) =>
+      goldbergClassI(3, radius, params?.shortEdge ?? 100),
+  },
+  {
+    id: "gp4",
+    label: "GP(4,0)",
+    panels: 162,
+    params: [SHORT_EDGE_PARAM],
+    topology: (radius?: number, params?: PresetParams) =>
+      goldbergClassI(4, radius, params?.shortEdge ?? 100),
+  },
 ];
