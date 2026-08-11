@@ -53,9 +53,18 @@ export function generateTemplateDocument(
   }
   const resolved = resolvePresetParams(preset, params);
 
-  return generateDocumentFromTopology(preset.topology(1, resolved), {
+  const topo = preset.topology(1, resolved);
+  // Preset default colors (the band-weave designs ship pre-colored so
+  // the over/under weave reads without painting). Explicit colors win
+  // per panel; panels missing from the map — e.g. after a Weave-family
+  // regen changed the panel count — fall back to the design's default
+  // instead of white.
+  const defaults = preset.defaultColors?.(topo);
+  const colors = defaults ? { ...defaults, ...panelColors } : panelColors;
+
+  return generateDocumentFromTopology(topo, {
     assetName: presetId,
-    panelColors,
+    panelColors: colors,
     design: { presetId, params: resolved },
     ...options,
   });
