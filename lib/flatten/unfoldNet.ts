@@ -94,6 +94,29 @@ export function unfoldNet(
   // keep panels of the same shape the same visual size.
   const circumradius = estimateAvgCircumradius(topo);
 
+  // Few-panel band designs (the Spiral and Baseball: two congruent
+  // panels sharing one seam). The radiate-outward ring rotation spins
+  // the second panel 90° from the first, and the flatten itself orients
+  // the two congruent panels differently, so two identical shapes read
+  // as mismatched. Principal-axis-align each panel (PCA is rotation-
+  // equivariant, so congruent panels land in the same canonical frame)
+  // and lay them in a row — congruent panels then look congruent.
+  if (topo.panels.length <= 2) {
+    let cursorX = 0;
+    for (const panel of topo.panels) {
+      const local = flattenPanelLocal(panel, topo, circumradius, options);
+      const aligned = alignToPrincipalAxis(local.corners);
+      const xs = aligned.map((c) => c.x);
+      const shift = cursorX - Math.min(...xs);
+      result.set(panel.id, {
+        corners: aligned.map((p) => ({ x: p.x + shift, y: p.y })),
+        sagittaRatios: local.sagittaRatios,
+      });
+      cursorX += Math.max(...xs) - Math.min(...xs) + circumradius * 0.6;
+    }
+    return result;
+  }
+
   for (const [d, panels] of byDepth) {
     if (d === 0) {
       const local = flattenPanelLocal(rootPanel, topo, circumradius, options);
@@ -114,6 +137,56 @@ export function unfoldNet(
   }
 
   return result;
+}
+
+/**
+ * Rotate a flat outline so its principal (longest) axis is horizontal.
+ * PCA is rotation-equivariant, so two congruent panels — however the
+ * flatten happened to orient them — land in the same canonical frame and
+ * render identically. Mirrors the laser template's alignPrincipalAxis
+ * (kept separate to avoid a laser→flatten import cycle).
+ */
+function alignToPrincipalAxis(pts: Vec2[]): Vec2[] {
+  const n = pts.length;
+  if (n < 3) return pts.map((p) => ({ ...p }));
+  let cx = 0;
+  let cy = 0;
+  for (const p of pts) {
+    cx += p.x / n;
+    cy += p.y / n;
+  }
+  let sxx = 0;
+  let sxy = 0;
+  let syy = 0;
+  for (const p of pts) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    sxx += dx * dx;
+    sxy += dx * dy;
+    syy += dy * dy;
+  }
+  const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const rotated = pts.map((p) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+  });
+  // Near-isotropic tie → keep width ≥ height (quarter-turn if tall).
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of rotated) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return maxX - minX >= maxY - minY
+    ? rotated
+    : rotated.map((p) => ({ x: p.y, y: -p.x }));
 }
 
 function placeRing({
