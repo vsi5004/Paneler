@@ -44,4 +44,6 @@ export const ULTRASUEDE_LX_PALETTE: PaletteEntry[] = [
   { id: "lx-sky", label: "LX Sky", color: "#7d99b9", swatch: "/lx/thumbs/sky.webp" },
   { id: "lx-blue", label: "LX Blue", color: "#184a71", swatch: "/lx/thumbs/blue.webp" },
   { id: "lx-turquoise", label: "LX Turquoise", color: "#3b8798", swatch: "/lx/thumbs/turquoise.webp" },
+  { id: "lx-forest-green", label: "LX Forest Green", color: "#2a3626", swatch: "/lx/thumbs/forest-green.webp" },
+  { id: "lx-brownstone", label: "LX Brownstone", color: "#5d381f", swatch: "/lx/thumbs/brownstone.webp" },
 ];
