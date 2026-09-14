@@ -165,8 +165,29 @@ GRANT UPDATE (email, fabrics, api_key_hash, api_key_created_at,
 
 -- Backfill from existing designs. DISTINCT ON needs the leading ORDER BY key
 -- to match; updated_at DESC picks each user's most recent email.
+--
+-- The NO FORCE sandwich is REQUIRED, and its absence fails silently. Migrations
+-- run as the table owner, and FORCE ROW LEVEL SECURITY applies the policy to
+-- the owner too — with app.user_sub unset, the owner sees zero rows, so the
+-- SELECT matches nothing and the INSERT quietly does nothing. Verified on
+-- production: `SET ROLE paneler; SELECT count(*) FROM designs` returns 0.
+--
+-- This is safe. FORCE governs only the OWNER's visibility; paneler_app stays
+-- subject to RLS throughout because row security remains ENABLED on both
+-- tables. The migrator is the only owner connection.
+--
+-- NOTE FOR FUTURE MIGRATIONS: any migration that READS an RLS-forced table
+-- needs this treatment. It will not show up in local testing — docker-compose
+-- runs `paneler` as a superuser (bypassrls), so the owner sees everything
+-- locally and nothing in production.
+ALTER TABLE designs NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE users   NO FORCE ROW LEVEL SECURITY;
+
 INSERT INTO users (user_sub, email)
 SELECT DISTINCT ON (user_sub) user_sub, email
 FROM designs
 ORDER BY user_sub, updated_at DESC
 ON CONFLICT (user_sub) DO NOTHING;
+
+ALTER TABLE designs FORCE ROW LEVEL SECURITY;
+ALTER TABLE users   FORCE ROW LEVEL SECURITY;
