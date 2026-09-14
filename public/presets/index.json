@@ -176,7 +176,7 @@
       {
         "key": "shortEdge",
         "label": "Short edge",
-        "min": 60,
+        "min": 0,
         "max": 140,
         "step": 5,
         "defaultValue": 100,
@@ -194,7 +194,7 @@
       {
         "key": "shortEdge",
         "label": "Short edge",
-        "min": 60,
+        "min": 0,
         "max": 140,
         "step": 5,
         "defaultValue": 100,
