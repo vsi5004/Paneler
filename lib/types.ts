@@ -81,6 +81,8 @@ export interface DesignMeta {
   palette_hash: string | null;
   source: string | null;
   template_slug: string | null;
+  /** Customer's fill choice; set by the embed order flow, null otherwise. */
+  fill: string | null;
   starred: boolean;
   published: boolean;
   created_at: string;
@@ -93,4 +95,38 @@ export interface PaletteEntry {
   color: string;
   /** Optional fabric-photo thumbnail shown as the swatch background. */
   swatch?: string;
+  /**
+   * Full-resolution (800px) fabric photo, where one exists. Used by the
+   * profile page's fabric shelf, which renders swatches large enough that the
+   * Ultrasuede pile is visible and the 64px thumb would go soft.
+   */
+  swatchLarge?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Per-user settings (the `users` table)
+// -----------------------------------------------------------------------------
+
+/**
+ * One fabric in a user's stocked list, as stored in `users.fabrics`.
+ *
+ * Catalog entries store only a reference, so corrections to a catalog color
+ * (as happened with Forest Green) propagate to everyone holding it. Custom
+ * entries carry their own values because there's nothing to point at.
+ */
+export type FabricEntry =
+  | { kind: "catalog"; id: string }
+  | { kind: "custom"; id: string; label: string; color: string };
+
+/**
+ * What the profile endpoints return. Deliberately carries key *metadata* only
+ * — never `api_key_hash` or `prev_key_hash`.
+ */
+export interface ProfileData {
+  fabrics: FabricEntry[];
+  /** Granted by hand as the DB owner; gates the whole API-key feature. */
+  apiKeyEnabled: boolean;
+  hasApiKey: boolean;
+  apiKeyCreatedAt: string | null;
+  apiKeyLastUsed: string | null;
 }

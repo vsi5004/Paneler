@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -13,7 +14,7 @@ import {
   applyShapeColor,
   getPanelShape,
 } from "@/lib/designState";
-import type { PanelColors } from "@/lib/types";
+import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 
@@ -51,6 +52,12 @@ interface PanelerDesignerProps {
   logoutAction?: () => Promise<void>;
   /** True when the app runs against Postgres. Drives the saved-designs nav. */
   dbEnabled: boolean;
+  /**
+   * The signed-in stitcher's stocked fabrics, resolved server-side in page.tsx.
+   * Shown as a "My Fabrics" group above the built-in palettes. Empty in
+   * files-only mode, where the group is omitted entirely.
+   */
+  fabrics?: PaletteEntry[];
 }
 
 // R3F can't run on the server. App Router disallows ssr:false in Server
@@ -72,6 +79,7 @@ export function PanelerDesigner({
   user,
   logoutAction,
   dbEnabled,
+  fabrics,
 }: PanelerDesignerProps) {
   const [templates, setTemplates] = useState<TemplateEntry[]>([]);
   const [activeTemplateSlug, setActiveTemplateSlug] = useState<string | null>(null);
@@ -101,6 +109,23 @@ export function PanelerDesigner({
     laserSettings,
     setLaserSettings,
   } = design;
+
+  // Palette groups for the sidebar. The stitcher's own fabrics lead — those are
+  // the colors they can actually sew — with the built-ins below as reference.
+  // Empty groups are dropped by ColorPalette, so an unconfigured account sees
+  // exactly what it saw before this feature existed.
+  const paletteGroups = useMemo(
+    () => [
+      { label: "My Fabrics", entries: fabrics ?? [] },
+      { label: "Ultrasuede LX", entries: ULTRASUEDE_LX_PALETTE },
+      { label: "Standard", entries: DEFAULT_PALETTE },
+    ],
+    [fabrics],
+  );
+  const fabricCount = useMemo(
+    () => paletteGroups.reduce((n, g) => n + g.entries.length, 0),
+    [paletteGroups],
+  );
 
   // Shape param defs for the loaded design's preset, when it declares any.
   const shapeParamDefs = useMemo(() => {
@@ -409,7 +434,13 @@ export function PanelerDesigner({
                   : "Save"}
           </Button>
           <span className="h-5 w-px bg-border" aria-hidden />
-          {user && <UserMenu user={user} logoutAction={logoutAction} />}
+          {user && (
+            <UserMenu
+              user={user}
+              logoutAction={logoutAction}
+              showProfile={dbEnabled}
+            />
+          )}
         </div>
       </div>
 
@@ -541,13 +572,13 @@ export function PanelerDesigner({
                         Palette
                       </h2>
                       <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        {DEFAULT_PALETTE.length + ULTRASUEDE_LX_PALETTE.length}{" "}
-                        fabrics
+                        {fabricCount} fabrics
                       </span>
                     </div>
                     <ColorPalette
                       selected={selectedColor}
                       onSelect={setSelectedColor}
+                      groups={paletteGroups}
                     />
                   </section>
                   <div className="workshop-hairline mt-5" />
@@ -680,7 +711,16 @@ function SaveIcon() {
   );
 }
 
-function UserMenu({ user, logoutAction }: { user: AuthUser; logoutAction?: () => Promise<void> }) {
+function UserMenu({
+  user,
+  logoutAction,
+  showProfile,
+}: {
+  user: AuthUser;
+  logoutAction?: () => Promise<void>;
+  /** Profile lives behind the database; files-only mode has nothing to show. */
+  showProfile?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const initial =
     (user.name ?? user.email ?? "?").trim().charAt(0).toUpperCase();
@@ -724,6 +764,14 @@ function UserMenu({ user, logoutAction }: { user: AuthUser; logoutAction?: () =>
               </div>
             )}
           </div>
+          {showProfile && (
+            <Link
+              href="/profile"
+              className="block w-full px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+            >
+              Profile
+            </Link>
+          )}
           {logoutAction && (
             <form action={logoutAction}>
               <button

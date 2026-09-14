@@ -13,6 +13,7 @@ function row(overrides: Partial<DesignMeta> = {}): DesignMeta {
     glb_size_bytes: null,
     thumbnail_key: null,
     panel_count: 32,
+    fill: null,
     shape_signature: "12p+20h",
     palette_hash: null,
     source: "template:soccer",

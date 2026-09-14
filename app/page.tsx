@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { logout } from "@/lib/auth-actions";
 import { PanelerDesigner } from "@/components/paneler/PanelerDesigner";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
+import { ensureUserProfile } from "@/lib/db/users";
+import { resolveFabrics } from "@/lib/fabrics";
+import type { PaletteEntry } from "@/lib/types";
 
 // In static export builds, next.config.ts aliases @/lib/auth-actions to a
 // no-op stub so the "use server" file never enters the build graph.
@@ -25,8 +28,19 @@ export default async function DesignerPage() {
   // don't have AUTH_SECRET and don't need auth.
   const session = dbEnabled ? await auth() : null;
   const user = session?.user ?? null;
+  const userSub = dbEnabled ? getCurrentUserSub(session) : null;
 
-  if (dbEnabled && !getCurrentUserSub(session)) {
+  // Load the stitcher's stocked fabrics server-side rather than fetching from
+  // the client, so the palette paints correctly on first render instead of
+  // popping in a frame later. The same call creates the user row on a first
+  // visit, which is why it runs even for an empty fabric list.
+  let fabrics: PaletteEntry[] = [];
+  if (userSub) {
+    const profile = await ensureUserProfile(userSub, session?.user?.email ?? null);
+    fabrics = resolveFabrics(profile.fabrics);
+  }
+
+  if (dbEnabled && !userSub) {
     return (
       <main className="flex flex-1 items-center justify-center">
         <div className="text-center font-mono text-sm uppercase tracking-[0.2em] text-muted-foreground">
@@ -42,6 +56,7 @@ export default async function DesignerPage() {
         user={user}
         logoutAction={dbEnabled ? logout : undefined}
         dbEnabled={dbEnabled}
+        fabrics={fabrics}
       />
     </main>
   );

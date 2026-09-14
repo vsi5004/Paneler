@@ -1,19 +1,31 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { DEFAULT_PALETTE, ULTRASUEDE_LX_PALETTE } from "@/lib/defaultPalettes";
 import type { PaletteEntry } from "@/lib/types";
 
 // Public assets live under the configured basePath (/app in the server
 // build, /Paneler on the GH Pages export) — absolute URLs 404 without it.
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
+export interface PaletteGroup {
+  label: string;
+  entries: PaletteEntry[];
+}
+
 interface ColorPaletteProps {
   selected: string;
   onSelect: (color: string) => void;
+  /**
+   * Rendered top to bottom, empty groups skipped. Driven by a prop rather than
+   * importing the palettes directly so the same component can serve the
+   * designer (built-ins plus the user's own fabrics) and, later, an embedded
+   * order form restricted to one stitcher's stock.
+   */
+  groups: PaletteGroup[];
 }
 
-function Swatch({
+/** Single fabric chip. Exported so the profile page's catalog grid reuses it. */
+export function Swatch({
   entry,
   selected,
   onSelect,
@@ -49,34 +61,32 @@ function Swatch({
   );
 }
 
-export function ColorPalette({ selected, onSelect }: ColorPaletteProps) {
+export function ColorPalette({
+  selected,
+  onSelect,
+  groups,
+}: ColorPaletteProps) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-7 gap-1.5">
-        {DEFAULT_PALETTE.map((entry) => (
-          <Swatch
-            key={entry.id}
-            entry={entry}
-            selected={selected}
-            onSelect={onSelect}
-          />
+      {groups
+        .filter((group) => group.entries.length > 0)
+        .map((group) => (
+          <div key={group.label}>
+            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              {group.label}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {group.entries.map((entry) => (
+                <Swatch
+                  key={entry.id}
+                  entry={entry}
+                  selected={selected}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
+          </div>
         ))}
-      </div>
-      <div>
-        <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-          Ultrasuede LX
-        </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {ULTRASUEDE_LX_PALETTE.map((entry) => (
-            <Swatch
-              key={entry.id}
-              entry={entry}
-              selected={selected}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      </div>
       <div className="flex items-center gap-3 rounded-md border border-border bg-background/40 px-3 py-2">
         <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           Custom

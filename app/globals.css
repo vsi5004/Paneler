@@ -151,3 +151,32 @@
     align-self: stretch;
   }
 }
+
+/* Running-stitch divider — the profile page's one decorative motif. Seams are
+ * the product, so section breaks read as a line of stitching rather than the
+ * plain hairline used elsewhere. Masked rather than border-dashed so the dash
+ * rhythm stays identical across browsers. */
+.stitch-divider {
+  height: 1px;
+  background: var(--border);
+  -webkit-mask-image: repeating-linear-gradient(
+    90deg,
+    #000 0 3px,
+    transparent 3px 8px
+  );
+  mask-image: repeating-linear-gradient(
+    90deg,
+    #000 0 3px,
+    transparent 3px 8px
+  );
+}
+
+/* Fabric shelf strips share the gallery's entrance, staggered by index via an
+ * inline animation-delay. Honour reduced-motion by showing them outright. */
+@media (prefers-reduced-motion: reduce) {
+  .specimen-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

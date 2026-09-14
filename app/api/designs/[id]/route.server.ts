@@ -11,6 +11,7 @@ import { deleteObject } from "@/lib/r2/client";
 export const dynamic = "force-dynamic";
 
 const MAX_NAME_CHARS = 200;
+const MAX_FILL_CHARS = 100;
 
 interface PatchBody {
   name?: string;
@@ -22,6 +23,7 @@ interface PatchBody {
   glb_etag?: string;
   glb_size_bytes?: number;
   thumbnail_key?: string;
+  fill?: string;
 }
 
 async function resolveUser(): Promise<
@@ -75,6 +77,9 @@ export async function PUT(
   }
   if (typeof body.name === "string" && body.name.length > MAX_NAME_CHARS) {
     return NextResponse.json({ error: "name_too_long" }, { status: 400 });
+  }
+  if (typeof body.fill === "string" && body.fill.length > MAX_FILL_CHARS) {
+    return NextResponse.json({ error: "fill_too_long" }, { status: 400 });
   }
 
   const design = await updateDesign(r.userSub, id, body);

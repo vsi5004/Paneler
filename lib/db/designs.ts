@@ -7,7 +7,7 @@ import { withUserSession } from "@/lib/db/client";
 const ROW_COLUMNS = `
   id, name, glb_key, glb_etag, glb_size_bytes, thumbnail_key,
   panel_count, shape_signature, palette_hash, source, template_slug,
-  starred, published, created_at, updated_at
+  fill, starred, published, created_at, updated_at
 `;
 
 export async function listDesigns(userSub: string): Promise<DesignMeta[]> {
@@ -89,6 +89,8 @@ export interface UpdateDesignPatch {
   glb_etag?: string;
   glb_size_bytes?: number;
   thumbnail_key?: string;
+  /** Customer's fill choice; written by the embed order flow. */
+  fill?: string;
 }
 
 export async function updateDesign(
@@ -108,6 +110,7 @@ export async function updateDesign(
          glb_etag         = COALESCE($8,  glb_etag),
          glb_size_bytes   = COALESCE($9,  glb_size_bytes),
          thumbnail_key    = COALESCE($10, thumbnail_key),
+         fill             = COALESCE($11, fill),
          updated_at       = now()
        WHERE id = $1
        RETURNING ${ROW_COLUMNS}`,
@@ -122,6 +125,7 @@ export async function updateDesign(
         patch.glb_etag ?? null,
         patch.glb_size_bytes ?? null,
         patch.thumbnail_key ?? null,
+        patch.fill ?? null,
       ],
     );
     return rows[0] ?? null;

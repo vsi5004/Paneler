@@ -53,6 +53,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Customer's fill choice, set by the embed order flow. Null for every design
+-- made in the designer. Free text rather than an enum: fill options vary per
+-- stitcher and get configured per-account, so the database shouldn't pin the
+-- vocabulary. Behaves like the other mirror columns.
+ALTER TABLE designs ADD COLUMN IF NOT EXISTS fill text;
+
 CREATE INDEX IF NOT EXISTS designs_user_sub_updated_idx
   ON designs (user_sub, updated_at DESC);
 CREATE INDEX IF NOT EXISTS designs_user_panel_count_idx
@@ -93,3 +99,74 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON designs TO paneler_app;
 -- don't have to remember a GRANT in every migration.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO paneler_app;
+
+
+-- ---------------------------------------------------------------------------
+-- users — per-account settings. Identity itself comes from the Dex-issued OIDC
+-- subject in the JWT; this row is the place to hang anything keyed to it.
+--
+-- Populated two ways, so no explicit migration step is ever needed: the
+-- backfill below catches everyone who already has a design, and
+-- ensureUserProfile() upserts on the next authenticated request for everyone
+-- else.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+  user_sub           text PRIMARY KEY,
+  email              text,
+  -- Fabric list the stitcher stocks. Array of
+  --   {"kind":"catalog","id":"lx-red"}
+  --   {"kind":"custom","id":"custom:a1b2c3","label":"...","color":"#rrggbb"}
+  -- Order is display order. jsonb rather than rows: always read and written
+  -- whole by its owner, never queried across users.
+  fabrics            jsonb NOT NULL DEFAULT '[]'::jsonb,
+  -- Gate for the whole API-key feature. Granted by hand as the owner; see the
+  -- column-privilege note below for why the app cannot set this itself.
+  api_key_enabled    boolean NOT NULL DEFAULT false,
+  api_key_hash       text UNIQUE,
+  api_key_created_at timestamptz,
+  api_key_last_used  timestamptz,
+  -- Rotation grace window: the previous key keeps working until prev_key_expires
+  -- so regenerating doesn't break a live site the instant the button is clicked.
+  prev_key_hash      text,
+  prev_key_expires   timestamptz,
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS users_isolate ON users;
+CREATE POLICY users_isolate ON users
+  FOR ALL
+  USING (user_sub = (SELECT current_setting('app.user_sub', true)))
+  WITH CHECK (user_sub = (SELECT current_setting('app.user_sub', true)));
+
+-- Explicit grants rather than relying on ALTER DEFAULT PRIVILEGES above, so
+-- correctness doesn't depend on where in this file the table is declared.
+--
+-- IMPORTANT: RLS does NOT protect api_key_enabled. The policy is row-level —
+-- a user's own row satisfies both USING and WITH CHECK, so the policy happily
+-- permits them to update ANY column in it, including that one. Column-level
+-- privileges are what actually stop a user granting themselves API access, and
+-- they hold regardless of application bugs, a careless SELECT *, or injection.
+--
+-- The REVOKE is required because ALTER DEFAULT PRIVILEGES (above) already
+-- handed paneler_app table-level INSERT and UPDATE at creation time; without
+-- the revoke, a row could be created with the flag already set. Both
+-- orderings are idempotent, so this is safe to re-run on every boot.
+GRANT SELECT, DELETE ON users TO paneler_app;
+REVOKE INSERT, UPDATE ON users FROM paneler_app;
+GRANT INSERT (user_sub, email) ON users TO paneler_app;
+GRANT UPDATE (email, fabrics, api_key_hash, api_key_created_at,
+              api_key_last_used, prev_key_hash, prev_key_expires,
+              updated_at)
+  ON users TO paneler_app;
+
+-- Backfill from existing designs. DISTINCT ON needs the leading ORDER BY key
+-- to match; updated_at DESC picks each user's most recent email.
+INSERT INTO users (user_sub, email)
+SELECT DISTINCT ON (user_sub) user_sub, email
+FROM designs
+ORDER BY user_sub, updated_at DESC
+ON CONFLICT (user_sub) DO NOTHING;
