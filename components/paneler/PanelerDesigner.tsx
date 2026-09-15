@@ -4,10 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  DEFAULT_PALETTE,
-  ULTRASUEDE_LX_PALETTE,
-} from "@/lib/defaultPalettes";
+import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
+import { FABRIC_GROUPS } from "@/lib/fabrics";
 import {
   applyColor,
   applyColorToUnpainted,
@@ -115,11 +113,7 @@ export function PanelerDesigner({
   // Empty groups are dropped by ColorPalette, so an unconfigured account sees
   // exactly what it saw before this feature existed.
   const paletteGroups = useMemo(
-    () => [
-      { label: "My Fabrics", entries: fabrics ?? [] },
-      { label: "Ultrasuede LX", entries: ULTRASUEDE_LX_PALETTE },
-      { label: "Standard", entries: DEFAULT_PALETTE },
-    ],
+    () => [{ label: "My Fabrics", entries: fabrics ?? [] }, ...FABRIC_GROUPS],
     [fabrics],
   );
   const fabricCount = useMemo(

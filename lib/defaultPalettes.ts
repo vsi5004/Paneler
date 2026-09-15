@@ -25,6 +25,20 @@ export const DEFAULT_PALETTE: PaletteEntry[] = [
   { id: "brown", label: "Brown", color: "#7a4820" },
 ];
 
+// LOAD-BEARING, despite nothing importing it any more.
+//
+// The fabric catalogue Paneler actually renders is lib/fabrics/catalog.json,
+// generated from the colour library. But these fourteen hexes are the ONLY
+// copy of the hand-tuning — every one was matched by eye against the real
+// cloth, and the library upstream stores the raw photo measurement instead.
+// The importer (export/to_paneler.py in the library repo) reads this file,
+// matches these fourteen to their colour codes, and passes them through
+// untouched while lifting everything else.
+//
+// So deleting this array as dead code silently reverts LX to raw photo values
+// and loses the tuning. If it ever has to move, move it into
+// lib/fabrics/catalog.json by hand and teach the importer to preserve it there.
+//
 // NOTE ON PURPLE: it sits at 2.12x its raw photo measurement (#27081d),
 // well outside the 1.32-1.51x the rest of this palette occupies, and that is
 // deliberate rather than a slip to tidy up. Purple was already the most

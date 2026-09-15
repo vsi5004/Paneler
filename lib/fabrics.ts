@@ -1,7 +1,5 @@
-import {
-  DEFAULT_PALETTE,
-  ULTRASUEDE_LX_PALETTE,
-} from "@/lib/defaultPalettes";
+import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
+import catalog from "@/lib/fabrics/catalog.json";
 import type { FabricEntry, PaletteEntry } from "@/lib/types";
 
 // -----------------------------------------------------------------------------
@@ -12,9 +10,25 @@ import type { FabricEntry, PaletteEntry } from "@/lib/types";
 // to validate. Keep it free of `server-only` and of any DOM dependency.
 // -----------------------------------------------------------------------------
 
-/** Catalog groups, in the order the profile page and designer present them. */
+/**
+ * Catalog groups, in the order the profile page and designer present them.
+ *
+ * The real fabrics come from lib/fabrics/catalog.json, generated out of the
+ * colour library (gwbischof/ultrasuede-color-library) by its
+ * export/to_paneler.py. Vendored rather than fetched: this builds with that
+ * repo absent, and a fabric a stitcher has already picked cannot vanish
+ * because an upstream page changed.
+ *
+ * Standard trails the real cloth because it is not cloth — twenty-one generic
+ * colours to sketch with, kept from before the library existed.
+ *
+ * Every hex here is sampled from a photograph and approximate. Entries the
+ * library marked `lifted` carry the documented brightness correction; the
+ * fourteen LX entries without it are hand-tuned against the real fabric and
+ * are passed through the importer untouched. See catalog.json's `_note`.
+ */
 export const FABRIC_GROUPS: { label: string; entries: PaletteEntry[] }[] = [
-  { label: "Ultrasuede LX", entries: ULTRASUEDE_LX_PALETTE },
+  ...(catalog.groups as { label: string; entries: PaletteEntry[] }[]),
   { label: "Standard", entries: DEFAULT_PALETTE },
 ];
 

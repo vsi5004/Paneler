@@ -1,0 +1,2262 @@
+{
+ "_generated": "export/to_paneler.py in gwbischof/ultrasuede-color-library",
+ "_note": "Hexes are sampled from swatch photographs and are approximate. Entries marked `lifted` carry the documented two-x1.15 brightness correction, because a suede photographs darker than it reads in hand; the LX entries without it are hand-tuned against the real cloth and were passed through untouched. Do not regenerate those from the library or the tuning is lost.",
+ "groups": [
+  {
+   "label": "Ultrasuede LX",
+   "entries": [
+    {
+     "id": "lx-ca0",
+     "label": "Beige",
+     "color": "#ceaf80",
+     "lifted": true,
+     "swatch": "/fabrics/lx-ca0.webp",
+     "swatchLarge": "/fabrics/lx-ca0@large.webp"
+    },
+    {
+     "id": "lx-ivory",
+     "label": "Ivory",
+     "color": "#f5ddc0",
+     "swatch": "/fabrics/lx-ivory.webp",
+     "swatchLarge": "/fabrics/lx-ivory@large.webp"
+    },
+    {
+     "id": "lx-cb1",
+     "label": "Sand",
+     "color": "#c2a78b",
+     "lifted": true,
+     "swatch": "/fabrics/lx-cb1.webp",
+     "swatchLarge": "/fabrics/lx-cb1@large.webp"
+    },
+    {
+     "id": "lx-cb8",
+     "label": "Camel",
+     "color": "#63432c",
+     "lifted": true,
+     "swatch": "/fabrics/lx-cb8.webp",
+     "swatchLarge": "/fabrics/lx-cb8@large.webp"
+    },
+    {
+     "id": "lx-cb9",
+     "label": "Sable",
+     "color": "#462e21",
+     "lifted": true,
+     "swatch": "/fabrics/lx-cb9.webp",
+     "swatchLarge": "/fabrics/lx-cb9@large.webp"
+    },
+    {
+     "id": "lx-sky",
+     "label": "Sky",
+     "color": "#7d99b9",
+     "swatch": "/fabrics/lx-sky.webp",
+     "swatchLarge": "/fabrics/lx-sky@large.webp"
+    },
+    {
+     "id": "lx-citron",
+     "label": "Citron",
+     "color": "#c8ba56",
+     "swatch": "/fabrics/lx-citron.webp",
+     "swatchLarge": "/fabrics/lx-citron@large.webp"
+    },
+    {
+     "id": "lx-white",
+     "label": "White",
+     "color": "#ffffff",
+     "swatch": "/fabrics/lx-white.webp",
+     "swatchLarge": "/fabrics/lx-white@large.webp"
+    },
+    {
+     "id": "lx-cn1",
+     "label": "Off White",
+     "color": "#eeedea",
+     "lifted": true,
+     "swatch": "/fabrics/lx-cn1.webp",
+     "swatchLarge": "/fabrics/lx-cn1@large.webp"
+    },
+    {
+     "id": "lx-cq8",
+     "label": "Ginger",
+     "color": "#ad905b",
+     "lifted": true,
+     "swatch": "/fabrics/lx-cq8.webp",
+     "swatchLarge": "/fabrics/lx-cq8@large.webp"
+    },
+    {
+     "id": "lx-turquoise",
+     "label": "Turquoise",
+     "color": "#3b8798",
+     "swatch": "/fabrics/lx-turquoise.webp",
+     "swatchLarge": "/fabrics/lx-turquoise@large.webp"
+    },
+    {
+     "id": "lx-orange",
+     "label": "Orange",
+     "color": "#c8622c",
+     "swatch": "/fabrics/lx-orange.webp",
+     "swatchLarge": "/fabrics/lx-orange@large.webp"
+    },
+    {
+     "id": "lx-ga3",
+     "label": "Coffee",
+     "color": "#1c1410",
+     "lifted": true,
+     "swatch": "/fabrics/lx-ga3.webp",
+     "swatchLarge": "/fabrics/lx-ga3@large.webp"
+    },
+    {
+     "id": "lx-black",
+     "label": "Black",
+     "color": "#1c1c1c",
+     "swatch": "/fabrics/lx-black.webp",
+     "swatchLarge": "/fabrics/lx-black@large.webp"
+    },
+    {
+     "id": "lx-gb7",
+     "label": "Navy",
+     "color": "#0d141e",
+     "lifted": true,
+     "swatch": "/fabrics/lx-gb7.webp",
+     "swatchLarge": "/fabrics/lx-gb7@large.webp"
+    },
+    {
+     "id": "lx-gc1",
+     "label": "Asphalt",
+     "color": "#211d1d",
+     "lifted": true,
+     "swatch": "/fabrics/lx-gc1.webp",
+     "swatchLarge": "/fabrics/lx-gc1@large.webp"
+    },
+    {
+     "id": "lx-brownstone",
+     "label": "Brownstone",
+     "color": "#7a4928",
+     "swatch": "/fabrics/lx-brownstone.webp",
+     "swatchLarge": "/fabrics/lx-brownstone@large.webp"
+    },
+    {
+     "id": "lx-red",
+     "label": "Red",
+     "color": "#b10607",
+     "swatch": "/fabrics/lx-red.webp",
+     "swatchLarge": "/fabrics/lx-red@large.webp"
+    },
+    {
+     "id": "lx-gh0",
+     "label": "Black Olive",
+     "color": "#422a20",
+     "lifted": true,
+     "swatch": "/fabrics/lx-gh0.webp",
+     "swatchLarge": "/fabrics/lx-gh0@large.webp"
+    },
+    {
+     "id": "lx-purple",
+     "label": "Purple",
+     "color": "#4a1439",
+     "swatch": "/fabrics/lx-purple.webp",
+     "swatchLarge": "/fabrics/lx-purple@large.webp"
+    },
+    {
+     "id": "lx-gv0",
+     "label": "Melange Gray",
+     "color": "#bdb5b8",
+     "lifted": true,
+     "swatch": "/fabrics/lx-gv0.webp",
+     "swatchLarge": "/fabrics/lx-gv0@large.webp"
+    },
+    {
+     "id": "lx-forest-green",
+     "label": "Forest Green",
+     "color": "#34432e",
+     "swatch": "/fabrics/lx-forest-green.webp",
+     "swatchLarge": "/fabrics/lx-forest-green@large.webp"
+    },
+    {
+     "id": "lx-burgundy",
+     "label": "Burgundy",
+     "color": "#632335",
+     "swatch": "/fabrics/lx-burgundy.webp",
+     "swatchLarge": "/fabrics/lx-burgundy@large.webp"
+    },
+    {
+     "id": "lx-rose",
+     "label": "Rose",
+     "color": "#a7295e",
+     "swatch": "/fabrics/lx-rose.webp",
+     "swatchLarge": "/fabrics/lx-rose@large.webp"
+    },
+    {
+     "id": "lx-blue",
+     "label": "Blue",
+     "color": "#184a71",
+     "swatch": "/fabrics/lx-blue.webp",
+     "swatchLarge": "/fabrics/lx-blue@large.webp"
+    }
+   ]
+  },
+  {
+   "label": "Ultrasuede ST",
+   "entries": [
+    {
+     "id": "st-1467",
+     "label": "Scoundrel",
+     "color": "#ee213a",
+     "lifted": true,
+     "swatch": "/fabrics/st-1467.webp",
+     "swatchLarge": "/fabrics/st-1467@large.webp"
+    },
+    {
+     "id": "st-1468",
+     "label": "Bordeaux",
+     "color": "#5e222a",
+     "lifted": true,
+     "swatch": "/fabrics/st-1468.webp",
+     "swatchLarge": "/fabrics/st-1468@large.webp"
+    },
+    {
+     "id": "st-2904",
+     "label": "Jazz Blue",
+     "color": "#18579b",
+     "lifted": true,
+     "swatch": "/fabrics/st-2904.webp",
+     "swatchLarge": "/fabrics/st-2904@large.webp"
+    },
+    {
+     "id": "st-2905",
+     "label": "Classic Navy",
+     "color": "#1e213c",
+     "lifted": true,
+     "swatch": "/fabrics/st-2905.webp",
+     "swatchLarge": "/fabrics/st-2905@large.webp"
+    },
+    {
+     "id": "st-2906",
+     "label": "Admiral",
+     "color": "#223152",
+     "lifted": true,
+     "swatch": "/fabrics/st-2906.webp",
+     "swatchLarge": "/fabrics/st-2906@large.webp"
+    },
+    {
+     "id": "st-2907",
+     "label": "Montauk",
+     "color": "#a1bcb9",
+     "lifted": true,
+     "swatch": "/fabrics/st-2907.webp",
+     "swatchLarge": "/fabrics/st-2907@large.webp"
+    },
+    {
+     "id": "st-2908",
+     "label": "Sky Blue",
+     "color": "#41b7c1",
+     "lifted": true,
+     "swatch": "/fabrics/st-2908.webp",
+     "swatchLarge": "/fabrics/st-2908@large.webp"
+    },
+    {
+     "id": "st-3570",
+     "label": "Sand",
+     "color": "#ffefc1",
+     "lifted": true,
+     "swatch": "/fabrics/st-3570.webp",
+     "swatchLarge": "/fabrics/st-3570@large.webp"
+    },
+    {
+     "id": "st-3571",
+     "label": "Camel",
+     "color": "#cda37a",
+     "lifted": true,
+     "swatch": "/fabrics/st-3571.webp",
+     "swatchLarge": "/fabrics/st-3571@large.webp"
+    },
+    {
+     "id": "st-3572",
+     "label": "Coffee Bean",
+     "color": "#4f3222",
+     "lifted": true,
+     "swatch": "/fabrics/st-3572.webp",
+     "swatchLarge": "/fabrics/st-3572@large.webp"
+    },
+    {
+     "id": "st-3573",
+     "label": "Aztec Leather",
+     "color": "#ba7e3e",
+     "lifted": true,
+     "swatch": "/fabrics/st-3573.webp",
+     "swatchLarge": "/fabrics/st-3573@large.webp"
+    },
+    {
+     "id": "st-3575",
+     "label": "Coffee Cream",
+     "color": "#b59474",
+     "lifted": true,
+     "swatch": "/fabrics/st-3575.webp",
+     "swatchLarge": "/fabrics/st-3575@large.webp"
+    },
+    {
+     "id": "st-3576",
+     "label": "Country Cream",
+     "color": "#ffffea",
+     "lifted": true,
+     "swatch": "/fabrics/st-3576.webp",
+     "swatchLarge": "/fabrics/st-3576@large.webp"
+    },
+    {
+     "id": "st-3577",
+     "label": "Bone",
+     "color": "#fde6c6",
+     "lifted": true,
+     "swatch": "/fabrics/st-3577.webp",
+     "swatchLarge": "/fabrics/st-3577@large.webp"
+    },
+    {
+     "id": "st-3578",
+     "label": "Brownstone",
+     "color": "#724125",
+     "lifted": true,
+     "swatch": "/fabrics/st-3578.webp",
+     "swatchLarge": "/fabrics/st-3578@large.webp"
+    },
+    {
+     "id": "st-3590",
+     "label": "Woodhue",
+     "color": "#826346",
+     "lifted": true,
+     "swatch": "/fabrics/st-3590.webp",
+     "swatchLarge": "/fabrics/st-3590@large.webp"
+    },
+    {
+     "id": "st-3591",
+     "label": "Chamois",
+     "color": "#fbd097",
+     "lifted": true,
+     "swatch": "/fabrics/st-3591.webp",
+     "swatchLarge": "/fabrics/st-3591@large.webp"
+    },
+    {
+     "id": "st-3594",
+     "label": "Melange Beige",
+     "color": "#b39b7e",
+     "lifted": true,
+     "swatch": "/fabrics/st-3594.webp",
+     "swatchLarge": "/fabrics/st-3594@large.webp"
+    },
+    {
+     "id": "st-3596",
+     "label": "Clove",
+     "color": "#c4632d",
+     "lifted": true,
+     "swatch": "/fabrics/st-3596.webp",
+     "swatchLarge": "/fabrics/st-3596@large.webp"
+    },
+    {
+     "id": "st-4681",
+     "label": "Egyptian Green",
+     "color": "#0f322c",
+     "lifted": true,
+     "swatch": "/fabrics/st-4681.webp",
+     "swatchLarge": "/fabrics/st-4681@large.webp"
+    },
+    {
+     "id": "st-4682",
+     "label": "Topiary",
+     "color": "#5b6b4d",
+     "lifted": true,
+     "swatch": "/fabrics/st-4682.webp",
+     "swatchLarge": "/fabrics/st-4682@large.webp"
+    },
+    {
+     "id": "st-4683",
+     "label": "Forrest",
+     "color": "#252821",
+     "lifted": true,
+     "swatch": "/fabrics/st-4683.webp",
+     "swatchLarge": "/fabrics/st-4683@large.webp"
+    },
+    {
+     "id": "st-5359",
+     "label": "Blonde",
+     "color": "#ffda86",
+     "lifted": true,
+     "swatch": "/fabrics/st-5359.webp",
+     "swatchLarge": "/fabrics/st-5359@large.webp"
+    },
+    {
+     "id": "st-5360",
+     "label": "Moccasin",
+     "color": "#da8e28",
+     "lifted": true,
+     "swatch": "/fabrics/st-5360.webp",
+     "swatchLarge": "/fabrics/st-5360@large.webp"
+    },
+    {
+     "id": "st-5361",
+     "label": "Lemon",
+     "color": "#ffe53c",
+     "lifted": true,
+     "swatch": "/fabrics/st-5361.webp",
+     "swatchLarge": "/fabrics/st-5361@large.webp"
+    },
+    {
+     "id": "st-5594",
+     "label": "Black Onyx",
+     "color": "#1d1a18",
+     "lifted": true,
+     "swatch": "/fabrics/st-5594.webp",
+     "swatchLarge": "/fabrics/st-5594@large.webp"
+    },
+    {
+     "id": "st-5595",
+     "label": "Silver Pearl",
+     "color": "#b9afab",
+     "lifted": true,
+     "swatch": "/fabrics/st-5595.webp",
+     "swatchLarge": "/fabrics/st-5595@large.webp"
+    },
+    {
+     "id": "st-5597",
+     "label": "White",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/st-5597.webp",
+     "swatchLarge": "/fabrics/st-5597@large.webp"
+    },
+    {
+     "id": "st-5598",
+     "label": "Arctic",
+     "color": "#fffff6",
+     "lifted": true,
+     "swatch": "/fabrics/st-5598.webp",
+     "swatchLarge": "/fabrics/st-5598@large.webp"
+    },
+    {
+     "id": "st-5600",
+     "label": "Melange Gray",
+     "color": "#b3aba3",
+     "lifted": true,
+     "swatch": "/fabrics/st-5600.webp",
+     "swatchLarge": "/fabrics/st-5600@large.webp"
+    },
+    {
+     "id": "st-5601",
+     "label": "Executive Grey",
+     "color": "#766a61",
+     "lifted": true,
+     "swatch": "/fabrics/st-5601.webp",
+     "swatchLarge": "/fabrics/st-5601@large.webp"
+    },
+    {
+     "id": "st-6675",
+     "label": "Glaze",
+     "color": "#ffe6d0",
+     "lifted": true,
+     "swatch": "/fabrics/st-6675.webp",
+     "swatchLarge": "/fabrics/st-6675@large.webp"
+    },
+    {
+     "id": "st-6676",
+     "label": "Fushia",
+     "color": "#d53270",
+     "lifted": true,
+     "swatch": "/fabrics/st-6676.webp",
+     "swatchLarge": "/fabrics/st-6676@large.webp"
+    },
+    {
+     "id": "st-8324",
+     "label": "Tangerine",
+     "color": "#ff7a1e",
+     "lifted": true,
+     "swatch": "/fabrics/st-8324.webp",
+     "swatchLarge": "/fabrics/st-8324@large.webp"
+    },
+    {
+     "id": "st-9500",
+     "label": "Violine",
+     "color": "#592e4d",
+     "lifted": true,
+     "swatch": "/fabrics/st-9500.webp",
+     "swatchLarge": "/fabrics/st-9500@large.webp"
+    },
+    {
+     "id": "st-9501",
+     "label": "Zodiac",
+     "color": "#47438f",
+     "lifted": true,
+     "swatch": "/fabrics/st-9501.webp",
+     "swatchLarge": "/fabrics/st-9501@large.webp"
+    }
+   ]
+  },
+  {
+   "label": "Lamous TH",
+   "entries": [
+    {
+     "id": "lam-th001",
+     "label": "TH001",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th001.webp"
+    },
+    {
+     "id": "lam-th003",
+     "label": "TH003",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th003.webp"
+    },
+    {
+     "id": "lam-th006",
+     "label": "TH006",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th006.webp"
+    },
+    {
+     "id": "lam-th007",
+     "label": "TH007",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th007.webp"
+    },
+    {
+     "id": "lam-th101",
+     "label": "TH101",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th101.webp"
+    },
+    {
+     "id": "lam-th103",
+     "label": "TH103",
+     "color": "#f9fae7",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th103.webp"
+    },
+    {
+     "id": "lam-th105",
+     "label": "TH105",
+     "color": "#c2c1b8",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th105.webp"
+    },
+    {
+     "id": "lam-th111",
+     "label": "TH111",
+     "color": "#666765",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th111.webp"
+    },
+    {
+     "id": "lam-th201",
+     "label": "TH201",
+     "color": "#ffffed",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th201.webp"
+    },
+    {
+     "id": "lam-th204",
+     "label": "TH204",
+     "color": "#ffeab1",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th204.webp"
+    },
+    {
+     "id": "lam-th206",
+     "label": "TH206",
+     "color": "#ffffe6",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th206.webp"
+    },
+    {
+     "id": "lam-th208",
+     "label": "TH208",
+     "color": "#dcceac",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th208.webp"
+    },
+    {
+     "id": "lam-th210",
+     "label": "TH210",
+     "color": "#ffffee",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th210.webp"
+    },
+    {
+     "id": "lam-th211",
+     "label": "TH211",
+     "color": "#ffffe6",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th211.webp"
+    },
+    {
+     "id": "lam-th301",
+     "label": "TH301",
+     "color": "#da5b4d",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th301.webp"
+    },
+    {
+     "id": "lam-th302",
+     "label": "TH302",
+     "color": "#9c4141",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th302.webp"
+    },
+    {
+     "id": "lam-th303",
+     "label": "TH303",
+     "color": "#b1615b",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th303.webp"
+    },
+    {
+     "id": "lam-th304",
+     "label": "TH304",
+     "color": "#874f51",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th304.webp"
+    },
+    {
+     "id": "lam-th305",
+     "label": "TH305",
+     "color": "#885265",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th305.webp"
+    },
+    {
+     "id": "lam-th306",
+     "label": "TH306",
+     "color": "#5f4e62",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th306.webp"
+    },
+    {
+     "id": "lam-th307",
+     "label": "TH307",
+     "color": "#c14238",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th307.webp"
+    },
+    {
+     "id": "lam-th310",
+     "label": "TH310",
+     "color": "#e5b9d9",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th310.webp"
+    },
+    {
+     "id": "lam-th311",
+     "label": "TH311",
+     "color": "#b546a8",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th311.webp"
+    },
+    {
+     "id": "lam-th312",
+     "label": "TH312",
+     "color": "#492e6c",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th312.webp"
+    },
+    {
+     "id": "lam-th401",
+     "label": "TH401",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th401.webp"
+    },
+    {
+     "id": "lam-th403",
+     "label": "TH403",
+     "color": "#ff7893",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th403.webp"
+    },
+    {
+     "id": "lam-th411",
+     "label": "TH411",
+     "color": "#ff9852",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th411.webp"
+    },
+    {
+     "id": "lam-th421",
+     "label": "TH421",
+     "color": "#ffffa5",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th421.webp"
+    },
+    {
+     "id": "lam-th431",
+     "label": "TH431",
+     "color": "#ccd85e",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th431.webp"
+    },
+    {
+     "id": "lam-th441",
+     "label": "TH441",
+     "color": "#efffee",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th441.webp"
+    },
+    {
+     "id": "lam-th451",
+     "label": "TH451",
+     "color": "#4f7662",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th451.webp"
+    },
+    {
+     "id": "lam-th452",
+     "label": "TH452",
+     "color": "#455d42",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th452.webp"
+    },
+    {
+     "id": "lam-th511",
+     "label": "TH511",
+     "color": "#f3ffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th511.webp"
+    },
+    {
+     "id": "lam-th512",
+     "label": "TH512",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th512.webp"
+    },
+    {
+     "id": "lam-th513",
+     "label": "TH513",
+     "color": "#9fffe9",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th513.webp"
+    },
+    {
+     "id": "lam-th514",
+     "label": "TH514",
+     "color": "#86e1ff",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th514.webp"
+    },
+    {
+     "id": "lam-th521",
+     "label": "TH521",
+     "color": "#3c20b7",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th521.webp"
+    },
+    {
+     "id": "lam-th532",
+     "label": "TH532",
+     "color": "#3f4959",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th532.webp"
+    },
+    {
+     "id": "lam-th533",
+     "label": "TH533",
+     "color": "#343557",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th533.webp"
+    },
+    {
+     "id": "lam-th534",
+     "label": "TH534",
+     "color": "#494b87",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th534.webp"
+    },
+    {
+     "id": "lam-th535",
+     "label": "TH535",
+     "color": "#3f477b",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th535.webp"
+    },
+    {
+     "id": "lam-th601",
+     "label": "TH601",
+     "color": "#a08a5d",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th601.webp"
+    },
+    {
+     "id": "lam-th602",
+     "label": "TH602",
+     "color": "#846a4b",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th602.webp"
+    },
+    {
+     "id": "lam-th603",
+     "label": "TH603",
+     "color": "#5a4a38",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th603.webp"
+    },
+    {
+     "id": "lam-th604",
+     "label": "TH604",
+     "color": "#674d3e",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th604.webp"
+    },
+    {
+     "id": "lam-th605",
+     "label": "TH605",
+     "color": "#3c3831",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th605.webp"
+    },
+    {
+     "id": "lam-th606",
+     "label": "TH606",
+     "color": "#383231",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th606.webp"
+    },
+    {
+     "id": "lam-th997",
+     "label": "TH997",
+     "color": "#242528",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th997.webp"
+    },
+    {
+     "id": "lam-th999",
+     "label": "TH999",
+     "color": "#282928",
+     "lifted": true,
+     "swatch": "/fabrics/lam-th999.webp"
+    }
+   ]
+  },
+  {
+   "label": "Shammy 707J",
+   "entries": [
+    {
+     "id": "sham-03y",
+     "label": "Greige",
+     "color": "#dabc9c",
+     "lifted": true,
+     "swatch": "/fabrics/sham-03y.webp"
+    },
+    {
+     "id": "sham-05y",
+     "label": "Tan",
+     "color": "#ffffc9",
+     "lifted": true,
+     "swatch": "/fabrics/sham-05y.webp"
+    },
+    {
+     "id": "sham-06y",
+     "label": "Oak Beige",
+     "color": "#ad8268",
+     "lifted": true,
+     "swatch": "/fabrics/sham-06y.webp"
+    },
+    {
+     "id": "sham-08y",
+     "label": "Camel",
+     "color": "#f9c080",
+     "lifted": true,
+     "swatch": "/fabrics/sham-08y.webp"
+    },
+    {
+     "id": "sham-09y",
+     "label": "Light Beige",
+     "color": "#ffe5b3",
+     "lifted": true,
+     "swatch": "/fabrics/sham-09y.webp"
+    },
+    {
+     "id": "sham-15y",
+     "label": "Off White",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/sham-15y.webp"
+    },
+    {
+     "id": "sham-18r",
+     "label": "Royal Blue",
+     "color": "#152d77",
+     "lifted": true,
+     "swatch": "/fabrics/sham-18r.webp"
+    },
+    {
+     "id": "sham-20r",
+     "label": "Lavender",
+     "color": "#d4b4dc",
+     "lifted": true,
+     "swatch": "/fabrics/sham-20r.webp"
+    },
+    {
+     "id": "sham-20y",
+     "label": "Yellow",
+     "color": "#ffff8e",
+     "lifted": true,
+     "swatch": "/fabrics/sham-20y.webp"
+    },
+    {
+     "id": "sham-21w",
+     "label": "Brown",
+     "color": "#7f3c15",
+     "lifted": true,
+     "swatch": "/fabrics/sham-21w.webp"
+    },
+    {
+     "id": "sham-24w",
+     "label": "Khaki Brown",
+     "color": "#5a4522",
+     "lifted": true,
+     "swatch": "/fabrics/sham-24w.webp"
+    },
+    {
+     "id": "sham-25w",
+     "label": "Coffee Brown",
+     "color": "#4b290d",
+     "lifted": true,
+     "swatch": "/fabrics/sham-25w.webp"
+    },
+    {
+     "id": "sham-26y",
+     "label": "Sunset Orange",
+     "color": "#ffa96a",
+     "lifted": true,
+     "swatch": "/fabrics/sham-26y.webp"
+    },
+    {
+     "id": "sham-32y",
+     "label": "Green Tea",
+     "color": "#7c8656",
+     "lifted": true,
+     "swatch": "/fabrics/sham-32y.webp"
+    },
+    {
+     "id": "sham-33w",
+     "label": "Forest Green",
+     "color": "#0f3f3f",
+     "lifted": true,
+     "swatch": "/fabrics/sham-33w.webp"
+    },
+    {
+     "id": "sham-40w",
+     "label": "Grey",
+     "color": "#4d5a63",
+     "lifted": true,
+     "swatch": "/fabrics/sham-40w.webp"
+    },
+    {
+     "id": "sham-40y",
+     "label": "Light Grey",
+     "color": "#bdb0b9",
+     "lifted": true,
+     "swatch": "/fabrics/sham-40y.webp"
+    },
+    {
+     "id": "sham-41y",
+     "label": "Sand Beige",
+     "color": "#ffefcd",
+     "lifted": true,
+     "swatch": "/fabrics/sham-41y.webp"
+    },
+    {
+     "id": "sham-43y",
+     "label": "Charcoal Grey",
+     "color": "#978683",
+     "lifted": true,
+     "swatch": "/fabrics/sham-43y.webp"
+    },
+    {
+     "id": "sham-46y",
+     "label": "Wasabi",
+     "color": "#a3bdad",
+     "lifted": true,
+     "swatch": "/fabrics/sham-46y.webp"
+    },
+    {
+     "id": "sham-51w",
+     "label": "Deep Green",
+     "color": "#102c1e",
+     "lifted": true,
+     "swatch": "/fabrics/sham-51w.webp"
+    },
+    {
+     "id": "sham-52y",
+     "label": "Orange",
+     "color": "#ff8a41",
+     "lifted": true,
+     "swatch": "/fabrics/sham-52y.webp"
+    },
+    {
+     "id": "sham-53y",
+     "label": "Pink",
+     "color": "#ffbee5",
+     "lifted": true,
+     "swatch": "/fabrics/sham-53y.webp"
+    },
+    {
+     "id": "sham-61w",
+     "label": "Rose Red",
+     "color": "#6c0107",
+     "lifted": true,
+     "swatch": "/fabrics/sham-61w.webp"
+    },
+    {
+     "id": "sham-66w",
+     "label": "Wine",
+     "color": "#3e0313",
+     "lifted": true,
+     "swatch": "/fabrics/sham-66w.webp"
+    },
+    {
+     "id": "sham-70y",
+     "label": "Cobalt Blue",
+     "color": "#558ef7",
+     "lifted": true,
+     "swatch": "/fabrics/sham-70y.webp"
+    },
+    {
+     "id": "sham-71y",
+     "label": "Emerald",
+     "color": "#0d8383",
+     "lifted": true,
+     "swatch": "/fabrics/sham-71y.webp"
+    },
+    {
+     "id": "sham-73w",
+     "label": "Purple",
+     "color": "#51497b",
+     "lifted": true,
+     "swatch": "/fabrics/sham-73w.webp"
+    },
+    {
+     "id": "sham-80w",
+     "label": "Indigo",
+     "color": "#1d2949",
+     "lifted": true,
+     "swatch": "/fabrics/sham-80w.webp"
+    },
+    {
+     "id": "sham-89w",
+     "label": "Black",
+     "color": "#151a1e",
+     "lifted": true,
+     "swatch": "/fabrics/sham-89w.webp"
+    },
+    {
+     "id": "sham-90y",
+     "label": "Blue Grey",
+     "color": "#b9d0e9",
+     "lifted": true,
+     "swatch": "/fabrics/sham-90y.webp"
+    },
+    {
+     "id": "sham-96y",
+     "label": "Sky Blue",
+     "color": "#acdcff",
+     "lifted": true,
+     "swatch": "/fabrics/sham-96y.webp"
+    },
+    {
+     "id": "sham-97w",
+     "label": "Navy",
+     "color": "#18214b",
+     "lifted": true,
+     "swatch": "/fabrics/sham-97w.webp"
+    },
+    {
+     "id": "sham-sr12",
+     "label": "Dark Grey",
+     "color": "#303a47",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr12.webp"
+    },
+    {
+     "id": "sham-sr13",
+     "label": "Coral Pink",
+     "color": "#ffddde",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr13.webp"
+    },
+    {
+     "id": "sham-sr22",
+     "label": "Dark Greige",
+     "color": "#705b52",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr22.webp"
+    },
+    {
+     "id": "sham-sr23",
+     "label": "Red",
+     "color": "#940f18",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr23.webp"
+    },
+    {
+     "id": "sham-sr24",
+     "label": "Green",
+     "color": "#094d0c",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr24.webp"
+    },
+    {
+     "id": "sham-sr25",
+     "label": "Ice Grey",
+     "color": "#e7dcdd",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr25.webp"
+    },
+    {
+     "id": "sham-sr26",
+     "label": "White",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr26.webp"
+    },
+    {
+     "id": "sham-sr4",
+     "label": "Dark Brown",
+     "color": "#2e2107",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr4.webp"
+    },
+    {
+     "id": "sham-sr9",
+     "label": "Turquoise",
+     "color": "#0dc2b5",
+     "lifted": true,
+     "swatch": "/fabrics/sham-sr9.webp"
+    }
+   ]
+  },
+  {
+   "label": "Korean DS102",
+   "entries": [
+    {
+     "id": "ds102-01",
+     "label": "Thrush",
+     "color": "#775a3d",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-01.webp",
+     "swatchLarge": "/fabrics/ds102-01@large.webp"
+    },
+    {
+     "id": "ds102-02",
+     "label": "Sandstone",
+     "color": "#c1976e",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-02.webp",
+     "swatchLarge": "/fabrics/ds102-02@large.webp"
+    },
+    {
+     "id": "ds102-03",
+     "label": "Ivory",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-03.webp",
+     "swatchLarge": "/fabrics/ds102-03@large.webp"
+    },
+    {
+     "id": "ds102-04",
+     "label": "Biscotti",
+     "color": "#f7f1d0",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-04.webp",
+     "swatchLarge": "/fabrics/ds102-04@large.webp"
+    },
+    {
+     "id": "ds102-05",
+     "label": "Beige",
+     "color": "#f1e1c0",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-05.webp",
+     "swatchLarge": "/fabrics/ds102-05@large.webp"
+    },
+    {
+     "id": "ds102-06",
+     "label": "Taupe Gray",
+     "color": "#848376",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-06.webp",
+     "swatchLarge": "/fabrics/ds102-06@large.webp"
+    },
+    {
+     "id": "ds102-07",
+     "label": "Chocolate Brown",
+     "color": "#493c3e",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-07.webp",
+     "swatchLarge": "/fabrics/ds102-07@large.webp"
+    },
+    {
+     "id": "ds102-08",
+     "label": "Coffee bean",
+     "color": "#463a35",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-08.webp",
+     "swatchLarge": "/fabrics/ds102-08@large.webp"
+    },
+    {
+     "id": "ds102-09",
+     "label": "Coral Gold",
+     "color": "#fe9b6b",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-09.webp",
+     "swatchLarge": "/fabrics/ds102-09@large.webp"
+    },
+    {
+     "id": "ds102-10",
+     "label": "Strawberry Cream",
+     "color": "#fffbff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-10.webp",
+     "swatchLarge": "/fabrics/ds102-10@large.webp"
+    },
+    {
+     "id": "ds102-11",
+     "label": "Acasia",
+     "color": "#ffff84",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-11.webp",
+     "swatchLarge": "/fabrics/ds102-11@large.webp"
+    },
+    {
+     "id": "ds102-12",
+     "label": "Wild Lime",
+     "color": "#f7ff8e",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-12.webp",
+     "swatchLarge": "/fabrics/ds102-12@large.webp"
+    },
+    {
+     "id": "ds102-13",
+     "label": "Maui Blue",
+     "color": "#70ffff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-13.webp",
+     "swatchLarge": "/fabrics/ds102-13@large.webp"
+    },
+    {
+     "id": "ds102-14",
+     "label": "Lake Blue",
+     "color": "#32c2ff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-14.webp",
+     "swatchLarge": "/fabrics/ds102-14@large.webp"
+    },
+    {
+     "id": "ds102-15",
+     "label": "Mint Leaf",
+     "color": "#3fc1a9",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-15.webp",
+     "swatchLarge": "/fabrics/ds102-15@large.webp"
+    },
+    {
+     "id": "ds102-16",
+     "label": "Coral",
+     "color": "#ff8a5d",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-16.webp",
+     "swatchLarge": "/fabrics/ds102-16@large.webp"
+    },
+    {
+     "id": "ds102-17",
+     "label": "Hot Pink",
+     "color": "#ff77b5",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-17.webp",
+     "swatchLarge": "/fabrics/ds102-17@large.webp"
+    },
+    {
+     "id": "ds102-18",
+     "label": "Fuchasia Rose",
+     "color": "#ff7ed6",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-18.webp",
+     "swatchLarge": "/fabrics/ds102-18@large.webp"
+    },
+    {
+     "id": "ds102-19",
+     "label": "Mars Red",
+     "color": "#b43d45",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-19.webp",
+     "swatchLarge": "/fabrics/ds102-19@large.webp"
+    },
+    {
+     "id": "ds102-20",
+     "label": "True Red",
+     "color": "#d23c45",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-20.webp",
+     "swatchLarge": "/fabrics/ds102-20@large.webp"
+    },
+    {
+     "id": "ds102-21",
+     "label": "Chili Pepper",
+     "color": "#ea5d6b",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-21.webp",
+     "swatchLarge": "/fabrics/ds102-21@large.webp"
+    },
+    {
+     "id": "ds102-22",
+     "label": "Deco Rose",
+     "color": "#d46586",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-22.webp",
+     "swatchLarge": "/fabrics/ds102-22@large.webp"
+    },
+    {
+     "id": "ds102-23",
+     "label": "Petrician Purple",
+     "color": "#6a528b",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-23.webp",
+     "swatchLarge": "/fabrics/ds102-23@large.webp"
+    },
+    {
+     "id": "ds102-24",
+     "label": "Colonial Blue",
+     "color": "#5997b8",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-24.webp",
+     "swatchLarge": "/fabrics/ds102-24@large.webp"
+    },
+    {
+     "id": "ds102-25",
+     "label": "Burnt Olive",
+     "color": "#838a6c",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-25.webp",
+     "swatchLarge": "/fabrics/ds102-25@large.webp"
+    },
+    {
+     "id": "ds102-26",
+     "label": "Olive Night",
+     "color": "#3c5243",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-26.webp",
+     "swatchLarge": "/fabrics/ds102-26@large.webp"
+    },
+    {
+     "id": "ds102-27",
+     "label": "China Blue",
+     "color": "#456a9d",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-27.webp",
+     "swatchLarge": "/fabrics/ds102-27@large.webp"
+    },
+    {
+     "id": "ds102-28",
+     "label": "Royal Blue",
+     "color": "#293da1",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-28.webp",
+     "swatchLarge": "/fabrics/ds102-28@large.webp"
+    },
+    {
+     "id": "ds102-29",
+     "label": "Twilight Blue",
+     "color": "#3953d8",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-29.webp",
+     "swatchLarge": "/fabrics/ds102-29@large.webp"
+    },
+    {
+     "id": "ds102-30",
+     "label": "Mood Indigo",
+     "color": "#203955",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-30.webp",
+     "swatchLarge": "/fabrics/ds102-30@large.webp"
+    },
+    {
+     "id": "ds102-31",
+     "label": "Blue Nights",
+     "color": "#2e3956",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-31.webp",
+     "swatchLarge": "/fabrics/ds102-31@large.webp"
+    },
+    {
+     "id": "ds102-32",
+     "label": "Iron",
+     "color": "#807f7b",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-32.webp",
+     "swatchLarge": "/fabrics/ds102-32@large.webp"
+    },
+    {
+     "id": "ds102-33",
+     "label": "Light Gray",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-33.webp",
+     "swatchLarge": "/fabrics/ds102-33@large.webp"
+    },
+    {
+     "id": "ds102-34",
+     "label": "Silver Gray",
+     "color": "#fffffa",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-34.webp",
+     "swatchLarge": "/fabrics/ds102-34@large.webp"
+    },
+    {
+     "id": "ds102-35",
+     "label": "Moonstruck",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-35.webp",
+     "swatchLarge": "/fabrics/ds102-35@large.webp"
+    },
+    {
+     "id": "ds102-36",
+     "label": "Steeple Gray",
+     "color": "#b0b8bc",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-36.webp",
+     "swatchLarge": "/fabrics/ds102-36@large.webp"
+    },
+    {
+     "id": "ds102-37",
+     "label": "Charcoal Gray",
+     "color": "#656c6c",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-37.webp",
+     "swatchLarge": "/fabrics/ds102-37@large.webp"
+    },
+    {
+     "id": "ds102-38",
+     "label": "Castlerock",
+     "color": "#52575e",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-38.webp",
+     "swatchLarge": "/fabrics/ds102-38@large.webp"
+    },
+    {
+     "id": "ds102-39",
+     "label": "Rabbit",
+     "color": "#5a5f68",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-39.webp",
+     "swatchLarge": "/fabrics/ds102-39@large.webp"
+    },
+    {
+     "id": "ds102-40",
+     "label": "Raven",
+     "color": "#364347",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-40.webp",
+     "swatchLarge": "/fabrics/ds102-40@large.webp"
+    },
+    {
+     "id": "ds102-41",
+     "label": "Black",
+     "color": "#282e36",
+     "lifted": true,
+     "swatch": "/fabrics/ds102-41.webp",
+     "swatchLarge": "/fabrics/ds102-41@large.webp"
+    }
+   ]
+  },
+  {
+   "label": "Ultrasuede LT",
+   "entries": [
+    {
+     "id": "lt-2467",
+     "label": "Admiral",
+     "color": "#2a436c",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2467.webp"
+    },
+    {
+     "id": "lt-6442",
+     "label": "Amatista",
+     "color": "#a0518a",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6442.webp"
+    },
+    {
+     "id": "lt-5235",
+     "label": "Amber Gold",
+     "color": "#f6b962",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5235.webp",
+     "swatchLarge": "/fabrics/lt-5235@large.webp"
+    },
+    {
+     "id": "lt-5743",
+     "label": "Asphalt",
+     "color": "#424751",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5743.webp",
+     "swatchLarge": "/fabrics/lt-5743@large.webp"
+    },
+    {
+     "id": "lt-7330",
+     "label": "Atlantis",
+     "color": "#0fc2ed",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7330.webp",
+     "swatchLarge": "/fabrics/lt-7330@large.webp"
+    },
+    {
+     "id": "lt-3449",
+     "label": "Aztec Leather",
+     "color": "#eaa059",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3449.webp",
+     "swatchLarge": "/fabrics/lt-3449@large.webp"
+    },
+    {
+     "id": "lt-5257",
+     "label": "Blonde",
+     "color": "#fffaac",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5257.webp",
+     "swatchLarge": "/fabrics/lt-5257@large.webp"
+    },
+    {
+     "id": "lt-2140",
+     "label": "Blue Nova",
+     "color": "#6f80ad",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2140.webp",
+     "swatchLarge": "/fabrics/lt-2140@large.webp"
+    },
+    {
+     "id": "lt-3733",
+     "label": "Bone",
+     "color": "#fffff7",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3733.webp",
+     "swatchLarge": "/fabrics/lt-3733@large.webp"
+    },
+    {
+     "id": "lt-3615",
+     "label": "Brownstone",
+     "color": "#77523f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3615.webp",
+     "swatchLarge": "/fabrics/lt-3615@large.webp"
+    },
+    {
+     "id": "lt-3485",
+     "label": "Buff",
+     "color": "#ffffde",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3485.webp",
+     "swatchLarge": "/fabrics/lt-3485@large.webp"
+    },
+    {
+     "id": "lt-3434",
+     "label": "Café",
+     "color": "#efd4b7",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3434.webp"
+    },
+    {
+     "id": "lt-3693",
+     "label": "Cameo",
+     "color": "#ffffda",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3693.webp",
+     "swatchLarge": "/fabrics/lt-3693@large.webp"
+    },
+    {
+     "id": "lt-4519",
+     "label": "Celadon",
+     "color": "#ffffd9",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4519.webp"
+    },
+    {
+     "id": "lt-6587",
+     "label": "Ceramic",
+     "color": "#ffc59f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6587.webp",
+     "swatchLarge": "/fabrics/lt-6587@large.webp"
+    },
+    {
+     "id": "lt-1317",
+     "label": "Colonial Red",
+     "color": "#b8203c",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1317.webp",
+     "swatchLarge": "/fabrics/lt-1317@large.webp"
+    },
+    {
+     "id": "lt-3131",
+     "label": "Country Cream",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3131.webp",
+     "swatchLarge": "/fabrics/lt-3131@large.webp"
+    },
+    {
+     "id": "lt-3619",
+     "label": "Dune",
+     "color": "#f2ddb8",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3619.webp",
+     "swatchLarge": "/fabrics/lt-3619@large.webp"
+    },
+    {
+     "id": "lt-3618",
+     "label": "Espresso",
+     "color": "#5a4339",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3618.webp",
+     "swatchLarge": "/fabrics/lt-3618@large.webp"
+    },
+    {
+     "id": "lt-1292",
+     "label": "Flash Red",
+     "color": "#ff1542",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1292.webp",
+     "swatchLarge": "/fabrics/lt-1292@large.webp"
+    },
+    {
+     "id": "lt-6564",
+     "label": "Fuchsia",
+     "color": "#ff5db4",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6564.webp",
+     "swatchLarge": "/fabrics/lt-6564@large.webp"
+    },
+    {
+     "id": "lt-4512",
+     "label": "Green Grape",
+     "color": "#f3ffa4",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4512.webp",
+     "swatchLarge": "/fabrics/lt-4512@large.webp"
+    },
+    {
+     "id": "lt-2662",
+     "label": "Lapis",
+     "color": "#417bca",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2662.webp",
+     "swatchLarge": "/fabrics/lt-2662@large.webp"
+    },
+    {
+     "id": "lt-2559",
+     "label": "Midnight",
+     "color": "#1a2641",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2559.webp",
+     "swatchLarge": "/fabrics/lt-2559@large.webp"
+    },
+    {
+     "id": "lt-7349",
+     "label": "Montauk",
+     "color": "#b3dae2",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7349.webp",
+     "swatchLarge": "/fabrics/lt-7349@large.webp"
+    },
+    {
+     "id": "lt-2677",
+     "label": "Morning Sky",
+     "color": "#efffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2677.webp",
+     "swatchLarge": "/fabrics/lt-2677@large.webp"
+    },
+    {
+     "id": "lt-5553",
+     "label": "Noir",
+     "color": "#22211e",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5553.webp",
+     "swatchLarge": "/fabrics/lt-5553@large.webp"
+    },
+    {
+     "id": "lt-4257",
+     "label": "Olivier",
+     "color": "#6f6842",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4257.webp",
+     "swatchLarge": "/fabrics/lt-4257@large.webp"
+    },
+    {
+     "id": "lt-6581",
+     "label": "Opal",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6581.webp",
+     "swatchLarge": "/fabrics/lt-6581@large.webp"
+    },
+    {
+     "id": "lt-4529",
+     "label": "Petit Pois",
+     "color": "#adb45d",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4529.webp",
+     "swatchLarge": "/fabrics/lt-4529@large.webp"
+    },
+    {
+     "id": "lt-3614",
+     "label": "Rodeo",
+     "color": "#8c6b3f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3614.webp",
+     "swatchLarge": "/fabrics/lt-3614@large.webp"
+    },
+    {
+     "id": "lt-3623",
+     "label": "Sable",
+     "color": "#a88f86",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3623.webp",
+     "swatchLarge": "/fabrics/lt-3623@large.webp"
+    },
+    {
+     "id": "lt-3184",
+     "label": "Sandy",
+     "color": "#ffdaa8",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3184.webp"
+    },
+    {
+     "id": "lt-5860",
+     "label": "Silver Pearl",
+     "color": "#c1c4c4",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5860.webp",
+     "swatchLarge": "/fabrics/lt-5860@large.webp"
+    },
+    {
+     "id": "lt-4546",
+     "label": "Topiary",
+     "color": "#5d8257",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4546.webp"
+    },
+    {
+     "id": "lt-5872",
+     "label": "White",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5872.webp",
+     "swatchLarge": "/fabrics/lt-5872@large.webp"
+    },
+    {
+     "id": "lt-4599",
+     "label": "Active Green",
+     "color": "#4aab4f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4599.webp",
+     "swatchLarge": "/fabrics/lt-4599@large.webp"
+    },
+    {
+     "id": "lt-7000",
+     "label": "Aqua",
+     "color": "#30e9e3",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7000.webp"
+    },
+    {
+     "id": "lt-7369s",
+     "label": "Aqua 58",
+     "color": "#82e2ea",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7369s.webp"
+    },
+    {
+     "id": "lt-1419",
+     "label": "Blackberry",
+     "color": "#4e1c25",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1419.webp",
+     "swatchLarge": "/fabrics/lt-1419@large.webp"
+    },
+    {
+     "id": "lt-2624",
+     "label": "Blue Hawaii",
+     "color": "#c9dcff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2624.webp"
+    },
+    {
+     "id": "lt-7329",
+     "label": "Blue Spruce",
+     "color": "#5e7488",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7329.webp"
+    },
+    {
+     "id": "lt-1248",
+     "label": "Bordeaux",
+     "color": "#7e2d34",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1248.webp"
+    },
+    {
+     "id": "lt-4361",
+     "label": "Bottle Green",
+     "color": "#162526",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4361.webp"
+    },
+    {
+     "id": "lt-1394",
+     "label": "Burgundy",
+     "color": "#5e0511",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1394.webp"
+    },
+    {
+     "id": "lt-8276",
+     "label": "Burnt Orange",
+     "color": "#fe7310",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8276.webp",
+     "swatchLarge": "/fabrics/lt-8276@large.webp"
+    },
+    {
+     "id": "lt-5247",
+     "label": "Candle Glow",
+     "color": "#ffffb5",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5247.webp"
+    },
+    {
+     "id": "lt-3684",
+     "label": "Cedar Berry",
+     "color": "#7a3826",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3684.webp"
+    },
+    {
+     "id": "lt-7373",
+     "label": "Ceramic Teal",
+     "color": "#284b59",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7373.webp",
+     "swatchLarge": "/fabrics/lt-7373@large.webp"
+    },
+    {
+     "id": "lt-8216",
+     "label": "Cinnabar",
+     "color": "#ba2815",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8216.webp"
+    },
+    {
+     "id": "lt-8200",
+     "label": "Cinnamon",
+     "color": "#ff8747",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8200.webp"
+    },
+    {
+     "id": "lt-2805",
+     "label": "Cobalt",
+     "color": "#353cb1",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2805.webp"
+    },
+    {
+     "id": "lt-5408",
+     "label": "Dark Jade",
+     "color": "#2c4d4d",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5408.webp"
+    },
+    {
+     "id": "lt-9360",
+     "label": "DaVinci",
+     "color": "#673251",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9360.webp"
+    },
+    {
+     "id": "lt-2664",
+     "label": "Eclipse",
+     "color": "#655a6f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2664.webp"
+    },
+    {
+     "id": "lt-3836",
+     "label": "Egyptian",
+     "color": "#f3c19f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3836.webp"
+    },
+    {
+     "id": "lt-3088",
+     "label": "Fired Clay",
+     "color": "#a53128",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3088.webp",
+     "swatchLarge": "/fabrics/lt-3088@large.webp"
+    },
+    {
+     "id": "lt-1351",
+     "label": "Garnet",
+     "color": "#6b2422",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1351.webp"
+    },
+    {
+     "id": "lt-4322",
+     "label": "Green Mist",
+     "color": "#ffffdd",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4322.webp"
+    },
+    {
+     "id": "lt-8225",
+     "label": "Guava",
+     "color": "#f54b41",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8225.webp"
+    },
+    {
+     "id": "lt-9381",
+     "label": "Heather",
+     "color": "#b895a4",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9381.webp"
+    },
+    {
+     "id": "lt-3835",
+     "label": "Henna",
+     "color": "#8b291c",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3835.webp"
+    },
+    {
+     "id": "lt-2663",
+     "label": "Iceberg",
+     "color": "#d5d6ff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2663.webp"
+    },
+    {
+     "id": "lt-2694",
+     "label": "Imperial Blue",
+     "color": "#282962",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2694.webp",
+     "swatchLarge": "/fabrics/lt-2694@large.webp"
+    },
+    {
+     "id": "lt-2894",
+     "label": "Imperial Blue",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2894.webp"
+    },
+    {
+     "id": "lt-8269",
+     "label": "Inca Gold",
+     "color": "#e9974b",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8269.webp",
+     "swatchLarge": "/fabrics/lt-8269@large.webp"
+    },
+    {
+     "id": "lt-2119",
+     "label": "Island Blue",
+     "color": "#91b1ff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2119.webp"
+    },
+    {
+     "id": "lt-2210",
+     "label": "Key Lime",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2210.webp"
+    },
+    {
+     "id": "lt-4433",
+     "label": "Lemon Drop",
+     "color": "#ffff2d",
+     "lifted": true,
+     "swatch": "/fabrics/lt-4433.webp"
+    },
+    {
+     "id": "lt-2608",
+     "label": "Lilac",
+     "color": "#f1e6ff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2608.webp"
+    },
+    {
+     "id": "lt-1200",
+     "label": "Lime",
+     "color": "#ffe73d",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1200.webp"
+    },
+    {
+     "id": "lt-100",
+     "label": "LT Blue",
+     "color": "#baafbe",
+     "lifted": true,
+     "swatch": "/fabrics/lt-100.webp",
+     "swatchLarge": "/fabrics/lt-100@large.webp"
+    },
+    {
+     "id": "lt-2424",
+     "label": "Lt. Blue",
+     "color": "#a4b9d0",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2424.webp"
+    },
+    {
+     "id": "lt-7324",
+     "label": "Lupine",
+     "color": "#35f3ff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7324.webp"
+    },
+    {
+     "id": "lt-8221",
+     "label": "Marmalade",
+     "color": "#ffc438",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8221.webp"
+    },
+    {
+     "id": "lt-7301",
+     "label": "Mayan",
+     "color": "#5e767c",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7301.webp"
+    },
+    {
+     "id": "lt-2720",
+     "label": "Mirage",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-2720.webp"
+    },
+    {
+     "id": "lt-6524",
+     "label": "New Peach",
+     "color": "#ffffff",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6524.webp"
+    },
+    {
+     "id": "lt-9090",
+     "label": "Night Orchid",
+     "color": "#7a52a9",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9090.webp"
+    },
+    {
+     "id": "lt-8281",
+     "label": "Orange Sherbet",
+     "color": "#ff8e09",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8281.webp"
+    },
+    {
+     "id": "lt-9437",
+     "label": "Orquidea",
+     "color": "#664368",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9437.webp",
+     "swatchLarge": "/fabrics/lt-9437@large.webp"
+    },
+    {
+     "id": "lt-6555",
+     "label": "Paradise",
+     "color": "#fb2d87",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6555.webp"
+    },
+    {
+     "id": "lt-9380",
+     "label": "Petunia",
+     "color": "#99557f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9380.webp"
+    },
+    {
+     "id": "lt-9395",
+     "label": "Princess Purple",
+     "color": "#977798",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9395.webp"
+    },
+    {
+     "id": "lt-9403",
+     "label": "Punch",
+     "color": "#c44262",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9403.webp"
+    },
+    {
+     "id": "lt-9378",
+     "label": "Purple Shadow",
+     "color": "#7b627f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9378.webp"
+    },
+    {
+     "id": "lt-9366",
+     "label": "Rhapsody",
+     "color": "#8267ba",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9366.webp"
+    },
+    {
+     "id": "lt-6588",
+     "label": "Rose Quartz",
+     "color": "#f6b8c4",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6588.webp",
+     "swatchLarge": "/fabrics/lt-6588@large.webp"
+    },
+    {
+     "id": "lt-9464",
+     "label": "Royal Purple",
+     "color": "#673a7e",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9464.webp"
+    },
+    {
+     "id": "lt-3800",
+     "label": "Rustola",
+     "color": "#c8312e",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3800.webp"
+    },
+    {
+     "id": "lt-1361",
+     "label": "Sachet",
+     "color": "#a73243",
+     "lifted": true,
+     "swatch": "/fabrics/lt-1361.webp"
+    },
+    {
+     "id": "lt-8207",
+     "label": "Saffron",
+     "color": "#ff6721",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8207.webp"
+    },
+    {
+     "id": "lt-6647",
+     "label": "Sangria",
+     "color": "#831139",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6647.webp"
+    },
+    {
+     "id": "lt-8267",
+     "label": "Sedona",
+     "color": "#d95f3e",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8267.webp",
+     "swatchLarge": "/fabrics/lt-8267@large.webp"
+    },
+    {
+     "id": "lt-7337",
+     "label": "Splash Blue",
+     "color": "#61c9ee",
+     "lifted": true,
+     "swatch": "/fabrics/lt-7337.webp",
+     "swatchLarge": "/fabrics/lt-7337@large.webp"
+    },
+    {
+     "id": "lt-5890",
+     "label": "Stone Grey",
+     "color": "#aba0a1",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5890.webp",
+     "swatchLarge": "/fabrics/lt-5890@large.webp"
+    },
+    {
+     "id": "lt-3968",
+     "label": "Summer Brown 54",
+     "color": "#724f2e",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3968.webp"
+    },
+    {
+     "id": "lt-8031",
+     "label": "Sunny Sienna",
+     "color": "#ff4d0b",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8031.webp"
+    },
+    {
+     "id": "lt-5295",
+     "label": "Sunshine",
+     "color": "#ffff52",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5295.webp",
+     "swatchLarge": "/fabrics/lt-5295@large.webp"
+    },
+    {
+     "id": "lt-3620",
+     "label": "Taupetone",
+     "color": "#dec097",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3620.webp"
+    },
+    {
+     "id": "lt-8226",
+     "label": "Tiara",
+     "color": "#ff7826",
+     "lifted": true,
+     "swatch": "/fabrics/lt-8226.webp"
+    },
+    {
+     "id": "lt-5227",
+     "label": "Tulip",
+     "color": "#ffff4d",
+     "lifted": true,
+     "swatch": "/fabrics/lt-5227.webp"
+    },
+    {
+     "id": "lt-9270",
+     "label": "Ultraviolet",
+     "color": "#7349b5",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9270.webp"
+    },
+    {
+     "id": "lt-3026",
+     "label": "Wheat",
+     "color": "#dea15f",
+     "lifted": true,
+     "swatch": "/fabrics/lt-3026.webp"
+    },
+    {
+     "id": "lt-9364",
+     "label": "Wisteria",
+     "color": "#a46790",
+     "lifted": true,
+     "swatch": "/fabrics/lt-9364.webp"
+    },
+    {
+     "id": "lt-6642",
+     "label": "Zinnia",
+     "color": "#d03843",
+     "lifted": true,
+     "swatch": "/fabrics/lt-6642.webp",
+     "swatchLarge": "/fabrics/lt-6642@large.webp"
+    }
+   ]
+  }
+ ]
+}
