@@ -112,8 +112,18 @@ export function PanelerDesigner({
   // the colors they can actually sew — with the built-ins below as reference.
   // Empty groups are dropped by ColorPalette, so an unconfigured account sees
   // exactly what it saw before this feature existed.
+  /*
+   * The sidebar is for painting, so it shows cloth. "Standard" is the
+   * twenty-one generic colours that predate the fabric library — useful for
+   * sketching a colourway you have not bought yet, which is a profile-page
+   * job, not something to scroll past on the way to the fabric you own. It
+   * stays in FABRIC_CATALOG so a stitcher can still add one to My Fabrics.
+   */
   const paletteGroups = useMemo(
-    () => [{ label: "My Fabrics", entries: fabrics ?? [] }, ...FABRIC_GROUPS],
+    () => [
+      { label: "My Fabrics", entries: fabrics ?? [] },
+      ...FABRIC_GROUPS.filter((g) => g.label !== "Standard"),
+    ],
     [fabrics],
   );
   const fabricCount = useMemo(
