@@ -25,6 +25,14 @@ export const DEFAULT_PALETTE: PaletteEntry[] = [
   { id: "brown", label: "Brown", color: "#7a4820" },
 ];
 
+// NOTE ON PURPLE: it sits at 2.12x its raw photo measurement (#27081d),
+// well outside the 1.32-1.51x the rest of this palette occupies, and that is
+// deliberate rather than a slip to tidy up. Purple was already the most
+// lifted of the fourteen at 1.51x and still read far too dark against the
+// real cloth -- which is what the pile's micro-shadows do to a colour this
+// dark and this saturated, more than to any mid-tone. The value was chosen by
+// holding the fabric against the screen, the same way the other twelve were.
+//
 // NOTE ON FOREST GREEN AND BROWNSTONE: these two arrived later than the
 // other twelve (commit 8ba5326) and were entered WITHOUT the +32% lift, so
 // they rendered roughly 30% darker than every other LX color. Measuring all
@@ -49,7 +57,7 @@ export const ULTRASUEDE_LX_PALETTE: PaletteEntry[] = [
   { id: "lx-red", label: "LX Red", color: "#b10607", swatch: "/lx/thumbs/red.webp", swatchLarge: "/lx/red.webp" },
   { id: "lx-rose", label: "LX Rose", color: "#a7295e", swatch: "/lx/thumbs/rose.webp", swatchLarge: "/lx/rose.webp" },
   { id: "lx-burgundy", label: "LX Burgundy", color: "#632335", swatch: "/lx/thumbs/burgundy.webp", swatchLarge: "/lx/burgundy.webp" },
-  { id: "lx-purple", label: "LX Purple", color: "#350e29", swatch: "/lx/thumbs/purple.webp", swatchLarge: "/lx/purple.webp" },
+  { id: "lx-purple", label: "LX Purple", color: "#4a1439", swatch: "/lx/thumbs/purple.webp", swatchLarge: "/lx/purple.webp" },
   { id: "lx-sky", label: "LX Sky", color: "#7d99b9", swatch: "/lx/thumbs/sky.webp", swatchLarge: "/lx/sky.webp" },
   { id: "lx-blue", label: "LX Blue", color: "#184a71", swatch: "/lx/thumbs/blue.webp", swatchLarge: "/lx/blue.webp" },
   { id: "lx-turquoise", label: "LX Turquoise", color: "#3b8798", swatch: "/lx/thumbs/turquoise.webp", swatchLarge: "/lx/turquoise.webp" },
