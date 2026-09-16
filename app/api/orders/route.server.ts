@@ -16,10 +16,47 @@ import { deleteObject, designKey, putObject } from "@/lib/r2/client";
 export const dynamic = "force-dynamic";
 
 /**
+ * CSRF: this route is multipart, which is a CORS "simple request" — unlike the
+ * JSON routes it triggers no preflight, so the content-type half of the defense
+ * described in app/api/profile/route.server.ts does NOT apply here. What remains
+ * is Auth.js's SameSite=Lax session cookie, which browsers withhold on
+ * cross-site POST, so a forged submission arrives with no session and 401s.
+ *
+ * That is one layer, not two. If the cookie ever moves to SameSite=None this
+ * route needs a real CSRF token before the JSON ones do.
+ */
+
+/**
  * A 32-panel ball serializes to a few hundred KB. 8 MB is far above any real
  * design and far below anything that threatens the pod.
  */
 const MAX_GLB_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Multipart overhead on top of the file itself: part headers and boundaries.
+ * 64 KB is generous for the three small fields this request carries.
+ */
+const MAX_BODY_BYTES = MAX_GLB_BYTES + 64 * 1024;
+
+/**
+ * A GLB starts with the ASCII magic "glTF" and a little-endian version.
+ *
+ * These bytes are written into the STITCHER's account and later parsed by
+ * GLTFLoader in the stitcher's browser, so "whatever the customer sent" is not
+ * an acceptable content contract — a malformed file breaks their designer, and
+ * they have no way to tell it apart from a design they made themselves. This
+ * mirrors the isWebp() check the avatar route already does.
+ *
+ * It is a shape check, not a safety proof: a well-formed GLB can still contain
+ * nonsense. CSP (connect-src 'self' plus R2) is what stops a crafted glTF
+ * fetching anything external.
+ */
+function isGlb(bytes: Uint8Array): boolean {
+  if (bytes.byteLength < 12) return false;
+  const magic = String.fromCharCode(...bytes.slice(0, 4));
+  const view = new DataView(bytes.buffer, bytes.byteOffset, 12);
+  return magic === "glTF" && view.getUint32(4, true) === 2;
+}
 
 /**
  * Rate limit, in process.
@@ -77,6 +114,13 @@ export async function POST(req: Request) {
   if (!customerSub) {
     // The order form is public; only submitting requires an account.
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // BEFORE parsing. req.formData() buffers the entire body into memory, so a
+  // size check afterwards has already paid the cost it is meant to avoid. The
+  // JSON routes do this too; the multipart ones originally did not.
+  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   }
 
   let form: FormData;
@@ -138,6 +182,9 @@ export async function POST(req: Request) {
   const key = designKey(id);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!isGlb(bytes)) {
+    return NextResponse.json({ error: "not_a_glb" }, { status: 400 });
+  }
   const { etag, size } = await putObject(key, bytes);
 
   try {

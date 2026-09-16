@@ -13,8 +13,19 @@ import { avatarKey, putObject } from "@/lib/r2/client";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * CSRF: multipart, so no preflight — see the note in
+ * app/api/orders/route.server.ts. Defense here is the SameSite=Lax session
+ * cookie alone. The blast radius is smaller than the order route's (a forged
+ * request could only replace the victim's own shop photo), but it is the same
+ * single layer.
+ */
+
 /** 256x256 webp is a few KB; 512 KB is generous and still trivially bounded. */
 const MAX_AVATAR_BYTES = 512 * 1024;
+
+/** The file plus multipart part headers and boundaries. */
+const MAX_BODY_BYTES = MAX_AVATAR_BYTES + 16 * 1024;
 
 /**
  * Accept only what the client crop actually produces.
@@ -38,6 +49,12 @@ export async function POST(req: Request) {
   const userSub = getCurrentUserSub(session);
   if (!userSub) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // BEFORE parsing — req.formData() buffers the whole body, so checking the
+  // file size afterwards has already paid the cost the cap exists to avoid.
+  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   }
 
   let form: FormData;

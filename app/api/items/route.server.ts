@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { createItem, listItems } from "@/lib/db/orderItems";
 import { getDesign } from "@/lib/db/designs";
+import { getUserProfile } from "@/lib/db/users";
 import { MAX_ITEMS, OrderFormError, validateItem } from "@/lib/orderForm";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,25 @@ export async function POST(req: Request) {
       );
     }
     throw err;
+  }
+
+
+  // An item may only go live if the shop is live. setShop() already enforces
+  // the other direction (taking a shop offline unpublishes its items), which is
+  // what lets order_items_public_read gate on `published` alone without a
+  // cross-table EXISTS that RLS would hide. Without this, that invariant held
+  // in one direction only: the UI disabled the checkbox but the API did not.
+  if (input.published) {
+    const profile = await getUserProfile(r.userSub);
+    if (!profile?.shopPublished) {
+      return NextResponse.json(
+        {
+          error: "shop_not_live",
+          detail: "Make your shop live before publishing an item.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const item = await createItem(r.userSub, body.designId, input);

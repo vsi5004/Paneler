@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { deleteItem, updateItem } from "@/lib/db/orderItems";
+import { getUserProfile } from "@/lib/db/users";
 import { OrderFormError, validateItem } from "@/lib/orderForm";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,21 @@ export async function PUT(
       );
     }
     throw err;
+  }
+
+
+  // Same shop-must-be-live rule as POST /api/items; see the comment there.
+  if (input.published) {
+    const profile = await getUserProfile(r.userSub);
+    if (!profile?.shopPublished) {
+      return NextResponse.json(
+        {
+          error: "shop_not_live",
+          detail: "Make your shop live before publishing an item.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const { id } = await params;
