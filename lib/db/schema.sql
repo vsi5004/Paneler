@@ -269,6 +269,9 @@ CREATE TABLE IF NOT EXISTS order_items (
   -- in lib/laser/constants.ts) — the customer's pick ends up as diameterIn in
   -- the submitted GLB, not in a column.
   sizes       jsonb NOT NULL DEFAULT '[]'::jsonb,
+  -- Display order on the shop page. Assigned on insert (max + 1) and never
+  -- changed: items appear in the order they were created. There is deliberately
+  -- no reorder UI — the list is short and nobody has wanted one.
   position    int NOT NULL DEFAULT 0,
   published   boolean NOT NULL DEFAULT false,
   created_at  timestamptz NOT NULL DEFAULT now(),

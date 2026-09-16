@@ -92,22 +92,3 @@ export async function deleteItem(userSub: string, id: string): Promise<boolean> 
     return (rowCount ?? 0) > 0;
   });
 }
-
-/**
- * Apply a new display order. Ids not owned by this user simply match no row,
- * so a forged list reorders nothing rather than erroring.
- */
-export async function reorderItems(
-  userSub: string,
-  orderedIds: string[],
-): Promise<void> {
-  await withUserSession(userSub, async (client) => {
-    for (const [index, id] of orderedIds.entries()) {
-      await client.query(
-        `UPDATE order_items SET position = $2, updated_at = now()
-          WHERE id = $1`,
-        [id, index],
-      );
-    }
-  });
-}

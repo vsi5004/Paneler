@@ -10,4 +10,3 @@ export async function listItems(): Promise<OrderItem[]> { return unreachable(); 
 export async function createItem(): Promise<OrderItem | null> { return unreachable(); }
 export async function updateItem(): Promise<OrderItem | null> { return unreachable(); }
 export async function deleteItem(): Promise<boolean> { return unreachable(); }
-export async function reorderItems(): Promise<void> { return unreachable(); }
