@@ -11,6 +11,11 @@ import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { createOrderDesign } from "@/lib/db/designs";
 import { getPublicItem } from "@/lib/db/shop";
 import { OrderFormError, validateOrder } from "@/lib/orderForm";
+import {
+  checkSubmission,
+  clientKey,
+  fingerprintOrder,
+} from "@/lib/orderAbuse";
 import { deleteObject, designKey, putObject } from "@/lib/r2/client";
 
 export const dynamic = "force-dynamic";
@@ -56,53 +61,6 @@ function isGlb(bytes: Uint8Array): boolean {
   const magic = String.fromCharCode(...bytes.slice(0, 4));
   const view = new DataView(bytes.buffer, bytes.byteOffset, 12);
   return magic === "glTF" && view.getUint32(4, true) === 2;
-}
-
-/**
- * Rate limit, in process.
- *
- * This is the first endpoint in Paneler where one user writes into another's
- * account, so it is the first that can be used to bury someone: an unbounded
- * customer could fill a stitcher's design list and their R2 bucket, and the
- * only cleanup is deleting rows by hand.
- *
- * Deliberately NOT counted in the database. The insert lands in the stitcher's
- * account, so a counting query in the customer's session is hidden by
- * designs_isolate and would silently return zero — a rate limit that looks
- * present and enforces nothing. The database alternatives are both worse than
- * the problem: a policy letting customers read order rows would surface them in
- * the customer's own design list, and counting as the stitcher would hand the
- * app a read-anyone primitive for the sake of a counter.
- *
- * What this is: per pod, lost on restart, and not shared across replicas. That
- * stops a script hammering the endpoint, which is the realistic abuse. It would
- * not stop a determined attacker timing requests around a deploy — if that ever
- * matters, the answer is a real shared limiter, not a fake DB one.
- */
-const MAX_ORDERS_PER_HOUR = 5;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const recentOrders = new Map<string, number[]>();
-
-function rateLimited(customerSub: string, itemId: string): boolean {
-  const key = `${customerSub}:${itemId}`;
-  const now = Date.now();
-  const hits = (recentOrders.get(key) ?? []).filter(
-    (t) => now - t < RATE_WINDOW_MS,
-  );
-  if (hits.length >= MAX_ORDERS_PER_HOUR) {
-    recentOrders.set(key, hits);
-    return true;
-  }
-  hits.push(now);
-  recentOrders.set(key, hits);
-  // Bound the map: without this it grows one entry per (customer, item) pair
-  // forever, which is a slow leak on a long-lived pod.
-  if (recentOrders.size > 5000) {
-    for (const [k, v] of recentOrders) {
-      if (v.every((t) => now - t >= RATE_WINDOW_MS)) recentOrders.delete(k);
-    }
-  }
-  return false;
 }
 
 export async function POST(req: Request) {
@@ -168,11 +126,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "size_not_offered" }, { status: 400 });
   }
 
-  if (rateLimited(customerSub, order.itemId)) {
-    return NextResponse.json(
-      { error: "rate_limited", detail: "Try again in an hour." },
-      { status: 429 },
-    );
+  // Keyed on the signed-in subject where there is one, falling back to the
+  // client IP. The fallback is not dead code: this route is moving to anonymous
+  // submission, where the IP is the only handle there is.
+  const verdict = checkSubmission(
+    customerSub ?? clientKey(req.headers),
+    fingerprintOrder(order),
+  );
+  if (!verdict.ok) {
+    return verdict.reason === "duplicate"
+      ? NextResponse.json(
+          {
+            error: "duplicate",
+            detail: "That exact order has already been sent.",
+          },
+          { status: 409 },
+        )
+      : NextResponse.json(
+          { error: "rate_limited", detail: "Try again in an hour." },
+          { status: 429 },
+        );
   }
 
   // The id is minted here so the R2 key can be derived before upload, and it

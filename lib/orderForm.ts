@@ -134,7 +134,17 @@ export interface OrderInput {
   size: number;
   fill: FillStyle;
   note: string;
+  /**
+   * panelId -> hex. The customisation itself: what the stitcher actually needs
+   * in order to make the ball, and what distinguishes one order from another.
+   */
+  panelColors: Record<string, string>;
 }
+
+/** Generous ceiling; the largest preset is well under a hundred panels. */
+export const MAX_PANELS = 200;
+const PANEL_ID_RE = /^[a-z0-9_]{1,64}$/i;
+const HEX_RE = /^#[0-9a-f]{6}$/i;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -157,11 +167,31 @@ export function validateOrder(input: unknown): OrderInput {
     fail("fill must be one of: " + FILL_STYLES.join(", "));
   }
 
+  // Rebuilt key by key rather than passed through: this map is hashed for the
+  // duplicate check and rendered into the stitcher's email, so an unbounded or
+  // oddly-keyed object has somewhere to go.
+  const rawColors = e.panelColors;
+  if (typeof rawColors !== "object" || rawColors === null) {
+    fail("panelColors must be an object");
+  }
+  const entries = Object.entries(rawColors as Record<string, unknown>);
+  if (entries.length === 0) fail("colour at least one panel");
+  if (entries.length > MAX_PANELS) fail("too many panels");
+  const panelColors: Record<string, string> = {};
+  for (const [id, color] of entries) {
+    if (!PANEL_ID_RE.test(id)) fail("malformed panel id");
+    if (typeof color !== "string" || !HEX_RE.test(color)) {
+      fail("panel colour must be #rrggbb");
+    }
+    panelColors[id] = color.toLowerCase();
+  }
+
   return {
     itemId: e.itemId.toLowerCase(),
     size: validateSize(e.size),
     fill: fill as FillStyle,
     note: cleanText(e.note ?? "", MAX_NOTE_CHARS, "note"),
+    panelColors,
   };
 }
 

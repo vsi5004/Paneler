@@ -221,7 +221,13 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
       form.append("shopId", shop.shopId);
       form.append(
         "order",
-        JSON.stringify({ itemId: item.id, size, fill, note }),
+        JSON.stringify({
+          itemId: item.id,
+          size,
+          fill,
+          note,
+          panelColors: design.panelColors,
+        }),
       );
 
       const res = await fetch(`${BASE}/api/orders`, {
@@ -386,6 +392,8 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
 
 function errorText(code: string | undefined): string | null {
   switch (code) {
+    case "duplicate":
+      return "You've already sent this exact design. Change something, or check with the maker if you think it didn't arrive.";
     case "rate_limited":
       return "You've sent several orders for this item already. Try again in an hour.";
     case "size_not_offered":
