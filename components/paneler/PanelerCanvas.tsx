@@ -58,7 +58,7 @@ interface PanelerCanvasProps {
    * browser to keep the framebuffer after compositing - so it is enabled ONLY
    * when a caller actually wants pictures, never for the main designer.
    */
-  onCaptureReady?: (capture: (rotateY: number) => Promise<string | null>) => void;
+  onCaptureReady?: (capture: (rotateY: number) => Promise<Blob | null>) => void;
 }
 
 export default function PanelerCanvas({
@@ -481,13 +481,18 @@ function PanelGroup({
  *
  * The explicit gl.render() before reading is load-bearing. Even with
  * preserveDrawingBuffer the buffer holds whatever was composited last, so
- * moving the camera and immediately calling toDataURL captures the PREVIOUS
- * frame - which would silently email two identical pictures of the same side.
+ * moving the camera and immediately reading back captures the PREVIOUS frame,
+ * which would silently email two identical pictures of the same side.
+ *
+ * Returns a Blob, not a data URL. toDataURL would mean fetch()ing a data: URL
+ * to get bytes to upload, and fetch on data: is governed by connect-src, which
+ * does not allow it - that threw "Failed to fetch" and killed the whole
+ * submission. toBlob avoids the round trip entirely and never touches CSP.
  */
 function CaptureRig({
   onReady,
 }: {
-  onReady: (capture: (rotateY: number) => Promise<string | null>) => void;
+  onReady: (capture: (rotateY: number) => Promise<Blob | null>) => void;
 }) {
   const { gl, scene, camera } = useThree();
 
@@ -504,11 +509,13 @@ function CaptureRig({
         );
         camera.lookAt(0, 0, 0);
         gl.render(scene, camera);
-        const url = gl.domElement.toDataURL("image/png");
+        const blob = await new Promise<Blob | null>((resolve) =>
+          gl.domElement.toBlob(resolve, "image/png"),
+        );
         camera.position.copy(original);
         camera.lookAt(0, 0, 0);
         gl.render(scene, camera);
-        return url;
+        return blob;
       } catch {
         // A tainted or lost context should cost the pictures, not the order.
         return null;

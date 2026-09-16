@@ -94,7 +94,7 @@ export function OrderDesigner({
   const [error, setError] = useState<string | null>(null);
   const [ref, setRef] = useState<string | null>(null);
   // Populated by the canvas once its renderer exists.
-  const captureRef = useRef<((rotateY: number) => Promise<string | null>) | null>(
+  const captureRef = useRef<((rotateY: number) => Promise<Blob | null>) | null>(
     null,
   );
 
@@ -182,20 +182,26 @@ export function OrderDesigner({
         }),
       );
 
-      // Two opposite views. Best-effort: a browser that refuses to hand over
-      // the framebuffer should cost the pictures, not the order - the fabric
-      // breakdown in the email is what the stitcher actually cuts from.
+      // Two opposite views, and genuinely best-effort: the try/catch is the
+      // whole point, not decoration. A capture failure used to reject the
+      // entire submission - which is how a CSP problem with the screenshots
+      // turned into "Failed to fetch" and lost the order outright. The fabric
+      // breakdown in the email is what the stitcher actually cuts from; the
+      // pictures are a convenience and must never outrank the order itself.
       const capture = captureRef.current;
       if (capture) {
-        const shots: [string, number][] = [
-          ["viewFront", 0],
-          ["viewBack", Math.PI],
-        ];
-        for (const [field, angle] of shots) {
-          const url = await capture(angle);
-          if (!url) continue;
-          const blob = await (await fetch(url)).blob();
-          form.append(field, blob, field + ".png");
+        try {
+          const shots: [string, number][] = [
+            ["viewFront", 0],
+            ["viewBack", Math.PI],
+          ];
+          for (const [field, angle] of shots) {
+            const blob = await capture(angle);
+            if (!blob) continue;
+            form.append(field, blob, field + ".png");
+          }
+        } catch {
+          // Send without pictures rather than not at all.
         }
       }
 
