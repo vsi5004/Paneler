@@ -37,8 +37,12 @@ export default async function OrderRoute({
   // embedded form asks for no contact details - their checkout already collects
   // those - and hands the reference back to the parent page instead of being
   // the end of the journey.
-  const { embed } = await searchParams;
+  const { embed, theme } = await searchParams;
   const embedded = embed === "1";
+  // Light is opt-in per URL rather than tied to embed: a stitcher may want it
+  // on the standalone link too, and someone embedding into a dark site should
+  // not be forced out of the app's own theme.
+  const light = theme === "light";
 
   // Read at request time, not baked at build: this is a runtime env var on the
   // pod. Passed down rather than exposed as NEXT_PUBLIC_* so there is exactly
@@ -52,6 +56,7 @@ export default async function OrderRoute({
       shop={shop}
       item={found.item}
       embedded={embedded}
+      light={light}
       allowedParents={allowedParents}
     />
   );

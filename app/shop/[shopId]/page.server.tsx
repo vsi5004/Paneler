@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ShopRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ shopId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await connection();
   if (!isDbEnabled()) notFound();
@@ -29,10 +31,15 @@ export default async function ShopRoute({
   const shop = await getPublicShop(shopId);
   if (!shop) notFound();
 
+  const { theme } = await searchParams;
+  const light = theme === "light";
+
   const items = shop.items.filter((i) => i.published);
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-14 sm:px-8">
+    <main
+      className={`mx-auto w-full max-w-3xl flex-1 px-5 py-14 sm:px-8${light ? " paneler-light" : ""}`}
+    >
       <header className="flex flex-col items-center text-center">
         {shop.hasAvatar ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -75,7 +82,7 @@ export default async function ShopRoute({
               style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
             >
               <Link
-                href={`/shop/${shop.shopId}/${item.id}`}
+                href={`/shop/${shop.shopId}/${item.id}${light ? "?theme=light" : ""}`}
                 className="block h-full rounded-md border border-border bg-[var(--sidebar)]/60 p-5 transition-colors hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <h2 className="font-heading text-xl tracking-[0.14em]">

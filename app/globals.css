@@ -180,3 +180,71 @@
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Light theme, scoped.
+
+   Applied by adding `paneler-light` to a container — never to :root. The app is
+   dark by design and stays that way; this exists so a stitcher can embed their
+   order form in a light site without a black rectangle punched through it.
+
+   Only the tokens are redefined, so every component inherits the theme without
+   knowing it exists. The one exception is .workshop-slab, which hardcodes a
+   dark gradient rather than reading a token, and so needs its own override
+   here — if another utility ever hardcodes a colour, it will need the same and
+   will show up as a dark patch on a light page.
+--------------------------------------------------------------------------- */
+.paneler-light {
+  /* Warm off-white rather than pure white: the palette is built around
+     oklch hue 85, and #fff beside those warm greys reads blue-ish and cold. */
+  --background: oklch(0.985 0.004 85);
+  --workspace: oklch(0.96 0.006 85);
+  --foreground: oklch(0.22 0.01 85);
+  --card: oklch(0.975 0.005 85);
+  --card-foreground: oklch(0.22 0.01 85);
+  --popover: oklch(0.985 0.004 85);
+  --popover-foreground: oklch(0.22 0.01 85);
+
+  /* The acid green is Paneler's, and it survives the move: primary-foreground
+     is near-black in both themes, so a green fill with dark text works on
+     either ground. Dropped in lightness so it holds its edge against a pale
+     background instead of glowing into it. */
+  --primary: oklch(0.72 0.19 128);
+  --primary-foreground: oklch(0.18 0.02 128);
+
+  --secondary: oklch(0.93 0.006 85);
+  --secondary-foreground: oklch(0.22 0.01 85);
+  --muted: oklch(0.93 0.006 85);
+  --muted-foreground: oklch(0.47 0.012 85);
+  --accent: oklch(0.91 0.008 85);
+  --accent-foreground: oklch(0.22 0.01 85);
+  --destructive: oklch(0.52 0.2 25);
+
+  /* Dark at low alpha, mirroring the dark theme's light-at-low-alpha. Nudged
+     up because a 7% dark line on near-white is far fainter than a 7% light
+     line on near-black. */
+  --border: oklch(0 0 0 / 12%);
+  --hairline: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 16%);
+  --ring: oklch(0.72 0.19 128);
+
+  --sidebar: oklch(0.965 0.006 85);
+  --sidebar-foreground: oklch(0.22 0.01 85);
+  --sidebar-primary: oklch(0.72 0.19 128);
+  --sidebar-primary-foreground: oklch(0.18 0.02 128);
+  --sidebar-accent: oklch(0.91 0.008 85);
+  --sidebar-accent-foreground: oklch(0.22 0.01 85);
+  --sidebar-border: oklch(0 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.19 128);
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Reads a token in the dark theme's counterpart; this one hardcodes its
+   gradient, so it needs restating rather than inheriting. */
+.paneler-light .workshop-slab {
+  background:
+    linear-gradient(180deg, oklch(0.97 0.006 85) 0%, oklch(0.94 0.006 85) 100%);
+  border-color: var(--hairline);
+}

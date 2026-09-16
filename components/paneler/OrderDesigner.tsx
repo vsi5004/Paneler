@@ -48,6 +48,11 @@ interface OrderDesignerProps {
   /** Rendered inside a stitcher's own checkout, in an iframe. */
   embedded?: boolean;
   /**
+   * Light theme, for embedding in a light site. Scoped to this component's
+   * container — the rest of the app stays dark.
+   */
+  light?: boolean;
+  /**
    * Origins this page may hand the reference back to. Mirrors the
    * frame-ancestors allow-list, so a page that cannot frame us also cannot
    * receive a message from us.
@@ -70,6 +75,7 @@ export function OrderDesigner({
   shop,
   item,
   embedded = false,
+  light = false,
   allowedParents = [],
 }: OrderDesignerProps) {
   const design = useGlbDesign();
@@ -239,12 +245,15 @@ export function OrderDesigner({
         item={item}
         orderRef={ref}
         embedded={embedded}
+        light={light}
       />
     );
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
+    <div
+      className={`flex h-dvh flex-col overflow-hidden md:flex-row${light ? " paneler-light" : ""}`}
+    >
       {/* Canvas. Fixed share of the viewport on a phone so the controls below
           are always reachable without scrolling past the ball. */}
       <div className="relative flex h-[46vh] shrink-0 flex-col md:h-auto md:flex-1">
@@ -433,19 +442,21 @@ function OrderPlaced({
   item,
   orderRef,
   embedded,
+  light,
 }: {
   shop: PublicShop;
   item: OrderItem;
   orderRef: string;
   embedded: boolean;
+  light: boolean;
 }) {
   return (
     <div
-      className={
+      className={`${
         embedded
           ? "mx-auto flex max-w-md flex-col justify-center px-6 py-10"
           : "mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16"
-      }
+      }${light ? " paneler-light" : ""}`}
     >
       <span className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         <span className="size-1 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
