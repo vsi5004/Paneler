@@ -63,6 +63,14 @@ export async function getPublicShop(
   });
 }
 
+/**
+ * Postgres raises `invalid input syntax for type uuid` on a malformed id, which
+ * surfaces as a 500. These ids arrive from a public URL that crawlers and typos
+ * reach, so a bad one is an ordinary 404, not an error worth logging.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface PublicItem {
   item: OrderItem;
   /** The stitcher, for the order insert. Never sent to the browser. */
@@ -82,6 +90,7 @@ export async function getPublicItem(
   shopId: string,
   itemId: string,
 ): Promise<PublicItem | null> {
+  if (!UUID_RE.test(itemId)) return null;
   return withPublicSession(async (client) => {
     const { rows } = await client.query<
       OrderItem & { user_sub: string; glb_key: string; panel_count: number | null }
