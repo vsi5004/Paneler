@@ -290,109 +290,6 @@ const url = process.env.TEST_DATABASE_URL;
     return i[0].id;
   }
 
-  /**
-   * THE test. It is the case the first design of this feature got wrong, and it
-   * fails as a bare "new row violates row-level security policy" that names
-   * nothing about the real cause — a policy expression referencing another
-   * table is subject to THAT table's RLS, so if order_items_public_read is ever
-   * scoped `TO paneler_public` or grows an EXISTS on users, the customer's
-   * session stops seeing the item and every order insert dies.
-   *
-   * Every other test in this file passes while that is broken.
-   */
-  it("lets a signed-in customer place an order into the stitcher's account", async () => {
-    const itemId = await seedPublishedItem();
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE paneler_app");
-    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
-    // No RETURNING: it applies the SELECT policy, which the customer fails for
-    // a row owned by the stitcher — and fails with the same message as a WITH
-    // CHECK violation. See createOrderDesign.
-    // EVERY column createOrderDesign writes, in its order. This is the
-    // regression guard for the bug that shipped: the value list grew to 11
-    // while the statement still had 9 placeholders, and every order submission
-    // failed with "bind message supplies 11 parameters". Nothing caught it
-    // because no test drove this statement — the route stops at the R2 call and
-    // this file used to insert a shorter hand-written row. If a column is added
-    // to createOrderDesign and not here, this drifts again; keep them together.
-    await client.query(
-      `INSERT INTO designs (
-         id, user_sub, email, name, glb_key, source, fill, note, panel_count,
-         glb_etag, glb_size_bytes
-       )
-       VALUES (gen_random_uuid(), 'stitcher', 'buyer@example.com', 'ref',
-               'designs/o.glb', 'order:' || $1, 'freestyle', 'please hurry',
-               32, 'etag123', 4096)`,
-      [itemId],
-    );
-    await client.query("COMMIT");
-
-    const { rows } = await client.query(
-      `SELECT email, fill, note, panel_count, glb_etag, glb_size_bytes
-         FROM designs WHERE source = 'order:' || $1`,
-      [itemId],
-    );
-    expect(rows[0]).toMatchObject({
-      email: "buyer@example.com",
-      fill: "freestyle",
-      note: "please hurry",
-      panel_count: 32,
-      glb_etag: "etag123",
-      glb_size_bytes: 4096,
-    });
-  });
-
-  it("rejects an order naming an UNPUBLISHED item", async () => {
-    const { rows: d } = await client.query<{ id: string }>(
-      `INSERT INTO designs (user_sub, name, glb_key, source)
-       VALUES ('stitcher', 'B2', 'designs/y.glb', 'upload') RETURNING id`,
-    );
-    const { rows: i } = await client.query<{ id: string }>(
-      `INSERT INTO order_items (user_sub, design_id, title, sizes, published)
-       VALUES ('stitcher', $1, 'Draft', '[1.8]'::jsonb, false) RETURNING id`,
-      [d[0].id],
-    );
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE paneler_app");
-    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
-    await expect(
-      client.query(
-        `INSERT INTO designs (user_sub, name, glb_key, source)
-         VALUES ('stitcher', 'ref', 'designs/o2.glb', 'order:' || $1)`,
-        [i[0].id],
-      ),
-    ).rejects.toThrow(/row-level security/);
-    await client.query("ROLLBACK");
-  });
-
-  it("rejects an order whose source names no item at all", async () => {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE paneler_app");
-    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
-    await expect(
-      client.query(
-        `INSERT INTO designs (user_sub, name, glb_key, source)
-         VALUES ('stitcher', 'ref', 'designs/o3.glb', 'upload')`,
-      ),
-    ).rejects.toThrow(/row-level security/);
-    await client.query("ROLLBACK");
-  });
-
-  it("rejects an order attributed to the WRONG stitcher", async () => {
-    const itemId = await seedPublishedItem();
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE paneler_app");
-    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
-    await expect(
-      client.query(
-        `INSERT INTO designs (user_sub, name, glb_key, source)
-         VALUES ('someone-else', 'ref', 'designs/o4.glb', 'order:' || $1)`,
-        [itemId],
-      ),
-    ).rejects.toThrow(/row-level security/);
-    await client.query("ROLLBACK");
-  });
-
   it("still refuses an ordinary cross-account insert", async () => {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE paneler_app");
@@ -413,8 +310,18 @@ const url = process.env.TEST_DATABASE_URL;
    * a policy-only implementation passes every other case here and still hands a
    * shop visitor the owner's api_key_hash.
    */
-  it("denies paneler_public the secret columns on users", async () => {
-    for (const col of ["api_key_hash", "prev_key_hash", "email"]) {
+  it("lets paneler_public read email, which it deliberately could not before", async () => {
+    // Narrowed on purpose when orders became emails rather than rows: the
+    // public submission path has to learn where to send the notification.
+    // Recorded as a test so the change reads as a decision, not a regression.
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_public");
+    await expect(client.query("SELECT email FROM users")).resolves.toBeDefined();
+    await client.query("ROLLBACK");
+  });
+
+  it("still denies paneler_public the key hashes", async () => {
+    for (const col of ["api_key_hash", "prev_key_hash"]) {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE paneler_public");
       await expect(

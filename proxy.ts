@@ -68,7 +68,12 @@ export const config = {
   //     database role, which can read published shops and nothing else.
   //     Verify by opening a shop link in a private window; with a session
   //     cookie present a missing exclusion here cannot fail.
+  //   - api/orders: submission is anonymous too. The order is emailed to the
+  //     stitcher rather than stored, so there is no account to attribute it to
+  //     and nothing for a session to authorise. Gating it would 307 every
+  //     submission away — and, because a signed-in browser sends its cookie,
+  //     it would appear to work for whoever tested it.
   matcher: [
-    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|shop/|api/shop/|icon\\.svg).*)",
+    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|shop/|api/shop/|api/orders|icon\\.svg).*)",
   ],
 };

@@ -50,6 +50,15 @@ interface PanelerCanvasProps {
   selectedPanelId: string | null;
   suedeEnabled: boolean;
   onPanelClick: (panelId: string) => void;
+  /**
+   * Opt-in still-image capture, used only by the public order form so the
+   * stitcher's email can show the ball.
+   *
+   * preserveDrawingBuffer has a real cost on mobile GPUs - it forces the
+   * browser to keep the framebuffer after compositing - so it is enabled ONLY
+   * when a caller actually wants pictures, never for the main designer.
+   */
+  onCaptureReady?: (capture: (rotateY: number) => Promise<string | null>) => void;
 }
 
 export default function PanelerCanvas({
@@ -58,6 +67,7 @@ export default function PanelerCanvas({
   selectedPanelId,
   suedeEnabled,
   onPanelClick,
+  onCaptureReady,
 }: PanelerCanvasProps) {
   const group = useGlbGroup(glbBytes);
 
@@ -77,9 +87,10 @@ export default function PanelerCanvas({
   return (
     <Canvas
       camera={{ position: [0, 0, 8], fov: 45 }}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, preserveDrawingBuffer: Boolean(onCaptureReady) }}
       className="flex-1"
     >
+      {onCaptureReady && <CaptureRig onReady={onCaptureReady} />}
       <ambientLight intensity={0.6} />
       <CameraLights />
       {group && (
@@ -459,4 +470,51 @@ function PanelGroup({
       }}
     />
   );
+}
+
+/**
+ * Hands the parent a function that renders the scene from a given angle and
+ * returns a PNG data URL.
+ *
+ * It must live INSIDE the Canvas: useThree only resolves within the R3F tree,
+ * and the renderer is what holds the framebuffer being read back.
+ *
+ * The explicit gl.render() before reading is load-bearing. Even with
+ * preserveDrawingBuffer the buffer holds whatever was composited last, so
+ * moving the camera and immediately calling toDataURL captures the PREVIOUS
+ * frame - which would silently email two identical pictures of the same side.
+ */
+function CaptureRig({
+  onReady,
+}: {
+  onReady: (capture: (rotateY: number) => Promise<string | null>) => void;
+}) {
+  const { gl, scene, camera } = useThree();
+
+  useEffect(() => {
+    const radius = camera.position.length();
+    const original = camera.position.clone();
+
+    onReady(async (rotateY: number) => {
+      try {
+        camera.position.set(
+          Math.sin(rotateY) * radius,
+          0,
+          Math.cos(rotateY) * radius,
+        );
+        camera.lookAt(0, 0, 0);
+        gl.render(scene, camera);
+        const url = gl.domElement.toDataURL("image/png");
+        camera.position.copy(original);
+        camera.lookAt(0, 0, 0);
+        gl.render(scene, camera);
+        return url;
+      } catch {
+        // A tainted or lost context should cost the pictures, not the order.
+        return null;
+      }
+    });
+  }, [gl, scene, camera, onReady]);
+
+  return null;
 }

@@ -291,28 +291,21 @@ CREATE POLICY order_items_isolate ON order_items
   USING (user_sub = (SELECT current_setting('app.user_sub', true)))
   WITH CHECK (user_sub = (SELECT current_setting('app.user_sub', true)));
 
--- Published items are readable by EVERY role. Note the absent TO clause, which
--- the other two public-read policies below do have. Two reasons, and the first
--- is genuinely non-obvious:
+-- Scoped TO paneler_public, and that is a TIGHTENING of what was here before.
 --
--- A policy expression that references another table is itself subject to THAT
--- table's RLS. designs_order_insert below runs EXISTS(... FROM order_items ...)
--- while evaluating as the customer. If this policy were scoped TO
--- paneler_public, order_items_isolate would be the only policy in play for
--- paneler_app, the customer owns no items, the EXISTS would be false, and EVERY
--- order insert would be denied — as a bare policy violation that names nothing
--- about the real cause. Second, a signed-in customer browses the shop as
--- paneler_app too.
+-- This policy originally had no TO clause, because designs_order_insert had to
+-- see an item while evaluating in a signed-in customer's own session: a policy
+-- expression that references another table is subject to THAT table's RLS, so
+-- scoping this one would have made every order insert fail with a message
+-- naming nothing. That policy is gone - orders are emailed now, not stored - so
+-- the exception can go too, and published items are once again visible only
+-- through the public read path.
 --
--- There is also deliberately NO cross-table EXISTS on users.shop_published
--- here: it would have the identical defect one level deeper, since
--- users_isolate hides the stitcher's row from the customer. `published` is the
--- single gate, and setShop() keeps that honest by unpublishing every item when
--- the shop is unpublished. What this exposes is a published item — already
--- rendered on a public page.
-DROP POLICY IF EXISTS order_items_public_read ON order_items;
+-- Still no cross-table EXISTS on users.shop_published: it would have the same
+-- defect one level deeper. `published` is the single gate, and setShop() keeps
+-- that honest by unpublishing every item when the shop goes offline.
 CREATE POLICY order_items_public_read ON order_items
-  FOR SELECT
+  FOR SELECT TO paneler_public
   USING (published);
 
 -- Shop identity for the public pages. TO paneler_public IS load-bearing here,
@@ -332,18 +325,13 @@ CREATE POLICY designs_public_item_read ON designs
   USING (EXISTS (SELECT 1 FROM order_items i
                   WHERE i.design_id = designs.id AND i.published));
 
--- The only cross-account write in the app. Permissive policies OR together, so
--- this widens INSERT without touching designs_isolate: a customer may create a
--- row owned by someone else ONLY when that someone has a published item and the
--- new row's source names it. Not a general write-anywhere primitive, and
--- enforced here rather than only in a route.
+-- NOTE: there is deliberately no cross-account INSERT policy on designs.
+-- An earlier design had orders arrive as rows in the stitcher's account, which
+-- needed one. Orders are now emailed instead and nothing is stored, so the only
+-- way to write a designs row is designs_isolate: your own account, nobody
+-- else's. If order storage ever returns, that policy is in this file's history
+-- along with the reason it had to be checked in the customer's own session.
 DROP POLICY IF EXISTS designs_order_insert ON designs;
-CREATE POLICY designs_order_insert ON designs
-  FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM order_items i
-                       WHERE i.published
-                         AND i.user_sub = designs.user_sub
-                         AND designs.source = 'order:' || i.id::text));
 
 -- order_items picks up CRUD for paneler_app from ALTER DEFAULT PRIVILEGES
 -- above, but state it explicitly so correctness doesn't depend on where in this
@@ -352,8 +340,18 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON order_items TO paneler_app;
 
 -- paneler_public: SELECT only, column-scoped. The columns omitted here are
 -- unreachable for this role no matter what any policy says.
+-- `email` is in this list as of the order-notification flow, and it is a
+-- deliberate narrowing of an earlier claim: this role could previously not read
+-- it at all. An order now has no database row - the email IS the order - so the
+-- public submission path must be able to learn where to send it.
+--
+-- What still holds is the part that mattered: api_key_hash and prev_key_hash
+-- remain unreachable for this role, and getPublicShop() returns a purpose-built
+-- object rather than a row, so a widened SELECT cannot leak the address to a
+-- browser by accident. Only getShopNotifyEmail() reads it, and it returns
+-- nothing else.
 GRANT SELECT (user_sub, shop_id, display_name, avatar_key, fabrics,
-              fill_materials, shop_published)
+              fill_materials, shop_published, email)
   ON users TO paneler_public;
 -- created_at is in this list because getPublicShop ORDERs BY it. Column-level
 -- SELECT covers every column a statement TOUCHES, not just the ones it returns

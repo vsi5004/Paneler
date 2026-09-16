@@ -20,7 +20,7 @@ import { applyColor } from "@/lib/designState";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import {
   FILL_STYLES,
-  ORDER_STASH_PREFIX,
+  MAX_CONTACT_CHARS,
   orderBlocker,
   type FillStyle,
 } from "@/lib/orderForm";
@@ -45,27 +45,6 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 interface OrderDesignerProps {
   shop: PublicShop;
   item: OrderItem;
-  signedIn: boolean;
-}
-
-/**
- * Survives the sign-in round trip. Colors are a small map, not the GLB.
- *
- * sessionStorage is the whole mechanism, and it works because the round trip
- * (paneler.app -> dex -> provider -> dex -> paneler.app) happens in ONE TAB and
- * the shop pages share an origin with /app. So the return path never has to
- * travel through the auth flow: no callbackUrl parameter, no change to the
- * landing repo's hardcoded redirectTo, and no open-redirect surface to get
- * wrong. `returnTo` is read back only by ResumeOrder, which validates it.
- */
-interface StashedOrder {
-  returnTo: string;
-  panelColors: Record<string, string>;
-  /** Which panels the CUSTOMER chose, as opposed to arriving blank. */
-  painted: string[];
-  size: number | null;
-  fill: FillStyle | null;
-  note: string;
 }
 
 /**
@@ -79,7 +58,7 @@ interface StashedOrder {
 const BLANK_PANEL = "#d8d5cf";
 
 
-export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
+export function OrderDesigner({ shop, item }: OrderDesignerProps) {
   const design = useGlbDesign();
   const [selectedColor, setSelectedColor] = useState(
     shop.fabrics[0]?.color ?? "#c41e3a",
@@ -91,12 +70,16 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
   const [fill, setFill] = useState<FillStyle | null>(null);
   const [painted, setPainted] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
+  const [contact, setContact] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [orderId, setOrderId] = useState<string | null>(null);
+  const [ref, setRef] = useState<string | null>(null);
+  // Populated by the canvas once its renderer exists.
+  const captureRef = useRef<((rotateY: number) => Promise<string | null>) | null>(
+    null,
+  );
 
-  const stashKey = `${ORDER_STASH_PREFIX}${item.id}`;
-  const restored = useRef(false);
+  const blanked = useRef(false);
 
   // Load the pinned design. Public route: no session required to look.
   useEffect(() => {
@@ -109,42 +92,19 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     [design.topology],
   );
 
-  // Blank the ball, then restore anything that outlived the sign-in redirect.
+  // Blank the ball once the GLB has parsed.
   //
-  // Runs once, after the GLB has parsed: useGlbDesign seeds panelColors from the
-  // file's own materials, so anything set earlier would be overwritten. Blanking
-  // is what turns "colour every panel" into a real requirement — the pinned
-  // design arrives wearing the stitcher's colors and would otherwise look
-  // finished on arrival.
+  // useGlbDesign seeds panelColors from the file's own materials, so a pinned
+  // design arrives wearing the stitcher's colours and would look finished
+  // before the customer touched it. Blanking is what makes "colour every
+  // panel" a real requirement rather than a formality.
   useEffect(() => {
-    if (restored.current || !design.bytes || allPanelIds.length === 0) return;
-    restored.current = true;
-
-    /* eslint-disable react-hooks/set-state-in-effect */
+    if (blanked.current || !design.bytes || allPanelIds.length === 0) return;
+    blanked.current = true;
     const blank: Record<string, string> = {};
     for (const id of allPanelIds) blank[id] = BLANK_PANEL;
-
-    const raw = sessionStorage.getItem(stashKey);
-    if (!raw) {
-      design.setPanelColors(blank);
-      return;
-    }
-    try {
-      const s = JSON.parse(raw) as StashedOrder;
-      // Merge over the blank so a panel the customer never chose stays blank
-      // even if the stash is stale or partial.
-      design.setPanelColors({ ...blank, ...(s.panelColors ?? {}) });
-      if (Array.isArray(s.painted)) {
-        setPainted(new Set(s.painted.filter((id) => allPanelIds.includes(id))));
-      }
-      if (typeof s.size === "number") setSize(s.size);
-      if (s.fill) setFill(s.fill);
-      if (typeof s.note === "string") setNote(s.note);
-    } catch {
-      design.setPanelColors(blank);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
-    sessionStorage.removeItem(stashKey);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    design.setPanelColors(blank);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [design.bytes, allPanelIds]);
 
@@ -185,39 +145,11 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
 
   async function handleSubmit() {
     setError(null);
-
-    if (!signedIn) {
-      // Stash everything, including where to come back to, then hand off to the
-      // landing service, which owns sign-in. It always lands people on /app;
-      // ResumeOrder there reads this back and returns them here.
-      sessionStorage.setItem(
-        stashKey,
-        JSON.stringify({
-          returnTo: `${BASE}/shop/${shop.shopId}/${item.id}`,
-          panelColors: design.panelColors,
-          painted: [...painted],
-          size,
-          fill,
-          note,
-        } satisfies StashedOrder),
-      );
-      window.location.href = "/";
-      return;
-    }
-
     if (size === null || fill === null) return;
 
     setSubmitting(true);
     try {
-      const bytes = await design.serialize();
-      if (!bytes) throw new Error("Nothing to send — the design didn't load.");
-
       const form = new FormData();
-      form.append(
-        "glb",
-        new Blob([bytes as BlobPart], { type: "model/gltf-binary" }),
-        "order.glb",
-      );
       form.append("shopId", shop.shopId);
       form.append(
         "order",
@@ -226,31 +158,45 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
           size,
           fill,
           note,
+          contact,
           panelColors: design.panelColors,
         }),
       );
+
+      // Two opposite views. Best-effort: a browser that refuses to hand over
+      // the framebuffer should cost the pictures, not the order - the fabric
+      // breakdown in the email is what the stitcher actually cuts from.
+      const capture = captureRef.current;
+      if (capture) {
+        const shots: [string, number][] = [
+          ["viewFront", 0],
+          ["viewBack", Math.PI],
+        ];
+        for (const [field, angle] of shots) {
+          const url = await capture(angle);
+          if (!url) continue;
+          const blob = await (await fetch(url)).blob();
+          form.append(field, blob, field + ".png");
+        }
+      }
 
       const res = await fetch(`${BASE}/api/orders`, {
         method: "POST",
         body: form,
       });
       const body = (await res.json().catch(() => ({}))) as {
-        id?: string;
+        ref?: string;
         error?: string;
         detail?: string;
       };
       if (!res.ok) {
-        // Fall back to the status code rather than a bare apology. A plain
-        // "Couldn't place the order." tells the customer nothing and tells
-        // whoever they report it to even less — the first real order failed on
-        // a 500 and the message gave no way to tell a bug from a bad input.
         throw new Error(
           body.detail ??
             errorText(body.error) ??
-            `Couldn't place the order (error ${res.status}). Try again — if it keeps happening, let ${shop.displayName} know.`,
+            `Couldn't place the order (error ${res.status}). Try again - if it keeps happening, let ${shop.displayName} know.`,
         );
       }
-      setOrderId(body.id ?? null);
+      setRef(body.ref ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't place the order.");
     } finally {
@@ -258,8 +204,8 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     }
   }
 
-  if (orderId) {
-    return <OrderPlaced shop={shop} item={item} orderId={orderId} />;
+  if (ref) {
+    return <OrderPlaced shop={shop} item={item} orderRef={ref} />;
   }
 
   return (
@@ -275,6 +221,9 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
             selectedPanelId={selectedPanelId}
             suedeEnabled
             onPanelClick={handlePanelClick}
+            onCaptureReady={(fn) => {
+              captureRef.current = fn;
+            }}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center">
@@ -342,6 +291,20 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
             )}
           </Field>
 
+          <Field label="How should they reach you?" hint="optional">
+            <input
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              maxLength={MAX_CONTACT_CHARS}
+              placeholder="@yourhandle, email, phone"
+              className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              However you prefer. You can skip this &mdash; your order reference
+              is what links it to your payment.
+            </p>
+          </Field>
+
           <Field label="Special requests" hint="optional">
             <textarea
               value={note}
@@ -373,17 +336,8 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
             disabled={submitting || !complete}
             className="w-full rounded-md bg-primary px-4 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-40"
           >
-            {submitting
-              ? "Sending…"
-              : signedIn
-                ? "Place order"
-                : "Sign in to place order"}
+            {submitting ? "Sending…" : "Place order"}
           </button>
-          {!signedIn && (
-            <p className="mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
-              Your design is kept while you sign in.
-            </p>
-          )}
         </div>
       </div>
     </div>
@@ -437,11 +391,11 @@ function ShopHeader({ shop, item }: { shop: PublicShop; item: OrderItem }) {
 function OrderPlaced({
   shop,
   item,
-  orderId,
+  orderRef,
 }: {
   shop: PublicShop;
   item: OrderItem;
-  orderId: string;
+  orderRef: string;
 }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16">
@@ -451,16 +405,15 @@ function OrderPlaced({
       </span>
       <h1 className="font-heading text-4xl tracking-[0.2em]">THANK YOU</h1>
       <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        {shop.displayName} has your {item.title.toLowerCase()} and will be in
-        touch. Keep this reference &mdash; it&apos;s how they&apos;ll find your
-        design.
+        {shop.displayName} has your {item.title.toLowerCase()}. Include this
+        reference when you pay, so they can match the order to your payment.
       </p>
       <div className="mt-6 rounded-md border border-border bg-background/40 p-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
           Reference
         </div>
-        <code className="mt-1 block break-all font-mono text-sm text-foreground">
-          {orderId}
+        <code className="mt-1 block font-mono text-2xl tracking-[0.15em] text-foreground">
+          {orderRef}
         </code>
       </div>
     </div>

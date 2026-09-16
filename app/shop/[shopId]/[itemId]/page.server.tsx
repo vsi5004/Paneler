@@ -1,14 +1,14 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
-import { auth } from "@/lib/auth";
-import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
+import { isDbEnabled } from "@/lib/dbMode";
 import { getPublicItem, getPublicShop } from "@/lib/db/shop";
 import { OrderDesigner } from "@/components/paneler/OrderDesigner";
 
-// PUBLIC, like the shop page above. The customer designs without an account;
-// only POST /api/orders requires one, which is why that route is NOT in the
-// proxy.ts exclusion list while these pages are.
+// PUBLIC, like the shop page above, and so is POST /api/orders - ordering
+// requires no account at all. The order is emailed to the stitcher rather than
+// stored, so there is no row to own and nobody to attribute it to but the
+// reference the customer is given.
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +28,8 @@ export default async function OrderRoute({
   if (!shop || !found || !found.item.published) notFound();
   if (found.item.sizes.length === 0) notFound();
 
-  // Read the session only to decide the button's wording. A missing session is
-  // not an error here — it's the expected first visit.
-  const session = await auth();
-  const signedIn = getCurrentUserSub(session) !== null;
-
-  return <OrderDesigner shop={shop} item={found.item} signedIn={signedIn} />;
+  // No session is read at all. Ordering is anonymous: a stitcher's customer
+  // should not need a Paneler account to buy a footbag, and requiring one was
+  // the single biggest source of friction in this flow.
+  return <OrderDesigner shop={shop} item={found.item} />;
 }

@@ -71,6 +71,26 @@ export async function getPublicShop(
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Where to send a stitcher's order notifications.
+ *
+ * Returns ONLY the address, and only for a published shop. Kept apart from
+ * getPublicShop so that the one function which can see an email address is
+ * small enough to audit at a glance, and so no shape that reaches a browser
+ * has an email on it.
+ */
+export async function getShopNotifyEmail(
+  shopId: string,
+): Promise<string | null> {
+  return withPublicSession(async (client) => {
+    const { rows } = await client.query<{ email: string | null }>(
+      `SELECT email FROM users WHERE shop_id = $1`,
+      [shopId],
+    );
+    return rows[0]?.email ?? null;
+  });
+}
+
 export interface PublicItem {
   item: OrderItem;
   /** The stitcher, for the order insert. Never sent to the browser. */

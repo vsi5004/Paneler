@@ -10,14 +10,6 @@
  */
 import { MAX_DIAMETER_IN, MIN_DIAMETER_IN } from "@/lib/laser/constants";
 
-/**
- * sessionStorage key prefix for an in-progress order.
- *
- * Lives here rather than in OrderDesigner so ResumeOrder (mounted on /app) can
- * read it without importing the 3D designer's whole module graph for one string.
- */
-export const ORDER_STASH_PREFIX = "paneler:order:";
-
 export class OrderFormError extends Error {}
 
 function fail(message: string): never {
@@ -33,6 +25,7 @@ const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f]/;
 export const MAX_TITLE_CHARS = 80;
 export const MAX_DESCRIPTION_CHARS = 400;
 export const MAX_NOTE_CHARS = 1000;
+export const MAX_CONTACT_CHARS = 120;
 export const MAX_DISPLAY_NAME_CHARS = 60;
 export const MAX_ITEMS = 20;
 export const MAX_FILL_MATERIALS = 20;
@@ -135,6 +128,17 @@ export interface OrderInput {
   fill: FillStyle;
   note: string;
   /**
+   * How the customer wants to be reached. Free text on purpose: this audience
+   * lives on Instagram, and an email-only field either gets a fake address or
+   * loses the order. Optional, because the order reference is the real link -
+   * the customer quotes it at the stitcher's checkout.
+   *
+   * MUST NOT reach an email header. A newline here would forge headers, so it
+   * goes in the body only; cleanText rejects control characters, which closes
+   * that off at the door as well.
+   */
+  contact: string;
+  /**
    * panelId -> hex. The customisation itself: what the stitcher actually needs
    * in order to make the ball, and what distinguishes one order from another.
    */
@@ -191,6 +195,7 @@ export function validateOrder(input: unknown): OrderInput {
     size: validateSize(e.size),
     fill: fill as FillStyle,
     note: cleanText(e.note ?? "", MAX_NOTE_CHARS, "note"),
+    contact: cleanText(e.contact ?? "", MAX_CONTACT_CHARS, "contact"),
     panelColors,
   };
 }
