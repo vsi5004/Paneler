@@ -14,8 +14,10 @@ export const dynamic = "force-dynamic";
 
 export default async function OrderRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ shopId: string; itemId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await connection();
   if (!isDbEnabled()) notFound();
@@ -31,5 +33,26 @@ export default async function OrderRoute({
   // No session is read at all. Ordering is anonymous: a stitcher's customer
   // should not need a Paneler account to buy a footbag, and requiring one was
   // the single biggest source of friction in this flow.
-  return <OrderDesigner shop={shop} item={found.item} />;
+  // ?embed=1 is how a stitcher's own checkout renders this in an iframe. The
+  // embedded form asks for no contact details - their checkout already collects
+  // those - and hands the reference back to the parent page instead of being
+  // the end of the journey.
+  const { embed } = await searchParams;
+  const embedded = embed === "1";
+
+  // Read at request time, not baked at build: this is a runtime env var on the
+  // pod. Passed down rather than exposed as NEXT_PUBLIC_* so there is exactly
+  // one source of truth shared with the frame-ancestors list in next.config.ts.
+  const allowedParents = (process.env.EMBED_ALLOWED_ORIGINS ?? "")
+    .split(/[\s,]+/)
+    .filter(Boolean);
+
+  return (
+    <OrderDesigner
+      shop={shop}
+      item={found.item}
+      embedded={embedded}
+      allowedParents={allowedParents}
+    />
+  );
 }
