@@ -18,7 +18,11 @@ import dynamic from "next/dynamic";
 import { Swatch } from "@/components/paneler/ColorPalette";
 import { applyColor } from "@/lib/designState";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
-import { FILL_STYLES, type FillStyle } from "@/lib/orderForm";
+import {
+  FILL_STYLES,
+  ORDER_STASH_PREFIX,
+  type FillStyle,
+} from "@/lib/orderForm";
 import type { OrderItem, PublicShop } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -43,13 +47,24 @@ interface OrderDesignerProps {
   signedIn: boolean;
 }
 
-/** Survives the sign-in round trip. Colors are a small map, not the GLB. */
+/**
+ * Survives the sign-in round trip. Colors are a small map, not the GLB.
+ *
+ * sessionStorage is the whole mechanism, and it works because the round trip
+ * (paneler.app -> dex -> provider -> dex -> paneler.app) happens in ONE TAB and
+ * the shop pages share an origin with /app. So the return path never has to
+ * travel through the auth flow: no callbackUrl parameter, no change to the
+ * landing repo's hardcoded redirectTo, and no open-redirect surface to get
+ * wrong. `returnTo` is read back only by ResumeOrder, which validates it.
+ */
 interface StashedOrder {
+  returnTo: string;
   panelColors: Record<string, string>;
   size: number;
   fill: FillStyle;
   note: string;
 }
+
 
 export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
   const design = useGlbDesign();
@@ -64,7 +79,7 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
   const [error, setError] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
 
-  const stashKey = `paneler:order:${item.id}`;
+  const stashKey = `${ORDER_STASH_PREFIX}${item.id}`;
   const restored = useRef(false);
 
   // Load the pinned design. Public route: no session required to look.
@@ -123,19 +138,20 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     setError(null);
 
     if (!signedIn) {
-      // Stash, then hand off to the landing service, which owns sign-in. The
-      // callbackUrl comes back here rather than to /app.
+      // Stash everything, including where to come back to, then hand off to the
+      // landing service, which owns sign-in. It always lands people on /app;
+      // ResumeOrder there reads this back and returns them here.
       sessionStorage.setItem(
         stashKey,
         JSON.stringify({
+          returnTo: `${BASE}/shop/${shop.shopId}/${item.id}`,
           panelColors: design.panelColors,
           size,
           fill,
           note,
         } satisfies StashedOrder),
       );
-      const back = `${BASE}/shop/${shop.shopId}/${item.id}`;
-      window.location.href = `/?callbackUrl=${encodeURIComponent(back)}`;
+      window.location.href = "/";
       return;
     }
 

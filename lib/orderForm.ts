@@ -10,6 +10,14 @@
  */
 import { MAX_DIAMETER_IN, MIN_DIAMETER_IN } from "@/lib/laser/constants";
 
+/**
+ * sessionStorage key prefix for an in-progress order.
+ *
+ * Lives here rather than in OrderDesigner so ResumeOrder (mounted on /app) can
+ * read it without importing the 3D designer's whole module graph for one string.
+ */
+export const ORDER_STASH_PREFIX = "paneler:order:";
+
 export class OrderFormError extends Error {}
 
 function fail(message: string): never {

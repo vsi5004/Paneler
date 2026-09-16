@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { auth } from "@/lib/auth";
 import { logout } from "@/lib/auth-actions";
 import { PanelerDesigner } from "@/components/paneler/PanelerDesigner";
+import { ResumeOrder } from "@/components/paneler/ResumeOrder";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { ensureUserProfile } from "@/lib/db/users";
 import { resolveFabrics } from "@/lib/fabrics";
@@ -52,6 +53,9 @@ export default async function DesignerPage() {
 
   return (
     <main className="flex flex-1 flex-col">
+      {/* Sign-in always lands here, so this is where a customer returning
+          mid-order gets offered their way back. Renders nothing otherwise. */}
+      <ResumeOrder />
       <PanelerDesigner
         user={user}
         logoutAction={dbEnabled ? logout : undefined}
