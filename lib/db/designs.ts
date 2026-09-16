@@ -4,10 +4,16 @@ import { withUserSession } from "@/lib/db/client";
 
 // Columns returned in any list/get/insert/update response. Order matters for
 // the test fixtures and the client-side row shape.
+// `email` is included as of the order feature. It was previously omitted as
+// unnecessary metadata, which was true while every row was the reader's own —
+// but on an order row it holds the CUSTOMER's address, and that is how the
+// stitcher replies. RLS still means a reader only ever sees rows they own.
+// `user_sub` stays out: it is never useful to the client and is a Dex subject.
 const ROW_COLUMNS = `
   id, name, glb_key, glb_etag, glb_size_bytes, thumbnail_key,
   panel_count, shape_signature, palette_hash, source, template_slug,
-  fill, starred, published, created_at, updated_at
+  fill, starred, published, created_at, updated_at, note,
+  email
 `;
 
 export async function listDesigns(userSub: string): Promise<DesignMeta[]> {
@@ -15,7 +21,8 @@ export async function listDesigns(userSub: string): Promise<DesignMeta[]> {
     const { rows } = await client.query<DesignMeta>(
       `SELECT ${ROW_COLUMNS}
        FROM designs
-       ORDER BY starred DESC, updated_at DESC`,
+       ORDER BY COALESCE(source LIKE 'order:%', false) DESC,
+                starred DESC, updated_at DESC`,
     );
     return rows;
   });
@@ -91,6 +98,68 @@ export interface UpdateDesignPatch {
   thumbnail_key?: string;
   /** Customer's fill choice; written by the embed order flow. */
   fill?: string;
+}
+
+/**
+ * Create the row for a customer's order, owned by the STITCHER.
+ *
+ * The only cross-account write in the app. It is permitted by the
+ * `designs_order_insert` policy, which requires the named item to be published
+ * and owned by `stitcherSub` - so a forged stitcherSub or itemId is rejected in
+ * SQL, not merely by this function's caller.
+ *
+ * `email` is the CUSTOMER's, not the owner's. That is the column's job on an
+ * order row: who to contact about it.
+ *
+ * The GLB is uploaded server-side before this runs, so etag and size are known
+ * up front. That is not a stylistic choice: the customer cannot PATCH them
+ * afterwards the way createFromUpload does, because updateDesign is scoped by
+ * RLS to the row's owner and the owner is the stitcher.
+ *
+ * NOTE: no RETURNING, and that is not an oversight. RETURNING applies the
+ * SELECT policy, and the customer cannot select a row owned by the stitcher, so
+ * adding it makes the statement fail with "new row violates row-level security
+ * policy" - a message identical to a WITH CHECK failure and near-guaranteed to
+ * be misdiagnosed. The id is minted by the caller (it has to be, so the R2 key
+ * can be derived before upload), so there is nothing to read back.
+ */
+export async function createOrderDesign(
+  customerSub: string,
+  input: {
+    id: string;
+    stitcherSub: string;
+    itemId: string;
+    customerEmail: string | null;
+    glbKey: string;
+    name: string;
+    fill: string;
+    note: string | null;
+    panelCount: number | null;
+    glbEtag: string | null;
+    glbSizeBytes: number | null;
+  },
+): Promise<void> {
+  await withUserSession(customerSub, async (client) => {
+    await client.query(
+      `INSERT INTO designs (
+         id, user_sub, email, name, glb_key, source, fill, note, panel_count
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        input.id,
+        input.stitcherSub,
+        input.customerEmail,
+        input.name,
+        input.glbKey,
+        `order:${input.itemId}`,
+        input.fill,
+        input.note,
+        input.panelCount,
+        input.glbEtag,
+        input.glbSizeBytes,
+      ],
+    );
+  });
 }
 
 export async function updateDesign(

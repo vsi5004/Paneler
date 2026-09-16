@@ -53,11 +53,20 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Customer's fill choice, set by the embed order flow. Null for every design
--- made in the designer. Free text rather than an enum: fill options vary per
--- stitcher and get configured per-account, so the database shouldn't pin the
--- vocabulary. Behaves like the other mirror columns.
+-- Customer's fill choice, set by the order form. Null for every design made in
+-- the designer. Free text rather than an enum: fill options vary per stitcher
+-- and get configured per-account, so the database shouldn't pin the vocabulary.
+-- Behaves like the other mirror columns.
 ALTER TABLE designs ADD COLUMN IF NOT EXISTS fill text;
+
+-- Customer's special requests, set by the order form. Null otherwise.
+--
+-- Note what is NOT here: size. That is the finished diameter, and it already
+-- lives in the GLB as LaserSettings.diameterIn, where it drives mmPerUnit() and
+-- therefore the scale of every laser template. A column here would be a second
+-- copy free to disagree with the file, and the copy here is the one that would
+-- be wrong.
+ALTER TABLE designs ADD COLUMN IF NOT EXISTS note text;
 
 CREATE INDEX IF NOT EXISTS designs_user_sub_updated_idx
   ON designs (user_sub, updated_at DESC);
@@ -133,6 +142,26 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
+-- Shop identity. Null/false for everyone who never sets one up; a stitcher
+-- fills these in on the profile page and flips shop_published to go live.
+--
+-- shop_id is what the public URL carries. NEVER user_sub: for the Google
+-- connector that is the user's Google account id, and this link gets pasted in
+-- public. UNIQUE, so minting retries on 23505.
+--
+-- display_name is deliberately NOT unique. A URL must be stable and a display
+-- name must stay freely renameable; those cannot share one column without a
+-- rebrand breaking every link already printed or pasted. If readable URLs are
+-- wanted later that is a separate `handle` column, which is where uniqueness
+-- belongs.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id        text UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name   text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key     text;
+-- Fill materials the stitcher stocks, as plain strings. Shown on the order form
+-- as a note so a customer can ask for one in their order note.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fill_materials jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_published boolean NOT NULL DEFAULT false;
+
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users FORCE ROW LEVEL SECURITY;
 
@@ -158,9 +187,15 @@ CREATE POLICY users_isolate ON users
 GRANT SELECT, DELETE ON users TO paneler_app;
 REVOKE INSERT, UPDATE ON users FROM paneler_app;
 GRANT INSERT (user_sub, email) ON users TO paneler_app;
+--
+-- ⚠ ANY new writable column on users MUST be listed here. The REVOKE above
+-- removed table-level UPDATE, so only the columns named below come back. An
+-- omitted column fails at runtime with 42501 permission denied and passes every
+-- unit test — that has already shipped once, with updated_at.
 GRANT UPDATE (email, fabrics, api_key_hash, api_key_created_at,
               api_key_last_used, prev_key_hash, prev_key_expires,
-              updated_at)
+              shop_id, display_name, avatar_key, fill_materials,
+              shop_published, updated_at)
   ON users TO paneler_app;
 
 -- Backfill from existing designs. DISTINCT ON needs the leading ORDER BY key
@@ -191,3 +226,138 @@ ON CONFLICT (user_sub) DO NOTHING;
 
 ALTER TABLE designs FORCE ROW LEVEL SECURITY;
 ALTER TABLE users   FORCE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- Shops, order items, and the public read path.
+--
+-- A stitcher publishes a shop (the users columns above) listing order items,
+-- each pinned to one of their designs. A customer opens the shop link, recolors
+-- the ball, and submits — and the order arrives as an ORDINARY designs row in
+-- the stitcher's account. There is no orders table on purpose: an order IS a
+-- design, which is what lets the stitcher open it in the designer and cut laser
+-- templates from it without any new view.
+-- ---------------------------------------------------------------------------
+
+-- The role the shop pages read as. It exists because those pages render before
+-- anyone signs in, so there is no app.user_sub to scope RLS with — and neither
+-- alternative is acceptable: withOwner is not a bypass (FORCE ROW LEVEL
+-- SECURITY applies to the owner too), and impersonating the stitcher by setting
+-- the GUC would hand the app a read-anyone primitive.
+--
+-- It can SELECT and nothing else. Its column grants at the bottom of this file
+-- are the real control: api_key_hash and email are not merely policy-protected,
+-- they do not exist for this role.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'paneler_public') THEN
+    CREATE ROLE paneler_public NOLOGIN;
+  END IF;
+END $$;
+
+GRANT paneler_public TO paneler;   -- required for SET ROLE from the owner
+GRANT USAGE ON SCHEMA public TO paneler_public;
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_sub    text NOT NULL,
+  -- Deleting the pinned design retires the item. Orders already placed are
+  -- independent designs rows and survive it.
+  design_id   uuid NOT NULL REFERENCES designs(id) ON DELETE CASCADE,
+  title       text NOT NULL,
+  description text,
+  -- Finished diameters this stitcher will make, inches. Numbers drawn from the
+  -- same ladder as the designer's own slider (MIN_DIAMETER_IN..MAX_DIAMETER_IN
+  -- in lib/laser/constants.ts) — the customer's pick ends up as diameterIn in
+  -- the submitted GLB, not in a column.
+  sizes       jsonb NOT NULL DEFAULT '[]'::jsonb,
+  position    int NOT NULL DEFAULT 0,
+  published   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS order_items_user_position_idx
+  ON order_items (user_sub, position);
+CREATE INDEX IF NOT EXISTS users_shop_id_idx ON users (shop_id);
+
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS order_items_isolate ON order_items;
+CREATE POLICY order_items_isolate ON order_items
+  FOR ALL
+  USING (user_sub = (SELECT current_setting('app.user_sub', true)))
+  WITH CHECK (user_sub = (SELECT current_setting('app.user_sub', true)));
+
+-- Published items are readable by EVERY role. Note the absent TO clause, which
+-- the other two public-read policies below do have. Two reasons, and the first
+-- is genuinely non-obvious:
+--
+-- A policy expression that references another table is itself subject to THAT
+-- table's RLS. designs_order_insert below runs EXISTS(... FROM order_items ...)
+-- while evaluating as the customer. If this policy were scoped TO
+-- paneler_public, order_items_isolate would be the only policy in play for
+-- paneler_app, the customer owns no items, the EXISTS would be false, and EVERY
+-- order insert would be denied — as a bare policy violation that names nothing
+-- about the real cause. Second, a signed-in customer browses the shop as
+-- paneler_app too.
+--
+-- There is also deliberately NO cross-table EXISTS on users.shop_published
+-- here: it would have the identical defect one level deeper, since
+-- users_isolate hides the stitcher's row from the customer. `published` is the
+-- single gate, and setShop() keeps that honest by unpublishing every item when
+-- the shop is unpublished. What this exposes is a published item — already
+-- rendered on a public page.
+DROP POLICY IF EXISTS order_items_public_read ON order_items;
+CREATE POLICY order_items_public_read ON order_items
+  FOR SELECT
+  USING (published);
+
+-- Shop identity for the public pages. TO paneler_public IS load-bearing here,
+-- unlike order_items above: paneler_app holds table-level SELECT on users, so
+-- an unscoped policy would let any signed-in user read any published stitcher's
+-- email and API-key metadata.
+DROP POLICY IF EXISTS users_public_read ON users;
+CREATE POLICY users_public_read ON users
+  FOR SELECT TO paneler_public
+  USING (shop_published);
+
+-- Only a design pinned by a published item — rather than reusing
+-- designs.published, which is an inert flag reserved for the public gallery.
+DROP POLICY IF EXISTS designs_public_item_read ON designs;
+CREATE POLICY designs_public_item_read ON designs
+  FOR SELECT TO paneler_public
+  USING (EXISTS (SELECT 1 FROM order_items i
+                  WHERE i.design_id = designs.id AND i.published));
+
+-- The only cross-account write in the app. Permissive policies OR together, so
+-- this widens INSERT without touching designs_isolate: a customer may create a
+-- row owned by someone else ONLY when that someone has a published item and the
+-- new row's source names it. Not a general write-anywhere primitive, and
+-- enforced here rather than only in a route.
+DROP POLICY IF EXISTS designs_order_insert ON designs;
+CREATE POLICY designs_order_insert ON designs
+  FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM order_items i
+                       WHERE i.published
+                         AND i.user_sub = designs.user_sub
+                         AND designs.source = 'order:' || i.id::text));
+
+-- order_items picks up CRUD for paneler_app from ALTER DEFAULT PRIVILEGES
+-- above, but state it explicitly so correctness doesn't depend on where in this
+-- file the table is declared.
+GRANT SELECT, INSERT, UPDATE, DELETE ON order_items TO paneler_app;
+
+-- paneler_public: SELECT only, column-scoped. The columns omitted here are
+-- unreachable for this role no matter what any policy says.
+GRANT SELECT (user_sub, shop_id, display_name, avatar_key, fabrics,
+              fill_materials, shop_published)
+  ON users TO paneler_public;
+-- created_at is in this list because getPublicShop ORDERs BY it. Column-level
+-- SELECT covers every column a statement TOUCHES, not just the ones it returns
+-- — an ORDER BY, WHERE, or JOIN on an ungranted column fails with
+-- "permission denied for table order_items" and names no column, which is the
+-- same trap the users UPDATE grant hit with updated_at.
+GRANT SELECT (id, user_sub, design_id, title, description, sizes, position,
+              published, created_at)
+  ON order_items TO paneler_public;
+GRANT SELECT (id, glb_key, name, panel_count) ON designs TO paneler_public;

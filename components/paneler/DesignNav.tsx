@@ -197,6 +197,7 @@ function NavRow({
 }: NavRowProps) {
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(design.name);
+  const isOrder = design.source?.startsWith("order:") ?? false;
 
   const commitRename = async () => {
     const trimmed = draftName.trim();
@@ -225,7 +226,8 @@ function NavRow({
           : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
       }`}
     >
-      <div className="min-w-0 flex-1 flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex items-center gap-2">
         {design.starred && (
           <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
         )}
@@ -252,8 +254,18 @@ function NavRow({
             className="w-full bg-transparent text-sm font-medium outline-none border-b border-current"
           />
         ) : (
-          <span className="truncate text-sm font-medium">{design.name}</span>
+          <span
+            className={`truncate text-sm font-medium${isOrder ? " font-mono" : ""}`}
+            title={isOrder ? design.name : undefined}
+          >
+            {/* An order's name IS its id, so the whole system has one
+                identifier. 36 characters will not fit this rail; the full value
+                is in the tooltip and is what the customer was shown. */}
+            {isOrder ? design.name.slice(0, 8) : design.name}
+          </span>
         )}
+      </div>
+      <OrderSubline design={design} isOrder={isOrder} />
       </div>
 
       <DropdownMenu>
@@ -307,4 +319,65 @@ function NavRow({
       </DropdownMenu>
     </div>
   );
+}
+
+/**
+ * The one line of new stitcher-side UI the order feature needs.
+ *
+ * Timestamps were always on every row and always reached the client
+ * (lib/types.ts, designs.ts ROW_COLUMNS); DesignNav simply never showed them.
+ * Surfacing them helps the whole list, not just orders.
+ *
+ * `created_at` for orders and `updated_at` for everything else is deliberate:
+ * an order's useful time is when it arrived, and `updated_at` is destroyed the
+ * moment the stitcher opens it to work on it.
+ *
+ * Size is deliberately absent — it lives in the GLB as diameterIn and appears
+ * in the laser panel on open, where it is needed to cut.
+ */
+function OrderSubline({
+  design,
+  isOrder,
+}: {
+  design: DesignMeta;
+  isOrder: boolean;
+}) {
+  const stamp = relativeTime(isOrder ? design.created_at : design.updated_at);
+  const bits = [stamp];
+  if (isOrder && design.fill) bits.push(design.fill);
+
+  return (
+    <div className="mt-0.5 flex min-w-0 flex-col gap-0.5 pl-0.5">
+      <span className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80">
+        {bits.join(" · ")}
+      </span>
+      {isOrder && design.email && (
+        <span className="truncate text-[11px] text-muted-foreground/80">
+          {design.email}
+        </span>
+      )}
+      {isOrder && design.note && (
+        <span className="mt-1 line-clamp-3 rounded border-l-2 border-primary/40 pl-2 text-[11px] leading-relaxed text-foreground/75">
+          {design.note}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Coarse and deliberately unit-less past a week — an exact date is noise here. */
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }

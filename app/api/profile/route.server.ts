@@ -6,8 +6,10 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
-import { ensureUserProfile, setFabrics } from "@/lib/db/users";
+import { ensureUserProfile, setFabrics, setShop } from "@/lib/db/users";
 import { FabricValidationError, validateFabrics } from "@/lib/fabrics";
+import { OrderFormError, validateShop } from "@/lib/orderForm";
+import { generateShopId } from "@/lib/apiKey";
 
 export const dynamic = "force-dynamic";
 
@@ -63,29 +65,61 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "body_too_large" }, { status: 413 });
   }
 
-  let body: { fabrics?: unknown };
+  let body: { fabrics?: unknown; shop?: unknown };
   try {
-    body = (await req.json()) as { fabrics?: unknown };
+    body = (await req.json()) as { fabrics?: unknown; shop?: unknown };
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  let fabrics;
-  try {
-    fabrics = validateFabrics(body.fabrics);
-  } catch (err) {
-    if (err instanceof FabricValidationError) {
-      return NextResponse.json(
-        { error: "invalid_fabrics", detail: err.message },
-        { status: 400 },
-      );
-    }
-    throw err;
+  // Both sections are optional so the page can save whichever changed, but at
+  // least one must be present — an empty PUT is a caller bug worth surfacing.
+  if (body.fabrics === undefined && body.shop === undefined) {
+    return NextResponse.json({ error: "nothing_to_update" }, { status: 400 });
   }
 
   // Creates the row first if this is the user's very first write.
   await ensureUserProfile(r.userSub, r.email);
-  const profile = await setFabrics(r.userSub, fabrics);
+  let profile = null;
+
+  if (body.fabrics !== undefined) {
+    let fabrics;
+    try {
+      fabrics = validateFabrics(body.fabrics);
+    } catch (err) {
+      if (err instanceof FabricValidationError) {
+        return NextResponse.json(
+          { error: "invalid_fabrics", detail: err.message },
+          { status: 400 },
+        );
+      }
+      throw err;
+    }
+    profile = await setFabrics(r.userSub, fabrics);
+  }
+
+  if (body.shop !== undefined) {
+    let shop;
+    try {
+      shop = validateShop(body.shop);
+    } catch (err) {
+      if (err instanceof OrderFormError) {
+        return NextResponse.json(
+          { error: "invalid_shop", detail: err.message },
+          { status: 400 },
+        );
+      }
+      throw err;
+    }
+    // A candidate id is always supplied; setShop COALESCEs it away unless the
+    // row has none yet, so an existing shop_id is never disturbed and links
+    // already pasted in public keep working.
+    profile = await setShop(r.userSub, {
+      ...shop,
+      candidateShopId: generateShopId(),
+    });
+  }
+
   if (!profile) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

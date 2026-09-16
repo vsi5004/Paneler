@@ -50,6 +50,16 @@ export function designKey(id: string): string {
   return `designs/${id}.glb`;
 }
 
+/**
+ * Key shape for a stitcher's shop photo.
+ *
+ * Keyed on user_sub rather than shop_id so that re-publishing a shop never
+ * orphans the image, and one user can only ever occupy one avatar object.
+ */
+export function avatarKey(userSub: string): string {
+  return `avatars/${encodeURIComponent(userSub)}.webp`;
+}
+
 export async function presignedGetUrl(key: string): Promise<string> {
   return getSignedUrl(
     getClient(),
@@ -87,6 +97,31 @@ export async function putObject(
     }),
   );
   return { etag: out.ETag, size: body.byteLength };
+}
+
+/**
+ * Read an object's bytes server-side.
+ *
+ * Used only for avatars, which are served same-origin rather than by presigned
+ * URL: CSP is `img-src 'self'` (next.config.ts), and a presigned URL would also
+ * expire out from under a cached page. They are capped at 256px webp, so this
+ * is a few KB through the pod — the tradeoff that makes GLBs use presigned URLs
+ * does not apply.
+ *
+ * Returns null when the object is absent, rather than throwing.
+ */
+export async function getObjectBytes(key: string): Promise<Uint8Array | null> {
+  try {
+    const out = await getClient().send(
+      new GetObjectCommand({ Bucket: bucket(), Key: key }),
+    );
+    if (!out.Body) return null;
+    return new Uint8Array(await out.Body.transformToByteArray());
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw err;
+  }
 }
 
 export async function deleteObject(key: string): Promise<void> {

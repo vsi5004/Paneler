@@ -81,8 +81,21 @@ export interface DesignMeta {
   palette_hash: string | null;
   source: string | null;
   template_slug: string | null;
-  /** Customer's fill choice; set by the embed order flow, null otherwise. */
+  /** Customer's fill style; set by the order form, null otherwise. */
   fill: string | null;
+  /**
+   * Customer's special requests; set by the order form, null otherwise.
+   *
+   * There is no `size` beside this on purpose — the finished diameter lives in
+   * the GLB as `LaserSettings.diameterIn`, where it drives the laser template
+   * scale. A copy here would be free to disagree with the file.
+   */
+  note: string | null;
+  /**
+   * On a normal design, the owner's own address. On an order, the CUSTOMER's —
+   * which is how the stitcher gets back to them.
+   */
+  email: string | null;
   starred: boolean;
   published: boolean;
   created_at: string;
@@ -124,9 +137,51 @@ export type FabricEntry =
  */
 export interface ProfileData {
   fabrics: FabricEntry[];
+  /** Fill materials the stitcher stocks. Shown as a note on the order form. */
+  fillMaterials: string[];
+  /** Null until the stitcher first publishes; then stable forever. */
+  shopId: string | null;
+  displayName: string | null;
+  hasAvatar: boolean;
+  shopPublished: boolean;
   /** Granted by hand as the DB owner; gates the whole API-key feature. */
   apiKeyEnabled: boolean;
   hasApiKey: boolean;
   apiKeyCreatedAt: string | null;
   apiKeyLastUsed: string | null;
+}
+
+// -----------------------------------------------------------------------------
+// Shops and order forms
+// -----------------------------------------------------------------------------
+
+/** One thing a stitcher will make, pinned to one of their designs. */
+export interface OrderItem {
+  id: string;
+  design_id: string;
+  title: string;
+  description: string | null;
+  /** Finished diameters offered, inches. A subset of ORDER_SIZES. */
+  sizes: number[];
+  position: number;
+  published: boolean;
+}
+
+/** A stitcher's shop as the public pages see it. No private columns, ever. */
+export interface PublicShop {
+  shopId: string;
+  displayName: string;
+  hasAvatar: boolean;
+  fillMaterials: string[];
+  /** Resolved from the stitcher's stocked fabrics; the customer's whole palette. */
+  fabrics: PaletteEntry[];
+  items: OrderItem[];
+}
+
+/** What a customer submits. `size` becomes diameterIn inside the GLB. */
+export interface OrderSubmission {
+  itemId: string;
+  size: number;
+  fill: string;
+  note: string;
 }

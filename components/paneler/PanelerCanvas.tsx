@@ -29,6 +29,18 @@ import { generatePanelUVsOnGeometry } from "@/lib/mesh/panelUVs";
 // Pixel drag threshold above which a pointer-down→pointer-up sequence is
 // treated as a camera drag, not a panel click. Matches Footbag-3D-Visualizer.
 const CLICK_DRAG_THRESHOLD = 5;
+// A finger is not a mouse: even a deliberate tap wanders several pixels, and
+// rotating the ball on a phone starts as a touch that has to travel before it
+// reads as a drag. At 5px a touch rotation repaints the panel it started on.
+// Measured against thumb taps on a 390px viewport; 12px keeps a tap a tap
+// without making a slow drag paint.
+const TOUCH_DRAG_THRESHOLD = 12;
+
+function dragThreshold(pointerType: string): number {
+  return pointerType === "touch" || pointerType === "pen"
+    ? TOUCH_DRAG_THRESHOLD
+    : CLICK_DRAG_THRESHOLD;
+}
 const SEAM_NODE_NAME = "__seams";
 
 interface PanelerCanvasProps {
@@ -437,7 +449,7 @@ function PanelGroup({
         if (!start) return;
         const dx = e.clientX - start.x;
         const dy = e.clientY - start.y;
-        if (Math.hypot(dx, dy) > CLICK_DRAG_THRESHOLD) return;
+        if (Math.hypot(dx, dy) > dragThreshold(e.pointerType)) return;
         const hit = e.object as Mesh;
         const panelId = hit?.userData?.panelId as string | undefined;
         if (panelId) {

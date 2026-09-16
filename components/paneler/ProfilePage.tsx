@@ -14,6 +14,11 @@ import {
   MAX_LABEL_CHARS,
   newCustomFabricId,
 } from "@/lib/fabrics";
+import {
+  FillMaterialsPanel,
+  ItemsPanel,
+  ShopPanel,
+} from "./ShopSettings";
 import type { FabricEntry, PaletteEntry, ProfileData } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -65,6 +70,17 @@ export function ProfilePage({
   >("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Shop state is tracked separately from fabrics because it saves separately:
+  // the two halves of the profile change at very different rates, and bundling
+  // them would mean every swatch tap re-sends the shop.
+  const [shopName, setShopName] = useState(initialProfile.displayName ?? "");
+  const [fillMaterials, setFillMaterials] = useState<string[]>(
+    initialProfile.fillMaterials,
+  );
+  const [shopPublished, setShopPublished] = useState(
+    initialProfile.shopPublished,
+  );
+
   const shelf = useMemo(() => toShelf(fabrics), [fabrics]);
   const selectedIds = useMemo(
     () => new Set(fabrics.map((f) => f.id)),
@@ -102,6 +118,43 @@ export function ProfilePage({
   const mutate = useCallback((next: FabricEntry[]) => {
     dirty.current = true;
     setFabrics(next);
+  }, []);
+
+  // Same debounced-PUT shape as the fabric list, its own dirty guard.
+  const shopDirty = useRef(false);
+  useEffect(() => {
+    if (!shopDirty.current) return;
+    const t = setTimeout(async () => {
+      setSaveState("saving");
+      try {
+        const { profile: updated } = await jsonFetch<{ profile: ProfileData }>(
+          "/api/profile",
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              shop: {
+                displayName: shopName.trim() || null,
+                fillMaterials,
+                shopPublished,
+              },
+            }),
+          },
+        );
+        setProfile(updated);
+        setSaveError(null);
+        setSaveState("saved");
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Save failed");
+        setSaveState("error");
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [shopName, fillMaterials, shopPublished]);
+
+  const mutateShop = useCallback(<T,>(set: (v: T) => void, value: T) => {
+    shopDirty.current = true;
+    set(value);
   }, []);
 
   const toggleCatalog = useCallback(
@@ -169,6 +222,31 @@ export function ProfilePage({
         The fabrics you stock
         {profile.apiKeyEnabled ? ", and the key your website uses." : "."}
       </p>
+
+      <Section title="Shop">
+        <ShopPanel
+          profile={profile}
+          displayName={shopName}
+          onDisplayName={(v) => mutateShop(setShopName, v)}
+          published={shopPublished}
+          onPublished={(v) => mutateShop(setShopPublished, v)}
+          onProfile={setProfile}
+        />
+      </Section>
+
+      <Section
+        title="Fills you have"
+        meta={fillMaterials.length ? `${fillMaterials.length}` : undefined}
+      >
+        <FillMaterialsPanel
+          value={fillMaterials}
+          onChange={(v) => mutateShop(setFillMaterials, v)}
+        />
+      </Section>
+
+      <Section title="Order form items">
+        <ItemsPanel shopReady={profile.shopPublished} />
+      </Section>
 
       <Section
         title="Your fabrics"

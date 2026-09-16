@@ -8,10 +8,16 @@ export function bucket(): string {
 export function designKey(id: string): string {
   return `designs/${id}.glb`;
 }
+export function avatarKey(sub: string): string {
+  return `avatars/${sub}.webp`;
+}
 export async function presignedGetUrl(): Promise<string> {
   throw new Error("R2 unavailable in static export");
 }
 export async function presignedPutUrl(): Promise<string> {
+  throw new Error("R2 unavailable in static export");
+}
+export async function getObjectBytes(): Promise<Uint8Array | null> {
   throw new Error("R2 unavailable in static export");
 }
 export async function putObject(): Promise<{ etag: string | undefined; size: number }> {

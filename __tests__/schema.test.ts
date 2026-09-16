@@ -5,7 +5,7 @@
 //   TEST_DATABASE_URL=postgres://paneler:paneler@localhost:5432/paneler \
 //     npx vitest run __tests__/schema.test.ts
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Client } from "pg";
@@ -22,15 +22,28 @@ const url = process.env.TEST_DATABASE_URL;
     // on existing public-schema objects from a prior run — REASSIGN them to
     // the connecting role, then DROP OWNED to remove the role's privileges,
     // then DROP ROLE.
+    await client.query("DROP TABLE IF EXISTS order_items CASCADE");
     await client.query("DROP TABLE IF EXISTS users CASCADE");
     await client.query("DROP TABLE IF EXISTS designs CASCADE");
-    await client.query(`DO $$ BEGIN
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'paneler_app') THEN
-        EXECUTE 'REASSIGN OWNED BY paneler_app TO ' || quote_ident(current_user);
-        DROP OWNED BY paneler_app;
-        DROP ROLE paneler_app;
-      END IF;
-    END $$;`);
+    // REASSIGN OWNED + DROP OWNED are per-database and are what actually reset
+    // this database's grants. DROP ROLE is cluster-wide and is therefore
+    // best-effort: the role may still hold privileges in another database on
+    // the same cluster (a dev database alongside this test one), which is not
+    // this suite's business and must not fail its setup. schema.sql creates
+    // both roles idempotently, so a surviving role changes nothing.
+    for (const role of ["paneler_app", "paneler_public"]) {
+      await client.query(`DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+          EXECUTE 'REASSIGN OWNED BY ${role} TO ' || quote_ident(current_user);
+          DROP OWNED BY ${role};
+          BEGIN
+            DROP ROLE ${role};
+          EXCEPTION WHEN dependent_objects_still_exist THEN
+            NULL;
+          END;
+        END IF;
+      END $$;`);
+    }
     // Also clear ALTER DEFAULT PRIVILEGES set in a previous run.
     await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA public
       REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM PUBLIC`);
@@ -39,6 +52,15 @@ const url = process.env.TEST_DATABASE_URL;
       "utf8",
     );
     await client.query(sql);
+  });
+
+  // Every test drives its own BEGIN/ROLLBACK, but a test that fails UNEXPECTEDLY
+  // (rather than at an expect) leaves the shared connection inside an aborted
+  // transaction, and every later test then fails with "current transaction is
+  // aborted" — one real failure reported as eight. This keeps failures
+  // independent so the first red test is the true one.
+  afterEach(async () => {
+    await client.query("ROLLBACK").catch(() => {});
   });
 
   afterAll(async () => {
@@ -242,5 +264,210 @@ const url = process.env.TEST_DATABASE_URL;
        WHERE table_name = 'designs' AND column_name = 'fill'`,
     );
     expect(rows[0]).toEqual({ data_type: "text", is_nullable: "YES" });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Shops, items, and the one cross-account write
+  // ---------------------------------------------------------------------------
+
+  /** A published item on a published shop, pinned to a design. Returns the id. */
+  async function seedPublishedItem(): Promise<string> {
+    await client.query(
+      `INSERT INTO users (user_sub, email, shop_id, display_name, shop_published)
+       VALUES ('stitcher', 's@example.com', 'shop000001', 'Footbags', true)
+       ON CONFLICT (user_sub) DO UPDATE
+         SET shop_id = EXCLUDED.shop_id, shop_published = true`,
+    );
+    const { rows: d } = await client.query<{ id: string }>(
+      `INSERT INTO designs (user_sub, name, glb_key, source)
+       VALUES ('stitcher', 'Ball', 'designs/x.glb', 'upload') RETURNING id`,
+    );
+    const { rows: i } = await client.query<{ id: string }>(
+      `INSERT INTO order_items (user_sub, design_id, title, sizes, published)
+       VALUES ('stitcher', $1, 'Classic', '[1.8]'::jsonb, true) RETURNING id`,
+      [d[0].id],
+    );
+    return i[0].id;
+  }
+
+  /**
+   * THE test. It is the case the first design of this feature got wrong, and it
+   * fails as a bare "new row violates row-level security policy" that names
+   * nothing about the real cause — a policy expression referencing another
+   * table is subject to THAT table's RLS, so if order_items_public_read is ever
+   * scoped `TO paneler_public` or grows an EXISTS on users, the customer's
+   * session stops seeing the item and every order insert dies.
+   *
+   * Every other test in this file passes while that is broken.
+   */
+  it("lets a signed-in customer place an order into the stitcher's account", async () => {
+    const itemId = await seedPublishedItem();
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_app");
+    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
+    // No RETURNING: it applies the SELECT policy, which the customer fails for
+    // a row owned by the stitcher — and fails with the same message as a WITH
+    // CHECK violation. See createOrderDesign.
+    await client.query(
+      `INSERT INTO designs (user_sub, email, name, glb_key, source, fill, note)
+       VALUES ('stitcher', 'buyer@example.com', 'ref', 'designs/o.glb',
+               'order:' || $1, 'freestyle', 'please hurry')`,
+      [itemId],
+    );
+    await client.query("COMMIT");
+
+    const { rows } = await client.query(
+      `SELECT email, fill, note FROM designs WHERE source = 'order:' || $1`,
+      [itemId],
+    );
+    expect(rows[0]).toMatchObject({
+      email: "buyer@example.com",
+      fill: "freestyle",
+      note: "please hurry",
+    });
+  });
+
+  it("rejects an order naming an UNPUBLISHED item", async () => {
+    const { rows: d } = await client.query<{ id: string }>(
+      `INSERT INTO designs (user_sub, name, glb_key, source)
+       VALUES ('stitcher', 'B2', 'designs/y.glb', 'upload') RETURNING id`,
+    );
+    const { rows: i } = await client.query<{ id: string }>(
+      `INSERT INTO order_items (user_sub, design_id, title, sizes, published)
+       VALUES ('stitcher', $1, 'Draft', '[1.8]'::jsonb, false) RETURNING id`,
+      [d[0].id],
+    );
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_app");
+    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
+    await expect(
+      client.query(
+        `INSERT INTO designs (user_sub, name, glb_key, source)
+         VALUES ('stitcher', 'ref', 'designs/o2.glb', 'order:' || $1)`,
+        [i[0].id],
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await client.query("ROLLBACK");
+  });
+
+  it("rejects an order whose source names no item at all", async () => {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_app");
+    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
+    await expect(
+      client.query(
+        `INSERT INTO designs (user_sub, name, glb_key, source)
+         VALUES ('stitcher', 'ref', 'designs/o3.glb', 'upload')`,
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await client.query("ROLLBACK");
+  });
+
+  it("rejects an order attributed to the WRONG stitcher", async () => {
+    const itemId = await seedPublishedItem();
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_app");
+    await client.query("SELECT set_config('app.user_sub', 'customer', true)");
+    await expect(
+      client.query(
+        `INSERT INTO designs (user_sub, name, glb_key, source)
+         VALUES ('someone-else', 'ref', 'designs/o4.glb', 'order:' || $1)`,
+        [itemId],
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await client.query("ROLLBACK");
+  });
+
+  it("still refuses an ordinary cross-account insert", async () => {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_app");
+    await client.query("SELECT set_config('app.user_sub', 'user-a', true)");
+    await expect(
+      client.query(
+        `INSERT INTO designs (user_sub, name, glb_key, source)
+         VALUES ('user-b', 'sneaky', 'designs/z.glb', 'upload')`,
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await client.query("ROLLBACK");
+  });
+
+  // --- paneler_public ---------------------------------------------------------
+
+  /**
+   * The column grant, not the policy, is what protects the secrets on `users` —
+   * a policy-only implementation passes every other case here and still hands a
+   * shop visitor the owner's api_key_hash.
+   */
+  it("denies paneler_public the secret columns on users", async () => {
+    for (const col of ["api_key_hash", "prev_key_hash", "email"]) {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE paneler_public");
+      await expect(
+        client.query(`SELECT ${col} FROM users`),
+      ).rejects.toThrow(/permission denied/);
+      await client.query("ROLLBACK");
+    }
+  });
+
+  it("lets paneler_public read a published shop and only published items", async () => {
+    await seedPublishedItem();
+    await client.query(
+      `INSERT INTO users (user_sub, shop_id, display_name, shop_published)
+       VALUES ('hidden', 'shop000002', 'Hidden', false)
+       ON CONFLICT (user_sub) DO NOTHING`,
+    );
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE paneler_public");
+    const shops = await client.query(
+      `SELECT shop_id FROM users ORDER BY shop_id`,
+    );
+    expect(shops.rows.map((r) => r.shop_id)).toEqual(["shop000001"]);
+    const items = await client.query(`SELECT published FROM order_items`);
+    expect(items.rows.every((r) => r.published)).toBe(true);
+    await client.query("ROLLBACK");
+  });
+
+  it("gives paneler_public no write access anywhere", async () => {
+    const writes: [string, string][] = [
+      ["users", "UPDATE users SET display_name = 'x'"],
+      ["designs", "DELETE FROM designs"],
+      [
+        "order_items",
+        `INSERT INTO order_items (user_sub, design_id, title)
+         VALUES ('x', '00000000-0000-0000-0000-000000000000', 't')`,
+      ],
+    ];
+    for (const [, sql] of writes) {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE paneler_public");
+      await expect(client.query(sql)).rejects.toThrow(/permission denied/);
+      await client.query("ROLLBACK");
+    }
+  });
+
+  it("orders lead the design list, ahead of starred and recently edited", async () => {
+    const itemId = await seedPublishedItem();
+    await client.query(
+      `INSERT INTO designs (user_sub, name, glb_key, source, starred, updated_at)
+       VALUES ('sorter', 'starred', 'designs/s.glb', 'upload', true, now())`,
+    );
+    await client.query(
+      `INSERT INTO designs (user_sub, name, glb_key, source, updated_at)
+       VALUES ('sorter', 'no-source', 'designs/n.glb', NULL, now())`,
+    );
+    await client.query(
+      `INSERT INTO designs (user_sub, name, glb_key, source, updated_at)
+       VALUES ('sorter', 'the-order', 'designs/o5.glb', 'order:' || $1,
+               now() - interval '2 days')`,
+      [itemId],
+    );
+    // Mirrors listDesigns exactly. The COALESCE is what keeps the null-source
+    // row from sorting first: NULL LIKE ... is NULL, and DESC is NULLS FIRST.
+    const { rows } = await client.query<{ name: string }>(
+      `SELECT name FROM designs WHERE user_sub = 'sorter'
+        ORDER BY COALESCE(source LIKE 'order:%', false) DESC,
+                 starred DESC, updated_at DESC`,
+    );
+    expect(rows[0].name).toBe("the-order");
   });
 });

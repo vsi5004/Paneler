@@ -58,7 +58,17 @@ export const config = {
   //     loads, often before any cookie roundtrip resolves. Add any
   //     future top-level public assets (robots.txt, manifest.json,
   //     apple-touch-icon.png, etc.) to this list as they're introduced.
+  //   - shop/, api/shop/: a stitcher's public storefront and the order
+  //     form on it. These are the ONLY deliberately public pages in the
+  //     app, and the exclusion is the whole mechanism — the pages render
+  //     for a customer who has never signed in, which is the point: they
+  //     browse and design freely, and only placing the order (POST
+  //     /api/orders, which is NOT excluded) requires an account.
+  //     Everything these routes can reach goes through the paneler_public
+  //     database role, which can read published shops and nothing else.
+  //     Verify by opening a shop link in a private window; with a session
+  //     cookie present a missing exclusion here cannot fail.
   matcher: [
-    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|icon\\.svg).*)",
+    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|shop/|api/shop/|icon\\.svg).*)",
   ],
 };

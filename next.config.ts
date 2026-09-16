@@ -26,6 +26,8 @@ const authActionsStubAbs = path.resolve("./lib/auth-actions-stub");
 const dbClientStubAbs = path.resolve("./lib/db/client-stub");
 const dbDesignsStubAbs = path.resolve("./lib/db/designs-stub");
 const dbUsersStubAbs = path.resolve("./lib/db/users-stub");
+const dbShopStubAbs = path.resolve("./lib/db/shop-stub");
+const dbOrderItemsStubAbs = path.resolve("./lib/db/orderItems-stub");
 const dbMigrateStubAbs = path.resolve("./lib/db/migrate-stub");
 const r2ClientStubAbs = path.resolve("./lib/r2/stub");
 
@@ -116,6 +118,8 @@ const nextConfig: NextConfig = {
             "@/lib/db/client": "@/lib/db/client-stub",
             "@/lib/db/designs": "@/lib/db/designs-stub",
             "@/lib/db/users": "@/lib/db/users-stub",
+            "@/lib/db/shop": "@/lib/db/shop-stub",
+            "@/lib/db/orderItems": "@/lib/db/orderItems-stub",
             "@/lib/db/migrate": "@/lib/db/migrate-stub",
             "@/lib/r2/client": "@/lib/r2/stub",
           },
@@ -125,6 +129,8 @@ const nextConfig: NextConfig = {
           config.resolve.alias["@/lib/db/client"] = dbClientStubAbs;
           config.resolve.alias["@/lib/db/designs"] = dbDesignsStubAbs;
           config.resolve.alias["@/lib/db/users"] = dbUsersStubAbs;
+          config.resolve.alias["@/lib/db/shop"] = dbShopStubAbs;
+          config.resolve.alias["@/lib/db/orderItems"] = dbOrderItemsStubAbs;
           config.resolve.alias["@/lib/db/migrate"] = dbMigrateStubAbs;
           config.resolve.alias["@/lib/r2/client"] = r2ClientStubAbs;
           return config;

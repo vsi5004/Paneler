@@ -38,6 +38,30 @@ export function generateApiKey(): string {
 }
 
 /**
+ * Mint a public shop id — the opaque token in a shop's URL.
+ *
+ * Deliberately NOT `user_sub`: for the Google connector that is the user's
+ * Google account id, and this value gets pasted into Instagram bios. Ten
+ * base32hex characters is ~50 bits, plenty for an unguessable-but-typeable
+ * handle. The UNIQUE constraint is still the authority; callers retry on 23505.
+ *
+ * Shares the rejection-sampling loop with generateApiKey for the same reason:
+ * a future alphabet change must not silently introduce modulo bias.
+ */
+export function generateShopId(): string {
+  const max = 256 - (256 % KEY_CHARS.length);
+  let out = "";
+  while (out.length < 10) {
+    for (const byte of randomBytes(10)) {
+      if (byte >= max) continue;
+      out += KEY_CHARS[byte % KEY_CHARS.length];
+      if (out.length === 10) break;
+    }
+  }
+  return out;
+}
+
+/**
  * Hash for storage and lookup. Plain SHA-256, deliberately — this is a
  * high-entropy random token, not a password, so there is nothing for bcrypt's
  * work factor to defend against, and lookup needs to be a single indexed

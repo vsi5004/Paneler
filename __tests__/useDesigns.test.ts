@@ -14,6 +14,8 @@ function row(overrides: Partial<DesignMeta> = {}): DesignMeta {
     thumbnail_key: null,
     panel_count: 32,
     fill: null,
+    note: null,
+    email: null,
     shape_signature: "12p+20h",
     palette_hash: null,
     source: "template:soccer",

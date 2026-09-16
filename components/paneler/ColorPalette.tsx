@@ -18,21 +18,38 @@ interface ColorPaletteProps {
   /**
    * Rendered top to bottom, empty groups skipped. Driven by a prop rather than
    * importing the palettes directly so the same component can serve the
-   * designer (built-ins plus the user's own fabrics) and, later, an embedded
-   * order form restricted to one stitcher's stock.
+   * designer (built-ins plus the user's own fabrics) and the public order form
+   * restricted to one stitcher's stock.
    */
   groups: PaletteGroup[];
+  /**
+   * Show the free hex picker. Default true for the designer; the order form
+   * passes false, because a customer must be held to fabric the stitcher
+   * actually has on the shelf — offering an arbitrary color there would take
+   * orders nobody can make.
+   */
+  allowCustom?: boolean;
 }
 
-/** Single fabric chip. Exported so the profile page's catalog grid reuses it. */
+/**
+ * Single fabric chip. Exported so the profile page's catalog grid and the
+ * public order form reuse it.
+ *
+ * `sizeClass` exists for the order form, which is thumb-operated on a phone:
+ * the 28px default is a comfortable mouse target and a poor touch one, and
+ * duplicating this component to change one dimension would mean maintaining the
+ * ring, hover, and image handling twice.
+ */
 export function Swatch({
   entry,
   selected,
   onSelect,
+  sizeClass = "size-7",
 }: {
   entry: PaletteEntry;
   selected: string;
   onSelect: (color: string) => void;
+  sizeClass?: string;
 }) {
   const isSelected = selected.toLowerCase() === entry.color.toLowerCase();
   return (
@@ -42,7 +59,8 @@ export function Swatch({
       aria-label={entry.label}
       title={entry.label}
       className={cn(
-        "group relative size-7 rounded-md bg-cover bg-center transition-all",
+        "group relative rounded-md bg-cover bg-center transition-all",
+        sizeClass,
         "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),inset_0_-4px_8px_rgba(0,0,0,0.25)]",
         "hover:scale-110 hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12),inset_0_-4px_8px_rgba(0,0,0,0.25),0_0_12px_var(--current-color)]",
         isSelected &&
@@ -65,6 +83,7 @@ export function ColorPalette({
   selected,
   onSelect,
   groups,
+  allowCustom = true,
 }: ColorPaletteProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -87,6 +106,7 @@ export function ColorPalette({
             </div>
           </div>
         ))}
+      {allowCustom && (
       <div className="flex items-center gap-3 rounded-md border border-border bg-background/40 px-3 py-2">
         <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           Custom
@@ -102,6 +122,7 @@ export function ColorPalette({
           {selected.toUpperCase()}
         </code>
       </div>
+      )}
     </div>
   );
 }
