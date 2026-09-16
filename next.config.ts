@@ -58,53 +58,102 @@ const nextConfig: NextConfig = {
   // later if we ever render untrusted markdown or similar.
   async headers() {
     if (isStaticExport) return [];
+
+    // Origins permitted to iframe a stitcher's order form, e.g.
+    // "https://lovesacksfootbags.com,https://www.lovesacksfootbags.com".
+    //
+    // Empty by default, which keeps the default-deny posture: with nothing set,
+    // shop pages are exactly as unframeable as the rest of the app. An explicit
+    // allow-list, never '*' and never a wildcard host — frame-ancestors is the
+    // whole clickjacking defense for a page that takes orders, and a wildcard
+    // would let anyone frame a stitcher's form inside their own checkout.
+    const embedOrigins = (process.env.EMBED_ALLOWED_ORIGINS ?? "")
+      .split(/[\s,]+/)
+      .filter(Boolean);
+
+    // Shared by both route groups so a future change to img-src or connect-src
+    // cannot silently apply to only half the app.
+    const commonCsp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      // Google avatar URLs come from several googleusercontent subdomains.
+      // blob: covers OBJ-upload preview thumbnails; data: covers any small
+      // inline images Next.js emits.
+      "img-src 'self' data: blob: https://*.googleusercontent.com https://*.ggpht.com",
+      "font-src 'self' data:",
+      // R2 presigned URLs for GLB download go directly from the browser to
+      // Cloudflare R2, bypassing our pod.
+      "connect-src 'self' blob: https://*.r2.cloudflarestorage.com",
+      "base-uri 'self'",
+      "object-src 'none'",
+    ];
+
+    // X-Frame-Options is deliberately absent everywhere.
+    //
+    // It is DENY-or-nothing: ALLOW-FROM is dead and no browser honours it. So
+    // sending DENY on the broad rule would survive onto shop pages, where it
+    // would override the frame-ancestors allow-list and block the embed with
+    // nothing in the CSP to explain why. frame-ancestors is the modern control
+    // and covers every browser that can run this app at all — a client too old
+    // to parse it is also too old for WebGL, so it could never reach a page
+    // worth framing.
+    const commonHeaders = [
+      {
+        key: "Strict-Transport-Security",
+        value: "max-age=63072000; includeSubDomains; preload",
+      },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        key: "Permissions-Policy",
+        value: "geolocation=(), microphone=(), camera=()",
+      },
+    ];
+
     return [
       {
-        // `/:path*` matches every path including the root. `/(.*)` only
-        // matched non-empty paths, which left the root page (`/app` after
-        // basePath stripping) without the security headers.
+        // `/:path*` matches every path including the root. `/(.*)` only matched
+        // non-empty paths, which left the root page (`/app` after basePath
+        // stripping) without the security headers. A negative lookahead to
+        // exclude shop pages has the same defect — path-to-regexp will not
+        // match the empty root with one — so this stays broad and the shop rule
+        // that follows overrides it.
         source: "/:path*",
         headers: [
           {
             key: "Content-Security-Policy",
+            value: [...commonCsp, "frame-ancestors 'none'"].join("; "),
+          },
+          ...commonHeaders,
+        ],
+      },
+      {
+        // Shop pages only: the public order form, which a stitcher may embed
+        // in their own checkout.
+        //
+        // MUST come after the broad rule. Next applies every matching rule and
+        // the last value for a header wins, so listing this first meant the
+        // rule above silently re-asserted frame-ancestors 'none' and the embed
+        // would never have worked. Verified with curl rather than assumed,
+        // after getting it backwards on the first attempt.
+        source: "/shop/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
             value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              // Google avatar URLs come from several googleusercontent
-              // subdomains. blob: covers OBJ-upload preview thumbnails;
-              // data: covers any small inline images Next.js emits.
-              "img-src 'self' data: blob: https://*.googleusercontent.com https://*.ggpht.com",
-              "font-src 'self' data:",
-              // R2 presigned URLs for GLB upload/download go directly from
-              // the browser to Cloudflare R2 (bypassing our pod). They use
-              // the bucket-specific subdomain `*.r2.cloudflarestorage.com`.
-              "connect-src 'self' blob: https://*.r2.cloudflarestorage.com",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "object-src 'none'",
+              ...commonCsp,
+              embedOrigins.length > 0
+                ? `frame-ancestors ${embedOrigins.join(" ")}`
+                : "frame-ancestors 'none'",
             ].join("; "),
           },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=63072000; includeSubDomains; preload",
-          },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          // Redundant with CSP frame-ancestors but harmless and respected
-          // by older clients that don't parse CSP.
-          { key: "X-Frame-Options", value: "DENY" },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
-          {
-            key: "Permissions-Policy",
-            value: "geolocation=(), microphone=(), camera=()",
-          },
+          ...commonHeaders,
         ],
       },
     ];
   },
+
   ...(isStaticExport
     ? {
         output: "export",

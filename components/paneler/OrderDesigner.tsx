@@ -45,6 +45,14 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 interface OrderDesignerProps {
   shop: PublicShop;
   item: OrderItem;
+  /** Rendered inside a stitcher's own checkout, in an iframe. */
+  embedded?: boolean;
+  /**
+   * Origins this page may hand the reference back to. Mirrors the
+   * frame-ancestors allow-list, so a page that cannot frame us also cannot
+   * receive a message from us.
+   */
+  allowedParents?: string[];
 }
 
 /**
@@ -58,7 +66,12 @@ interface OrderDesignerProps {
 const BLANK_PANEL = "#d8d5cf";
 
 
-export function OrderDesigner({ shop, item }: OrderDesignerProps) {
+export function OrderDesigner({
+  shop,
+  item,
+  embedded = false,
+  allowedParents = [],
+}: OrderDesignerProps) {
   const design = useGlbDesign();
   const [selectedColor, setSelectedColor] = useState(
     shop.fabrics[0]?.color ?? "#c41e3a",
@@ -197,6 +210,21 @@ export function OrderDesigner({ shop, item }: OrderDesignerProps) {
         );
       }
       setRef(body.ref ?? null);
+
+      // Hand the reference to the host page so it can carry it into checkout.
+      //
+      // Targeted per allowed origin, never "*": postMessage only delivers when
+      // the target matches the real parent's origin, so looping the allow-list
+      // reaches the genuine host and nobody else. With "*" any page that
+      // managed to frame this would be handed the reference.
+      if (embedded && body.ref) {
+        for (const origin of allowedParents) {
+          window.parent.postMessage(
+            { type: "paneler:order", ref: body.ref, itemId: item.id },
+            origin,
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't place the order.");
     } finally {
@@ -205,7 +233,14 @@ export function OrderDesigner({ shop, item }: OrderDesignerProps) {
   }
 
   if (ref) {
-    return <OrderPlaced shop={shop} item={item} orderRef={ref} />;
+    return (
+      <OrderPlaced
+        shop={shop}
+        item={item}
+        orderRef={ref}
+        embedded={embedded}
+      />
+    );
   }
 
   return (
@@ -291,6 +326,10 @@ export function OrderDesigner({ shop, item }: OrderDesignerProps) {
             )}
           </Field>
 
+          {/* Absent when embedded: the stitcher's own checkout collects
+              contact details, and asking twice invites two different answers
+              for the same customer. */}
+          {!embedded && (
           <Field label="How should they reach you?" hint="optional">
             <input
               value={contact}
@@ -304,6 +343,7 @@ export function OrderDesigner({ shop, item }: OrderDesignerProps) {
               is what links it to your payment.
             </p>
           </Field>
+          )}
 
           <Field label="Special requests" hint="optional">
             <textarea
@@ -392,21 +432,30 @@ function OrderPlaced({
   shop,
   item,
   orderRef,
+  embedded,
 }: {
   shop: PublicShop;
   item: OrderItem;
   orderRef: string;
+  embedded: boolean;
 }) {
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16">
+    <div
+      className={
+        embedded
+          ? "mx-auto flex max-w-md flex-col justify-center px-6 py-10"
+          : "mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16"
+      }
+    >
       <span className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         <span className="size-1 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
         Order placed
       </span>
       <h1 className="font-heading text-4xl tracking-[0.2em]">THANK YOU</h1>
       <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        {shop.displayName} has your {item.title.toLowerCase()}. Include this
-        reference when you pay, so they can match the order to your payment.
+        {embedded
+          ? `Your design is saved. Carry on with checkout \u2014 ${shop.displayName} will match it to your payment by this reference.`
+          : `${shop.displayName} has your ${item.title.toLowerCase()}. Include this reference when you pay, so they can match the order to your payment.`}
       </p>
       <div className="mt-6 rounded-md border border-border bg-background/40 p-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
