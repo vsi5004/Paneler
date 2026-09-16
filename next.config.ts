@@ -2,6 +2,8 @@ import path from "path";
 import type { NextConfig } from "next";
 import { withPlausibleProxy } from "next-plausible";
 
+import { buildCsp } from "./lib/csp";
+
 // Two build modes:
 //   default          → Node.js server output (.next/standalone) for the
 //                      container deploy. The reverse proxy in production
@@ -58,97 +60,38 @@ const nextConfig: NextConfig = {
   // later if we ever render untrusted markdown or similar.
   async headers() {
     if (isStaticExport) return [];
-
-    // Origins permitted to iframe a stitcher's order form, e.g.
-    // "https://lovesacksfootbags.com,https://www.lovesacksfootbags.com".
-    //
-    // Empty by default, which keeps the default-deny posture: with nothing set,
-    // shop pages are exactly as unframeable as the rest of the app. An explicit
-    // allow-list, never '*' and never a wildcard host — frame-ancestors is the
-    // whole clickjacking defense for a page that takes orders, and a wildcard
-    // would let anyone frame a stitcher's form inside their own checkout.
-    const embedOrigins = (process.env.EMBED_ALLOWED_ORIGINS ?? "")
-      .split(/[\s,]+/)
-      .filter(Boolean);
-
-    // Shared by both route groups so a future change to img-src or connect-src
-    // cannot silently apply to only half the app.
-    const commonCsp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      // Google avatar URLs come from several googleusercontent subdomains.
-      // blob: covers OBJ-upload preview thumbnails; data: covers any small
-      // inline images Next.js emits.
-      "img-src 'self' data: blob: https://*.googleusercontent.com https://*.ggpht.com",
-      "font-src 'self' data:",
-      // R2 presigned URLs for GLB download go directly from the browser to
-      // Cloudflare R2, bypassing our pod.
-      "connect-src 'self' blob: https://*.r2.cloudflarestorage.com",
-      "base-uri 'self'",
-      "object-src 'none'",
-    ];
-
-    // X-Frame-Options is deliberately absent everywhere.
-    //
-    // It is DENY-or-nothing: ALLOW-FROM is dead and no browser honours it. So
-    // sending DENY on the broad rule would survive onto shop pages, where it
-    // would override the frame-ancestors allow-list and block the embed with
-    // nothing in the CSP to explain why. frame-ancestors is the modern control
-    // and covers every browser that can run this app at all — a client too old
-    // to parse it is also too old for WebGL, so it could never reach a page
-    // worth framing.
-    const commonHeaders = [
-      {
-        key: "Strict-Transport-Security",
-        value: "max-age=63072000; includeSubDomains; preload",
-      },
-      { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      {
-        key: "Permissions-Policy",
-        value: "geolocation=(), microphone=(), camera=()",
-      },
-    ];
-
     return [
       {
         // `/:path*` matches every path including the root. `/(.*)` only matched
         // non-empty paths, which left the root page (`/app` after basePath
-        // stripping) without the security headers. A negative lookahead to
-        // exclude shop pages has the same defect — path-to-regexp will not
-        // match the empty root with one — so this stays broad and the shop rule
-        // that follows overrides it.
+        // stripping) without the security headers.
         source: "/:path*",
         headers: [
           {
             key: "Content-Security-Policy",
-            value: [...commonCsp, "frame-ancestors 'none'"].join("; "),
+            // Always 'none' here, including for shop pages. headers() is
+            // evaluated at BUILD time and frozen into routes-manifest.json, so
+            // it cannot see the deployment's embed allow-list. proxy.ts widens
+            // this per request for /shop/* — and because this stays restrictive,
+            // a middleware that fails to run leaves the page unframeable rather
+            // than open.
+            value: buildCsp("'none'"),
           },
-          ...commonHeaders,
-        ],
-      },
-      {
-        // Shop pages only: the public order form, which a stitcher may embed
-        // in their own checkout.
-        //
-        // MUST come after the broad rule. Next applies every matching rule and
-        // the last value for a header wins, so listing this first meant the
-        // rule above silently re-asserted frame-ancestors 'none' and the embed
-        // would never have worked. Verified with curl rather than assumed,
-        // after getting it backwards on the first attempt.
-        source: "/shop/:path*",
-        headers: [
           {
-            key: "Content-Security-Policy",
-            value: [
-              ...commonCsp,
-              embedOrigins.length > 0
-                ? `frame-ancestors ${embedOrigins.join(" ")}`
-                : "frame-ancestors 'none'",
-            ].join("; "),
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
           },
-          ...commonHeaders,
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(), microphone=(), camera=()",
+          },
+          // X-Frame-Options is deliberately absent. It is DENY-or-nothing —
+          // ALLOW-FROM is dead — so sending DENY would override the
+          // frame-ancestors allow-list on shop pages and block the embed with
+          // nothing in the CSP to explain why. Any browser too old for
+          // frame-ancestors is also too old for WebGL.
         ],
       },
     ];

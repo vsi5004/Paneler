@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { buildCsp, frameAncestorsFromEnv } from "@/lib/csp";
+
 // Next.js 16 renamed `middleware.ts` to `proxy.ts`. This file gates the
 // `/app/*` routes when auth is enabled, and passes everything through when
 // it isn't. Proxy always runs on Node.js runtime in Next.js 16, so
@@ -12,7 +14,45 @@ import type { NextRequest } from "next/server";
 //
 // Optimistic cookie check only — no crypto, no env vars baked at build time.
 // The real JWT verification happens in page.tsx / API routes via auth().
+/**
+ * Rewrite frame-ancestors on shop pages, at REQUEST time.
+ *
+ * next.config.ts cannot do this. Its headers() runs during `next build` and the
+ * result is frozen into routes-manifest.json, so a runtime env var on the pod is
+ * invisible to it — the first version of this shipped with 'none' baked in while
+ * EMBED_ALLOWED_ORIGINS sat correctly set in the deployment, and the embed
+ * simply never worked.
+ *
+ * Fails CLOSED. next.config.ts still emits frame-ancestors 'none' for these
+ * paths, so if this middleware does not run, or the env var is unset or
+ * malformed, the header stays as it was and the page is unframeable. Nothing
+ * here can make a page MORE framable by failing.
+ */
+function withEmbedPolicy(res: NextResponse, request: NextRequest): NextResponse {
+  // Shop pages only. The designer, profile and API are never framable, whatever
+  // is configured.
+  if (!request.nextUrl.pathname.startsWith("/shop/")) return res;
+
+  const frameAncestors = frameAncestorsFromEnv(
+    process.env.EMBED_ALLOWED_ORIGINS,
+  );
+  if (frameAncestors === "'none'") return res;
+
+  // The FULL policy, not just frame-ancestors. A header set here REPLACES the
+  // one from next.config rather than merging with it, so emitting only
+  // frame-ancestors would strip script-src, img-src and the rest while leaving
+  // the page looking like it still had a CSP. Verified by response inspection,
+  // after doing exactly that.
+  res.headers.set("content-security-policy", buildCsp(frameAncestors));
+  return res;
+}
+
 export function proxy(request: NextRequest) {
+  // Shop pages are public and must never be auth-gated; they are in the matcher
+  // only so the embed policy above can be applied at request time.
+  const isShop = request.nextUrl.pathname.startsWith("/shop/");
+  if (isShop) return withEmbedPolicy(NextResponse.next(), request);
+
   // Auth-off mode (gate is bypassed) when EITHER:
   //   - AUTH_DISABLED=true is set explicitly, OR
   //   - AUTH_SECRET is unset (local dev with no auth configured — there
@@ -58,7 +98,14 @@ export const config = {
   //     loads, often before any cookie roundtrip resolves. Add any
   //     future top-level public assets (robots.txt, manifest.json,
   //     apple-touch-icon.png, etc.) to this list as they're introduced.
-  //   - shop/, api/shop/: a stitcher's public storefront and the order
+  //   - api/shop/, api/orders: the public storefront's data endpoints and
+  //     order submission. NOTE that `shop/` itself is NOT excluded any more:
+  //     those pages must reach this middleware so the embed policy can be
+  //     applied at request time (see withEmbedPolicy). proxy() returns early
+  //     for them, so they are still never auth-gated — the matcher change
+  //     moves where that decision is made, not whether they are public.
+  //
+  //     Previously: a stitcher's public storefront and the order
   //     form on it. These are the ONLY deliberately public pages in the
   //     app, and the exclusion is the whole mechanism — the pages render
   //     for a customer who has never signed in, which is the point: they
@@ -74,6 +121,6 @@ export const config = {
   //     submission away — and, because a signed-in browser sends its cookie,
   //     it would appear to work for whoever tested it.
   matcher: [
-    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|shop/|api/shop/|api/orders|icon\\.svg).*)",
+    "/((?!api/health|_next/|textures/|presets/|fabrics/|lx/|api/shop/|api/orders|icon\\.svg).*)",
   ],
 };
