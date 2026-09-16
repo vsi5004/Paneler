@@ -304,6 +304,7 @@ CREATE POLICY order_items_isolate ON order_items
 -- Still no cross-table EXISTS on users.shop_published: it would have the same
 -- defect one level deeper. `published` is the single gate, and setShop() keeps
 -- that honest by unpublishing every item when the shop goes offline.
+DROP POLICY IF EXISTS order_items_public_read ON order_items;
 CREATE POLICY order_items_public_read ON order_items
   FOR SELECT TO paneler_public
   USING (published);
