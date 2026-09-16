@@ -65,9 +65,19 @@ export function ShopPanel({
   const fileRef = useRef<HTMLInputElement>(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
 
-  const shopUrl = profile.shopId
-    ? `${window.location.origin}${BASE}/shop/${profile.shopId}`
-    : null;
+  // The origin is only knowable in the browser, and this component is
+  // server-rendered first. Reading window during render throws; interpolating a
+  // fallback would hydrate-mismatch. So: render the link once mounted.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
+
+  const shopUrl =
+    profile.shopId && origin
+      ? `${origin}${BASE}/shop/${profile.shopId}`
+      : null;
 
   async function handleFile(file: File) {
     setUploadError(null);
