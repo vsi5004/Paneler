@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { ORDER_SIZES, validateSize, validateOrder, validateShop, validateItem } from "@/lib/orderForm";
+import {
+  ORDER_SIZES,
+  orderBlocker,
+  validateSize,
+  validateOrder,
+  validateShop,
+  validateItem,
+} from "@/lib/orderForm";
 
 describe("ORDER_SIZES", () => {
   it("is the eleven 0.1in steps, exactly", () => {
@@ -29,5 +36,52 @@ describe("validators reject junk", () => {
     const r = validateItem({ title: "T", sizes: [2.1, 1.8, 2.1], published: true, evil: "x" });
     expect(r.sizes).toEqual([1.8, 2.1]);
     expect(r).not.toHaveProperty("evil");
+  });
+});
+
+describe("orderBlocker — what stops a customer submitting", () => {
+  const ready = {
+    loaded: true,
+    fabricCount: 6,
+    totalPanels: 32,
+    paintedPanels: 32,
+    size: 1.8,
+    fill: "freestyle",
+  };
+
+  it("allows submission only when everything is chosen", () => {
+    expect(orderBlocker(ready)).toBeNull();
+  });
+
+  it("requires EVERY panel, not just some", () => {
+    expect(orderBlocker({ ...ready, paintedPanels: 31 })).toBe(
+      "1 panel left to colour",
+    );
+    expect(orderBlocker({ ...ready, paintedPanels: 0 })).toBe(
+      "32 panels left to colour",
+    );
+  });
+
+  it("requires an explicit size and fill, not a default", () => {
+    expect(orderBlocker({ ...ready, size: null })).toBe("Choose a size");
+    expect(orderBlocker({ ...ready, fill: null })).toBe("Choose a fill");
+  });
+
+  it("reports blockers in the order a customer would fix them", () => {
+    // Unpainted panels come before size, so a customer is not sent to the
+    // bottom of the form while the ball is still half blank.
+    expect(
+      orderBlocker({ ...ready, paintedPanels: 10, size: null, fill: null }),
+    ).toBe("22 panels left to colour");
+  });
+
+  it("does not claim panels are unpainted before the design has loaded", () => {
+    expect(orderBlocker({ ...ready, loaded: false, totalPanels: 0 })).toMatch(
+      /Loading/,
+    );
+  });
+
+  it("catches a shop whose shelf was emptied after publishing", () => {
+    expect(orderBlocker({ ...ready, fabricCount: 0 })).toMatch(/no fabrics/);
   });
 });

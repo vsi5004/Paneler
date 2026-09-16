@@ -21,6 +21,7 @@ import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import {
   FILL_STYLES,
   ORDER_STASH_PREFIX,
+  orderBlocker,
   type FillStyle,
 } from "@/lib/orderForm";
 import type { OrderItem, PublicShop } from "@/lib/types";
@@ -60,10 +61,22 @@ interface OrderDesignerProps {
 interface StashedOrder {
   returnTo: string;
   panelColors: Record<string, string>;
-  size: number;
-  fill: FillStyle;
+  /** Which panels the CUSTOMER chose, as opposed to arriving blank. */
+  painted: string[];
+  size: number | null;
+  fill: FillStyle | null;
   note: string;
 }
+
+/**
+ * What an unchosen panel looks like.
+ *
+ * The pinned design arrives with the stitcher's own colors baked into its
+ * materials, so every panel would otherwise start out looking finished and
+ * there would be nothing for the customer to complete. Blanking them is what
+ * makes "colour every panel" a real requirement rather than a formality.
+ */
+const BLANK_PANEL = "#d8d5cf";
 
 
 export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
@@ -72,8 +85,11 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     shop.fabrics[0]?.color ?? "#c41e3a",
   );
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
-  const [size, setSize] = useState<number>(item.sizes[0] ?? 1.8);
-  const [fill, setFill] = useState<FillStyle>("freestyle");
+  // Both start unchosen on purpose. Defaulting them would let a customer submit
+  // a size and fill they never actually looked at.
+  const [size, setSize] = useState<number | null>(null);
+  const [fill, setFill] = useState<FillStyle | null>(null);
+  const [painted, setPainted] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,35 +104,54 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop.shopId, item.id]);
 
-  // Restore whatever the customer had before signing in. Runs once, after the
-  // GLB has parsed — setPanelColors before that would be overwritten by the
-  // parse, which seeds colors from the file's own materials.
-  // Restoring state that outlived a full page navigation is exactly the
-  // external-system sync effects exist for, and the `restored` guard makes it
-  // strictly one-shot — hence the targeted disable below.
+  const allPanelIds = useMemo(
+    () => design.topology?.panels.map((p) => p.id) ?? [],
+    [design.topology],
+  );
+
+  // Blank the ball, then restore anything that outlived the sign-in redirect.
+  //
+  // Runs once, after the GLB has parsed: useGlbDesign seeds panelColors from the
+  // file's own materials, so anything set earlier would be overwritten. Blanking
+  // is what turns "colour every panel" into a real requirement — the pinned
+  // design arrives wearing the stitcher's colors and would otherwise look
+  // finished on arrival.
   useEffect(() => {
-    if (restored.current || !design.bytes) return;
+    if (restored.current || !design.bytes || allPanelIds.length === 0) return;
     restored.current = true;
+
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const blank: Record<string, string> = {};
+    for (const id of allPanelIds) blank[id] = BLANK_PANEL;
+
     const raw = sessionStorage.getItem(stashKey);
-    if (!raw) return;
+    if (!raw) {
+      design.setPanelColors(blank);
+      return;
+    }
     try {
       const s = JSON.parse(raw) as StashedOrder;
-      /* eslint-disable react-hooks/set-state-in-effect */
-      if (s.panelColors) design.setPanelColors(s.panelColors);
+      // Merge over the blank so a panel the customer never chose stays blank
+      // even if the stash is stale or partial.
+      design.setPanelColors({ ...blank, ...(s.panelColors ?? {}) });
+      if (Array.isArray(s.painted)) {
+        setPainted(new Set(s.painted.filter((id) => allPanelIds.includes(id))));
+      }
       if (typeof s.size === "number") setSize(s.size);
       if (s.fill) setFill(s.fill);
       if (typeof s.note === "string") setNote(s.note);
-      /* eslint-enable react-hooks/set-state-in-effect */
     } catch {
-      // A malformed stash is not worth surfacing; the form still works.
+      design.setPanelColors(blank);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
     sessionStorage.removeItem(stashKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [design.bytes]);
+  }, [design.bytes, allPanelIds]);
 
   // Size IS diameterIn. Writing it straight into the GLB is the whole mechanism:
   // the stitcher opens the order and their laser templates are already scaled.
   useEffect(() => {
+    if (size === null) return;
     design.setLaserSettings({ diameterIn: size });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size, design.bytes]);
@@ -125,14 +160,28 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
     (panelId: string) => {
       setSelectedPanelId(panelId);
       design.setPanelColors((prev) => applyColor(prev, panelId, selectedColor));
+      // Tracked separately from panelColors, which is never empty — every panel
+      // holds BLANK_PANEL from the start, so the colors map cannot tell us what
+      // the customer has actually chosen.
+      setPainted((prev) => new Set(prev).add(panelId));
     },
     [design, selectedColor],
   );
 
-  const paintedCount = useMemo(
-    () => Object.keys(design.panelColors).length,
-    [design.panelColors],
-  );
+  // Backstop. The profile route refuses to publish a shop with no fabrics, but
+  // a shelf emptied after publishing would otherwise leave the customer
+  // painting the hardcoded fallback color.
+  const hasFabrics = shop.fabrics.length > 0;
+
+  const blockedBy = orderBlocker({
+    loaded: design.bytes !== null,
+    fabricCount: shop.fabrics.length,
+    totalPanels: allPanelIds.length,
+    paintedPanels: painted.size,
+    size,
+    fill,
+  });
+  const complete = blockedBy === null;
 
   async function handleSubmit() {
     setError(null);
@@ -146,6 +195,7 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
         JSON.stringify({
           returnTo: `${BASE}/shop/${shop.shopId}/${item.id}`,
           panelColors: design.panelColors,
+          painted: [...painted],
           size,
           fill,
           note,
@@ -154,6 +204,8 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
       window.location.href = "/";
       return;
     }
+
+    if (size === null || fill === null) return;
 
     setSubmitting(true);
     try {
@@ -225,7 +277,10 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
           scrolls, so a drag on the ball can't move the document. */}
       <div className="flex flex-1 flex-col overflow-hidden border-t border-hairline bg-[var(--sidebar)]/60 md:w-[380px] md:border-l md:border-t-0">
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          <Field label="Fabric" hint={`${paintedCount} painted`}>
+          <Field
+            label="Fabric"
+            hint={`${painted.size}/${allPanelIds.length} panels`}
+          >
             {/* Horizontal run rather than a grid: one-handed on a phone, and
                 44px targets instead of the designer's mouse-sized 28px. */}
             <div className="-mx-5 overflow-x-auto px-5">
@@ -242,7 +297,9 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
               </div>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Tap a fabric, then tap a panel. Drag to spin the ball.
+              {hasFabrics
+                ? "Tap a fabric, then tap a panel. Drag to spin the ball."
+                : `${shop.displayName} hasn't listed any fabrics yet, so there's nothing to choose from. Check back soon.`}
             </p>
           </Field>
 
@@ -291,10 +348,17 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
               {error}
             </p>
           )}
+          {/* Says what is missing rather than leaving a dead button unexplained
+              — on a phone the unfinished panel is usually round the back. */}
+          {!error && blockedBy && (
+            <p className="mb-3 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              {blockedBy}
+            </p>
+          )}
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || !design.bytes}
+            disabled={submitting || !complete}
             className="w-full rounded-md bg-primary px-4 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-40"
           >
             {submitting

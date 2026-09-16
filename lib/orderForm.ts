@@ -165,6 +165,32 @@ export function validateOrder(input: unknown): OrderInput {
   };
 }
 
+/**
+ * Why an order cannot be submitted yet, or null when it can.
+ *
+ * Extracted from the form so the rule can be tested without a browser and a
+ * WebGL context. The order of the checks is the order a customer would fix
+ * them, because this string is the only thing explaining a disabled button.
+ */
+export function orderBlocker(state: {
+  loaded: boolean;
+  fabricCount: number;
+  totalPanels: number;
+  paintedPanels: number;
+  size: number | null;
+  fill: string | null;
+}): string | null {
+  if (!state.loaded || state.totalPanels === 0) return "Loading the design\u2026";
+  if (state.fabricCount === 0) return "This shop has no fabrics listed.";
+  const remaining = state.totalPanels - state.paintedPanels;
+  if (remaining > 0) {
+    return `${remaining} panel${remaining === 1 ? "" : "s"} left to colour`;
+  }
+  if (state.size === null) return "Choose a size";
+  if (state.fill === null) return "Choose a fill";
+  return null;
+}
+
 export interface ShopInput {
   displayName: string | null;
   fillMaterials: string[];

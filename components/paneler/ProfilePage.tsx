@@ -219,8 +219,8 @@ export function ProfilePage({
         PROFILE
       </h1>
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
-        The fabrics you stock
-        {profile.apiKeyEnabled ? ", and the key your website uses." : "."}
+        Your shop, the fabrics you stock, and what customers can order
+        {profile.apiKeyEnabled ? ", plus the key your website uses." : "."}
       </p>
 
       <Section title="Shop">

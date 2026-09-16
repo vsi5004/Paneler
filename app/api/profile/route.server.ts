@@ -6,7 +6,12 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
-import { ensureUserProfile, setFabrics, setShop } from "@/lib/db/users";
+import {
+  ensureUserProfile,
+  getUserProfile,
+  setFabrics,
+  setShop,
+} from "@/lib/db/users";
 import { FabricValidationError, validateFabrics } from "@/lib/fabrics";
 import { OrderFormError, validateShop } from "@/lib/orderForm";
 import { generateShopId } from "@/lib/apiKey";
@@ -95,6 +100,21 @@ export async function PUT(req: Request) {
       }
       throw err;
     }
+    // Same invariant from the other side: emptying the shelf while the shop is
+    // live would silently break the order form for anyone holding the link.
+    if (fabrics.length === 0) {
+      const current = await getUserProfile(r.userSub);
+      if (current?.shopPublished) {
+        return NextResponse.json(
+          {
+            error: "shop_needs_fabrics",
+            detail:
+              "Your shop is live, so it needs at least one fabric. Take the shop offline first.",
+          },
+          { status: 400 },
+        );
+      }
+    }
     profile = await setFabrics(r.userSub, fabrics);
   }
 
@@ -111,6 +131,24 @@ export async function PUT(req: Request) {
       }
       throw err;
     }
+    // A live shop with no fabrics is a broken order form: the palette renders
+    // empty and selectedColor falls back to a hardcoded crimson, so a customer
+    // would paint a color this stitcher does not stock. The failure would only
+    // ever be visible to that customer, which is why it is refused here rather
+    // than left to look fine on the profile page.
+    if (shop.shopPublished) {
+      const current = await getUserProfile(r.userSub);
+      if (!current || current.fabrics.length === 0) {
+        return NextResponse.json(
+          {
+            error: "shop_needs_fabrics",
+            detail: "Add at least one fabric before making your shop live.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     // A candidate id is always supplied; setShop COALESCEs it away unless the
     // row has none yet, so an existing shop_id is never disturbed and links
     // already pasted in public keep working.
