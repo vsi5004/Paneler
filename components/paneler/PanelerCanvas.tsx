@@ -506,13 +506,18 @@ function CaptureRig({
   useEffect(() => {
     onReady(async () => {
       try {
-        // gifenc ships both CJS and ESM. A bundler resolving the CJS build
-        // puts the named exports on .default, so take either shape — guessing
-        // wrong here fails as an undefined call inside the catch below, i.e. an
-        // order that silently arrives with no picture.
-        const mod = await import("gifenc");
-        const { GIFEncoder, quantize, applyPalette } =
-          (mod as unknown as { default?: typeof mod }).default ?? mod;
+        // Plain named imports off the namespace. Verified in the browser:
+        // the bundled module exposes GIFEncoder, quantize and applyPalette
+        // directly.
+        //
+        // Do NOT "guard" this with `mod.default ?? mod`. The namespace also
+        // carries an EMPTY default export, so that guard silently destructures
+        // nothing and every call becomes undefined — it shipped once and failed
+        // as "quantize is not a function", caught below and delivered as an
+        // order with no picture. The defensive version was the bug.
+        //
+        // Dynamic so the encoder stays out of the main designer's bundle.
+        const { GIFEncoder, quantize, applyPalette } = await import("gifenc");
 
         const size = GIF_SIZE;
         const flat = document.createElement("canvas");
