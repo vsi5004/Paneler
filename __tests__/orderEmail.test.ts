@@ -72,6 +72,7 @@ describe("fabricBreakdown", () => {
 describe("composeOrderEmail", () => {
   const base = {
     ref: "K4P2-9WQX",
+    hasAnimation: true,
     shopName: "Footbags",
     itemTitle: "Classic 32-panel",
     size: 2.1,
@@ -105,6 +106,18 @@ describe("composeOrderEmail", () => {
     const withNote = composeOrderEmail({ ...base, note: "extra tight" });
     expect(withNote.text).toContain("Special requests");
     expect(withNote.text).toContain("extra tight");
+  });
+
+  it("says so plainly when no preview could be rendered", () => {
+    // Claiming an attachment that is not there sends the stitcher hunting for
+    // one; saying nothing leaves them wondering if they missed it.
+    const { text } = composeOrderEmail({ ...base, hasAnimation: false });
+    expect(text).toContain("No preview was attached");
+    expect(text).not.toContain("The attached animation");
+  });
+
+  it("mentions the animation when one is attached", () => {
+    expect(composeOrderEmail(base).text).toContain("The attached animation");
   });
 
   it("bounds the subject even though the title is the stitcher's own text", () => {

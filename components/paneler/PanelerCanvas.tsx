@@ -570,9 +570,14 @@ function CaptureRig({
         }
         enc.finish();
         return new Blob([enc.bytes() as BlobPart], { type: "image/gif" });
-      } catch {
-        // A lost context or a refused readback should cost the picture, not
-        // the order.
+      } catch (err) {
+        // A lost context or a refused readback costs the picture, not the
+        // order. Logged rather than swallowed silently: the first version of
+        // this failed in production with no attachment and no explanation, and
+        // a caught-and-forgotten error is indistinguishable from one that
+        // never happened.
+        // eslint-disable-next-line no-console
+        console.error("[paneler] design capture failed:", err);
         return null;
       }
     });

@@ -123,6 +123,7 @@ export async function POST(req: Request) {
   const ref = generateOrderRef();
   const { subject, text } = composeOrderEmail({
     ref,
+    hasAnimation: attachments.length > 0,
     shopName: shop.displayName,
     itemTitle: found.item.title,
     size: order.size,

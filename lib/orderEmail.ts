@@ -36,6 +36,8 @@ export function generateOrderRef(): string {
 
 export interface OrderEmailInput {
   ref: string;
+  /** Whether a rendered animation is actually attached. */
+  hasAnimation: boolean;
   shopName: string;
   itemTitle: string;
   size: number;
@@ -103,10 +105,20 @@ export function composeOrderEmail(input: OrderEmailInput): {
     for (const l of input.note.split("\n")) lines.push("  " + l);
   }
   lines.push("");
-  lines.push(
-    "The attached animation turns the ball through a full rotation, so every",
-  );
-  lines.push("panel is visible.");
+  if (input.hasAnimation) {
+    lines.push(
+      "The attached animation turns the ball through a full rotation, so every",
+    );
+    lines.push("panel is visible.");
+  } else {
+    // Said plainly rather than omitted. An order that mentions an attachment
+    // it does not carry sends the stitcher hunting for one; saying nothing at
+    // all leaves them wondering whether they missed it.
+    lines.push(
+      "No preview was attached - the customer's browser could not render one.",
+    );
+    lines.push("The fabric list above is the full specification.");
+  }
   lines.push("");
   lines.push(
     "The customer was shown this reference and asked to include it with their",
