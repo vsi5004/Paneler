@@ -106,6 +106,13 @@ export interface PaletteEntry {
   id: string;
   label: string;
   color: string;
+  /**
+   * Product line, e.g. "Ultrasuede LX". Catalog colours are named bare ("Red",
+   * "Sand") because the designer already groups them under a heading — but an
+   * order email has no heading, and "32 x Red" does not tell a stitcher which
+   * bolt to reach for.
+   */
+  line?: string;
   /** Optional fabric-photo thumbnail shown as the swatch background. */
   swatch?: string;
   /**

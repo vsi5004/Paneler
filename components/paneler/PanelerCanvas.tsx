@@ -36,6 +36,13 @@ const CLICK_DRAG_THRESHOLD = 5;
 // without making a slow drag paint.
 const TOUCH_DRAG_THRESHOLD = 12;
 
+// Animation written into the stitcher's order email. 400px and 24 frames keeps
+// it a few hundred KB — small enough to attach without thought, large enough to
+// count panels and read the seams.
+const GIF_SIZE = 400;
+const GIF_FRAMES = 24;
+const GIF_FRAME_MS = 90;
+
 function dragThreshold(pointerType: string): number {
   return pointerType === "touch" || pointerType === "pen"
     ? TOUCH_DRAG_THRESHOLD
@@ -58,7 +65,7 @@ interface PanelerCanvasProps {
    * browser to keep the framebuffer after compositing - so it is enabled ONLY
    * when a caller actually wants pictures, never for the main designer.
    */
-  onCaptureReady?: (capture: (rotateY: number) => Promise<Blob | null>) => void;
+  onCaptureReady?: (capture: () => Promise<Blob | null>) => void;
 }
 
 export default function PanelerCanvas({
@@ -473,51 +480,99 @@ function PanelGroup({
 }
 
 /**
- * Hands the parent a function that renders the scene from a given angle and
- * returns a PNG data URL.
+ * Hands the parent a function that renders the ball turning through a full
+ * rotation and encodes it as an animated GIF.
  *
- * It must live INSIDE the Canvas: useThree only resolves within the R3F tree,
- * and the renderer is what holds the framebuffer being read back.
+ * Must live INSIDE the Canvas: useThree only resolves within the R3F tree, and
+ * the renderer is what holds the framebuffer being read back.
  *
- * The explicit gl.render() before reading is load-bearing. Even with
- * preserveDrawingBuffer the buffer holds whatever was composited last, so
- * moving the camera and immediately reading back captures the PREVIOUS frame,
- * which would silently email two identical pictures of the same side.
+ * Every frame is copied SYNCHRONOUSLY into a 2D canvas the moment after
+ * gl.render(). That is the whole trick. R3F runs its own animation loop, so
+ * anything async between rendering and reading - toBlob(), an await, a
+ * microtask - races that loop and reads whatever it drew instead. An earlier
+ * version used toBlob and shipped an order with one dark image where two
+ * different views were expected.
  *
- * Returns a Blob, not a data URL. toDataURL would mean fetch()ing a data: URL
- * to get bytes to upload, and fetch on data: is governed by connect-src, which
- * does not allow it - that threw "Failed to fetch" and killed the whole
- * submission. toBlob avoids the round trip entirely and never touches CSP.
+ * A rotation also replaces the two-still approach entirely: a stitcher needs to
+ * see every panel, and two opposite views miss the sides.
  */
 function CaptureRig({
   onReady,
 }: {
-  onReady: (capture: (rotateY: number) => Promise<Blob | null>) => void;
+  onReady: (capture: () => Promise<Blob | null>) => void;
 }) {
   const { gl, scene, camera } = useThree();
 
   useEffect(() => {
-    const radius = camera.position.length();
-    const original = camera.position.clone();
-
-    onReady(async (rotateY: number) => {
+    onReady(async () => {
       try {
-        camera.position.set(
-          Math.sin(rotateY) * radius,
-          0,
-          Math.cos(rotateY) * radius,
-        );
-        camera.lookAt(0, 0, 0);
-        gl.render(scene, camera);
-        const blob = await new Promise<Blob | null>((resolve) =>
-          gl.domElement.toBlob(resolve, "image/png"),
-        );
+        // gifenc ships both CJS and ESM. A bundler resolving the CJS build
+        // puts the named exports on .default, so take either shape — guessing
+        // wrong here fails as an undefined call inside the catch below, i.e. an
+        // order that silently arrives with no picture.
+        const mod = await import("gifenc");
+        const { GIFEncoder, quantize, applyPalette } =
+          (mod as unknown as { default?: typeof mod }).default ?? mod;
+
+        const size = GIF_SIZE;
+        const flat = document.createElement("canvas");
+        flat.width = size;
+        flat.height = size;
+        const ctx = flat.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+
+        const radius = camera.position.length();
+        const original = camera.position.clone();
+        // A pale ground rather than the app's near-black: the email is read on
+        // a white background, and a dark ball on dark reads as a smudge.
+        const clear = new THREE.Color();
+        gl.getClearColor(clear);
+        const clearAlpha = gl.getClearAlpha();
+        gl.setClearColor(0xf4f2ee, 1);
+
+        const frames: { index: Uint8Array; palette: number[][] }[] = [];
+        let palette: number[][] | null = null;
+
+        for (let i = 0; i < GIF_FRAMES; i += 1) {
+          const angle = (i / GIF_FRAMES) * Math.PI * 2;
+          camera.position.set(
+            Math.sin(angle) * radius,
+            0,
+            Math.cos(angle) * radius,
+          );
+          camera.lookAt(0, 0, 0);
+          gl.render(scene, camera);
+
+          // Synchronous, immediately after the render. See above.
+          ctx.drawImage(gl.domElement, 0, 0, size, size);
+          const { data } = ctx.getImageData(0, 0, size, size);
+
+          // One palette, taken from the first frame and reused. The ball is one
+          // material under one light, so the colours barely move between
+          // frames; per-frame palettes cost time and file size for nothing, and
+          // a shared palette also stops the background shimmering.
+          if (!palette) palette = quantize(data, 256);
+          const pal = palette;
+          frames.push({ index: applyPalette(data, pal), palette: pal });
+        }
+
+        gl.setClearColor(clear, clearAlpha);
         camera.position.copy(original);
         camera.lookAt(0, 0, 0);
         gl.render(scene, camera);
-        return blob;
+
+        const enc = GIFEncoder();
+        for (const f of frames) {
+          enc.writeFrame(f.index, size, size, {
+            palette: f.palette,
+            delay: GIF_FRAME_MS,
+          });
+        }
+        enc.finish();
+        return new Blob([enc.bytes() as BlobPart], { type: "image/gif" });
       } catch {
-        // A tainted or lost context should cost the pictures, not the order.
+        // A lost context or a refused readback should cost the picture, not
+        // the order.
         return null;
       }
     });

@@ -33,8 +33,13 @@ export const FABRIC_GROUPS: { label: string; entries: PaletteEntry[] }[] = [
 ];
 
 /** id → catalog entry. Built from the palettes, never a second copy of them. */
+// Flattened for lookup, but each entry keeps the group it came from. The group
+// is the product line, and it is the half of a fabric's name that says what to
+// order; losing it here is why an order email once read "32 x Red".
 export const FABRIC_CATALOG: ReadonlyMap<string, PaletteEntry> = new Map(
-  FABRIC_GROUPS.flatMap((g) => g.entries).map((e) => [e.id, e]),
+  FABRIC_GROUPS.flatMap((g) =>
+    g.entries.map((e) => [e.id, { ...e, line: g.label }] as const),
+  ),
 );
 
 /** Bounds. The list is a handful of fabrics, not a data store. */

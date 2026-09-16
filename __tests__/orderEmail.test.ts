@@ -8,8 +8,8 @@ import {
 import type { PaletteEntry } from "@/lib/types";
 
 const fabrics: PaletteEntry[] = [
-  { id: "lx-red", label: "Ultrasuede LX Red", color: "#c41e3a" },
-  { id: "lx-white", label: "Ultrasuede LX White", color: "#f2efe9" },
+  { id: "lx-red", label: "Red", color: "#c41e3a", line: "Ultrasuede LX" },
+  { id: "lx-white", label: "White", color: "#f2efe9", line: "Ultrasuede LX" },
 ];
 
 describe("generateOrderRef", () => {
@@ -34,14 +34,23 @@ describe("fabricBreakdown", () => {
   it("counts panels per fabric and names them as the stitcher named them", () => {
     const colors = { p1: "#c41e3a", p2: "#c41e3a", p3: "#f2efe9" };
     expect(fabricBreakdown(colors, fabrics)).toEqual([
-      { label: "Ultrasuede LX Red", count: 2 },
-      { label: "Ultrasuede LX White", count: 1 },
+      { label: "Ultrasuede LX - Red", count: 2 },
+      { label: "Ultrasuede LX - White", count: 1 },
     ]);
   });
 
   it("matches regardless of hex casing", () => {
     expect(fabricBreakdown({ p1: "#C41E3A" }, fabrics)[0].label).toBe(
-      "Ultrasuede LX Red",
+      "Ultrasuede LX - Red",
+    );
+  });
+
+  it("keeps a custom fabric's own name, which has no product line", () => {
+    const custom: PaletteEntry[] = [
+      { id: "custom:abc123", label: "Lance's grey", color: "#808080" },
+    ];
+    expect(fabricBreakdown({ p1: "#808080" }, custom)[0].label).toBe(
+      "Lance's grey",
     );
   });
 
@@ -54,7 +63,7 @@ describe("fabricBreakdown", () => {
   it("orders by count so the dominant fabric reads first", () => {
     const colors = { a: "#f2efe9", b: "#c41e3a", c: "#c41e3a", d: "#c41e3a" };
     expect(fabricBreakdown(colors, fabrics)[0]).toEqual({
-      label: "Ultrasuede LX Red",
+      label: "Ultrasuede LX - Red",
       count: 3,
     });
   });
@@ -83,7 +92,7 @@ describe("composeOrderEmail", () => {
     expect(text).toContain("2.1 in");
     expect(text).toContain("freestyle");
     expect(text).toContain("@someone");
-    expect(text).toContain("Ultrasuede LX Red");
+    expect(text).toContain("Ultrasuede LX - Red");
   });
 
   it("says so plainly when no contact was given", () => {

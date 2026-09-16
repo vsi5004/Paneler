@@ -58,8 +58,13 @@ export function fabricBreakdown(
   panelColors: Record<string, string>,
   fabrics: PaletteEntry[],
 ): { label: string; count: number }[] {
+  // Named line-first, the way a stitcher would ask for it at the bolt:
+  // "Ultrasuede LX - Red", not "Red". Custom fabrics have no line and keep
+  // whatever the stitcher called them.
   const byHex = new Map<string, string>();
-  for (const f of fabrics) byHex.set(f.color.toLowerCase(), f.label);
+  for (const f of fabrics) {
+    byHex.set(f.color.toLowerCase(), f.line ? `${f.line} - ${f.label}` : f.label);
+  }
 
   const counts = new Map<string, number>();
   for (const hex of Object.values(panelColors)) {
@@ -98,7 +103,10 @@ export function composeOrderEmail(input: OrderEmailInput): {
     for (const l of input.note.split("\n")) lines.push("  " + l);
   }
   lines.push("");
-  lines.push("The two images attached show the front and back of the ball.");
+  lines.push(
+    "The attached animation turns the ball through a full rotation, so every",
+  );
+  lines.push("panel is visible.");
   lines.push("");
   lines.push(
     "The customer was shown this reference and asked to include it with their",

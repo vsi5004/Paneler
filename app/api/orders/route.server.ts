@@ -21,9 +21,13 @@ import { checkSubmission, clientKey, fingerprintOrder } from "@/lib/orderAbuse";
 
 export const dynamic = "force-dynamic";
 
-/** Two PNG views of the ball, client-rendered. */
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-const MAX_BODY_BYTES = 2 * MAX_IMAGE_BYTES + 64 * 1024;
+/**
+ * One animated GIF of the ball turning, rendered in the customer's browser.
+ * 400px x 24 frames lands in the hundreds of KB; 8 MB is far above any real
+ * one and still far below anything that troubles the pod.
+ */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
 
 /**
  * CSRF is not a concern here in the usual sense: there is no session and no
@@ -103,18 +107,17 @@ export async function POST(req: Request) {
   }
 
   const attachments = [];
-  for (const [field, name] of [
-    ["viewFront", "front.png"],
-    ["viewBack", "back.png"],
-  ] as const) {
-    const f = form.get(field);
-    if (f instanceof File && f.size > 0 && f.size <= MAX_IMAGE_BYTES) {
-      attachments.push({
-        filename: name,
-        content: Buffer.from(await f.arrayBuffer()),
-        contentType: "image/png",
-      });
-    }
+  const animation = form.get("animation");
+  if (
+    animation instanceof File &&
+    animation.size > 0 &&
+    animation.size <= MAX_IMAGE_BYTES
+  ) {
+    attachments.push({
+      filename: "design.gif",
+      content: Buffer.from(await animation.arrayBuffer()),
+      contentType: "image/gif",
+    });
   }
 
   const ref = generateOrderRef();

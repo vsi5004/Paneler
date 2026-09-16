@@ -94,9 +94,7 @@ export function OrderDesigner({
   const [error, setError] = useState<string | null>(null);
   const [ref, setRef] = useState<string | null>(null);
   // Populated by the canvas once its renderer exists.
-  const captureRef = useRef<((rotateY: number) => Promise<Blob | null>) | null>(
-    null,
-  );
+  const captureRef = useRef<(() => Promise<Blob | null>) | null>(null);
 
   const blanked = useRef(false);
 
@@ -182,26 +180,19 @@ export function OrderDesigner({
         }),
       );
 
-      // Two opposite views, and genuinely best-effort: the try/catch is the
-      // whole point, not decoration. A capture failure used to reject the
-      // entire submission - which is how a CSP problem with the screenshots
-      // turned into "Failed to fetch" and lost the order outright. The fabric
-      // breakdown in the email is what the stitcher actually cuts from; the
-      // pictures are a convenience and must never outrank the order itself.
+      // A full rotation as an animated GIF, and genuinely best-effort: the
+      // try/catch is the point, not decoration. A capture failure used to
+      // reject the whole submission, which is how a CSP problem with the
+      // pictures turned into "Failed to fetch" and lost the order outright.
+      // The fabric breakdown is what the stitcher cuts from; the animation is a
+      // convenience and must never outrank the order itself.
       const capture = captureRef.current;
       if (capture) {
         try {
-          const shots: [string, number][] = [
-            ["viewFront", 0],
-            ["viewBack", Math.PI],
-          ];
-          for (const [field, angle] of shots) {
-            const blob = await capture(angle);
-            if (!blob) continue;
-            form.append(field, blob, field + ".png");
-          }
+          const gif = await capture();
+          if (gif) form.append("animation", gif, "design.gif");
         } catch {
-          // Send without pictures rather than not at all.
+          // Send without it rather than not at all.
         }
       }
 
@@ -391,7 +382,7 @@ export function OrderDesigner({
             disabled={submitting || !complete}
             className="w-full rounded-md bg-primary px-4 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-40"
           >
-            {submitting ? "Sending…" : "Place order"}
+            {submitting ? "Rendering your design…" : "Place order"}
           </button>
         </div>
       </div>
