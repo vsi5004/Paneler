@@ -308,22 +308,37 @@ const url = process.env.TEST_DATABASE_URL;
     // No RETURNING: it applies the SELECT policy, which the customer fails for
     // a row owned by the stitcher — and fails with the same message as a WITH
     // CHECK violation. See createOrderDesign.
+    // EVERY column createOrderDesign writes, in its order. This is the
+    // regression guard for the bug that shipped: the value list grew to 11
+    // while the statement still had 9 placeholders, and every order submission
+    // failed with "bind message supplies 11 parameters". Nothing caught it
+    // because no test drove this statement — the route stops at the R2 call and
+    // this file used to insert a shorter hand-written row. If a column is added
+    // to createOrderDesign and not here, this drifts again; keep them together.
     await client.query(
-      `INSERT INTO designs (user_sub, email, name, glb_key, source, fill, note)
-       VALUES ('stitcher', 'buyer@example.com', 'ref', 'designs/o.glb',
-               'order:' || $1, 'freestyle', 'please hurry')`,
+      `INSERT INTO designs (
+         id, user_sub, email, name, glb_key, source, fill, note, panel_count,
+         glb_etag, glb_size_bytes
+       )
+       VALUES (gen_random_uuid(), 'stitcher', 'buyer@example.com', 'ref',
+               'designs/o.glb', 'order:' || $1, 'freestyle', 'please hurry',
+               32, 'etag123', 4096)`,
       [itemId],
     );
     await client.query("COMMIT");
 
     const { rows } = await client.query(
-      `SELECT email, fill, note FROM designs WHERE source = 'order:' || $1`,
+      `SELECT email, fill, note, panel_count, glb_etag, glb_size_bytes
+         FROM designs WHERE source = 'order:' || $1`,
       [itemId],
     );
     expect(rows[0]).toMatchObject({
       email: "buyer@example.com",
       fill: "freestyle",
       note: "please hurry",
+      panel_count: 32,
+      glb_etag: "etag123",
+      glb_size_bytes: 4096,
     });
   });
 
