@@ -234,8 +234,14 @@ export function OrderDesigner({ shop, item, signedIn }: OrderDesignerProps) {
         detail?: string;
       };
       if (!res.ok) {
+        // Fall back to the status code rather than a bare apology. A plain
+        // "Couldn't place the order." tells the customer nothing and tells
+        // whoever they report it to even less — the first real order failed on
+        // a 500 and the message gave no way to tell a bug from a bad input.
         throw new Error(
-          body.detail ?? errorText(body.error) ?? "Couldn't place the order.",
+          body.detail ??
+            errorText(body.error) ??
+            `Couldn't place the order (error ${res.status}). Try again — if it keeps happening, let ${shop.displayName} know.`,
         );
       }
       setOrderId(body.id ?? null);

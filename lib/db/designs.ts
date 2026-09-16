@@ -140,24 +140,30 @@ export async function createOrderDesign(
   },
 ): Promise<void> {
   await withUserSession(customerSub, async (client) => {
+    // Columns and values are declared together, and the placeholders are
+    // derived, so the two cannot drift. They did once: adding glb_etag and
+    // glb_size_bytes grew the value list to 11 while the hand-numbered
+    // statement stayed at 9, and every order submission failed with "bind
+    // message supplies 11 parameters, but prepared statement requires 9".
+    // Nothing caught it until a real order was placed, because this is the one
+    // statement no test exercises.
+    const fields: [string, unknown][] = [
+      ["id", input.id],
+      ["user_sub", input.stitcherSub],
+      ["email", input.customerEmail],
+      ["name", input.name],
+      ["glb_key", input.glbKey],
+      ["source", `order:${input.itemId}`],
+      ["fill", input.fill],
+      ["note", input.note],
+      ["panel_count", input.panelCount],
+      ["glb_etag", input.glbEtag],
+      ["glb_size_bytes", input.glbSizeBytes],
+    ];
     await client.query(
-      `INSERT INTO designs (
-         id, user_sub, email, name, glb_key, source, fill, note, panel_count
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        input.id,
-        input.stitcherSub,
-        input.customerEmail,
-        input.name,
-        input.glbKey,
-        `order:${input.itemId}`,
-        input.fill,
-        input.note,
-        input.panelCount,
-        input.glbEtag,
-        input.glbSizeBytes,
-      ],
+      `INSERT INTO designs (${fields.map(([c]) => c).join(", ")})
+       VALUES (${fields.map((_, i) => `$${i + 1}`).join(", ")})`,
+      fields.map(([, v]) => v),
     );
   });
 }
