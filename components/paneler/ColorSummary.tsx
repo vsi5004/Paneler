@@ -56,14 +56,6 @@ export function ColorSummary({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
-          Summary
-        </h2>
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-          {topology.panels.length} panels
-        </span>
-      </div>
       <ScrollArea className="-mr-2 flex-1 pr-2">
         <div className="flex flex-col gap-4 pb-2">
           {breakdowns.map((b) => (

@@ -17,6 +17,12 @@ import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { openGlb, saveGlb } from "@/lib/files/glbFile";
 import { useDesigns } from "@/lib/useDesigns";
 import { ColorPalette } from "./ColorPalette";
@@ -176,6 +182,7 @@ export function PanelerDesigner({
 
   // Gallery modal — shown when user clicks "New Design" anywhere.
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const handleLoadDesign = useCallback(
     async (id: string) => {
@@ -594,15 +601,42 @@ export function PanelerDesigner({
                       groups={paletteGroups}
                     />
                   </section>
-                  <div className="workshop-hairline mt-5" />
                   {topology && (
-                    <div className="mt-5 flex flex-1 flex-col overflow-hidden">
-                      <ColorSummary
-                        topology={topology}
-                        panelColors={panelColors}
-                        onSwatchClick={setSelectedColor}
-                      />
-                    </div>
+                    <>
+                      <div className="workshop-hairline mt-5" />
+                      <div className="mt-4 flex justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-mono text-[10px] uppercase tracking-[0.2em]"
+                          onClick={() => setSummaryOpen(true)}
+                        >
+                          Color Summary
+                        </Button>
+                      </div>
+                      <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
+                        <DialogContent className="max-w-sm border-border bg-[oklch(0.08_0_0)]">
+                          <DialogHeader>
+                            <div className="flex items-baseline justify-between">
+                              <DialogTitle className="font-heading tracking-[0.18em] text-foreground">
+                                Color Summary
+                              </DialogTitle>
+                              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                                {topology.panels.length} panels
+                              </span>
+                            </div>
+                          </DialogHeader>
+                          <ColorSummary
+                            topology={topology}
+                            panelColors={panelColors}
+                            onSwatchClick={(color) => {
+                              setSelectedColor(color);
+                              setSummaryOpen(false);
+                            }}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    </>
                   )}
                   <div className="workshop-hairline mt-5" />
                   <p className="mt-4 font-mono text-[10px] uppercase leading-relaxed tracking-[0.15em] text-muted-foreground">
