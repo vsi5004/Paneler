@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { unfoldNet } from "@/lib/flatten/unfoldNet";
 import { buildCurvedPanelPath } from "@/lib/flatten/panelPath";
 import type { PanelFlat } from "@/lib/flatten/types";
@@ -28,6 +28,8 @@ interface PanelerFlatViewProps {
  * bulges past its 3D chord — so a tetrahedron (huge spherical faces)
  * shows visibly curved triangle edges, while a 162-panel Goldberg
  * looks nearly straight-edged.
+ *
+ * Double-click a panel to recenter the net around it.
  */
 export default function PanelerFlatView({
   topology,
@@ -36,13 +38,21 @@ export default function PanelerFlatView({
   onPanelClick,
   flattenOptions,
 }: PanelerFlatViewProps) {
+  const [centerPanelId, setCenterPanelId] = useState<string | null>(null);
+
+  // Reset center when the design changes.
+  useEffect(() => setCenterPanelId(null), [topology]);
+
   // Memoise by topology reference; PanelerDesigner's `useMemo` already
   // gives us a stable identity per preset / OBJ upload.
   const { layout, viewBox } = useMemo(() => {
-    const layout = unfoldNet(topology, flattenOptions);
+    const opts = centerPanelId
+      ? { ...flattenOptions, rootId: centerPanelId }
+      : flattenOptions;
+    const layout = unfoldNet(topology, opts);
     const viewBox = computeViewBox(layout);
     return { layout, viewBox };
-  }, [topology, flattenOptions]);
+  }, [topology, flattenOptions, centerPanelId]);
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
@@ -56,20 +66,25 @@ export default function PanelerFlatView({
           if (!flat || flat.corners.length < 3) return null;
           const fill = panelColors[panel.id] ?? DEFAULT_PANEL_COLOR;
           const selected = panel.id === selectedPanelId;
+          const isCenter = panel.id === centerPanelId;
           return (
             <path
               key={panel.id}
               d={buildCurvedPanelPath(flat)}
               fill={fill}
-              stroke="#ffffff"
-              strokeWidth={selected ? 0.04 : 0.012}
-              strokeOpacity={selected ? 1 : 0.75}
+              stroke={isCenter ? "var(--primary)" : "#ffffff"}
+              strokeWidth={isCenter ? 0.05 : selected ? 0.04 : 0.012}
+              strokeOpacity={isCenter || selected ? 1 : 0.75}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
               style={{ cursor: "pointer" }}
               onClick={(e) => {
                 e.stopPropagation();
                 onPanelClick(panel.id);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setCenterPanelId(panel.id === centerPanelId ? null : panel.id);
               }}
             />
           );

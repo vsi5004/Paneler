@@ -48,7 +48,10 @@ export function unfoldNet(
     adjacency.get(edge.panelB)?.push(edge.panelA);
   }
 
-  const rootId = chooseRoot(topo);
+  const rootId =
+    options.rootId && panelById.has(options.rootId)
+      ? options.rootId
+      : chooseRoot(topo);
   const rootPanel = panelById.get(rootId);
   if (!rootPanel) return result;
 
@@ -493,6 +496,12 @@ export interface FlattenOptions {
    * see lib/flatten/bandDevelop.ts.
    */
   seamTrueBands?: boolean;
+  /**
+   * Override the root panel for the net layout. When set, the BFS fans
+   * out from this panel instead of the auto-chosen top-of-sphere panel.
+   * Ignored if the id doesn't exist in the topology.
+   */
+  rootId?: string;
 }
 
 export function symmetrizeWavyPanel(
