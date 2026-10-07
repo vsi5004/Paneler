@@ -28,6 +28,13 @@ interface LaserSettingsPanelProps {
    * sliders are meaningless there and hidden.
    */
   hasPolygonPanels: boolean;
+  /**
+   * Whether the design has edges of different lengths (e.g. soccer ball
+   * hex-hex vs hex-pent). When false, the short-edge holes toggle and
+   * extension slider are hidden — they're meaningless on equal-edge
+   * designs like the tetrahedron or cube.
+   */
+  hasShortEdges: boolean;
 }
 
 /**
@@ -39,6 +46,7 @@ export function LaserSettingsPanel({
   values,
   onChange,
   hasPolygonPanels,
+  hasShortEdges,
 }: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
     Array.isArray(v) ? v[0] : (v as number);
@@ -104,6 +112,7 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ holeSpacingMm: first(v) })}
           />
         </div>
+        {hasShortEdges && (
         <div className="flex items-center justify-between">
           <label
             className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
@@ -132,7 +141,8 @@ export function LaserSettingsPanel({
             />
           </button>
         </div>
-        {!values.shortEdgeHoles && (
+        )}
+        {hasShortEdges && !values.shortEdgeHoles && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">

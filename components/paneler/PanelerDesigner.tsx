@@ -145,6 +145,7 @@ export function PanelerDesigner({
     if (
       !preset?.laserSharpBendAnchors &&
       !preset?.seamTrueFlatten &&
+      !preset?.laserCornerHoles &&
       preset?.gatherCorrection === undefined
     ) {
       return undefined;
@@ -152,6 +153,7 @@ export function PanelerDesigner({
     return {
       ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
       ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
+      ...(preset.laserCornerHoles ? { cornerHoles: true } : {}),
       ...(preset.gatherCorrection !== undefined
         ? { gatherCorrection: preset.gatherCorrection }
         : {}),
@@ -565,6 +567,13 @@ export function PanelerDesigner({
                         hasPolygonPanels={topology.panels.some(
                           (p) => p.vertexIndices.length <= 6,
                         )}
+                        hasShortEdges={(() => {
+                          const lens = topology.edges.map((e) =>
+                            topology.vertices[e.vertexA].distanceTo(topology.vertices[e.vertexB]),
+                          );
+                          const maxLen = Math.max(...lens);
+                          return maxLen > 0 && lens.some((l) => l < 0.55 * maxLen);
+                        })()}
                       />
                       <div className="workshop-hairline my-5" />
                     </>

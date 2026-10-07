@@ -242,6 +242,13 @@ export interface PresetEntry {
    * corner-to-corner spacing.
    */
   laserSharpBendAnchors?: boolean;
+  /**
+   * Place a stitch hole exactly at every polygon corner and space the
+   * remaining holes evenly between corners. For designs where every
+   * vertex is a junction of few panels (tetrahedron: 3 panels per
+   * vertex) — a corner stitch is structural.
+   */
+  laserCornerHoles?: boolean;
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
 }
 
@@ -338,7 +345,7 @@ export const PRESETS: PresetEntry[] = [
       spiral(radius, (params?.twist ?? 100) / 100),
   },
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
-  { id: "tetra", label: "Tetrahedron", panels: 4, topology: tetrahedron },
+  { id: "tetra", label: "Tetrahedron", panels: 4, laserCornerHoles: true, topology: tetrahedron },
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },

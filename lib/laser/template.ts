@@ -32,6 +32,12 @@ export interface LaserTemplateOptions {
   seamTrueBands?: boolean;
   /** Per-design gather correction override (linear factor). */
   gatherCorrection?: number;
+  /**
+   * Place a stitch hole exactly at every polygon corner (vertex junction)
+   * and space remaining holes evenly between corners. For simple-polygon
+   * designs like the tetrahedron where corner stitches are structural.
+   */
+  cornerHoles?: boolean;
 }
 
 export function buildLaserTemplate(
@@ -702,7 +708,7 @@ function placeStitchHoles(
   // the remaining holes divide each run EVENLY corner-to-corner (no
   // bunching, no end slack). Count derives from the canonical run length
   // so all equivalent runs and both sides of a seam agree.
-  const cornerHoles = isWavy && runs.length > 1;
+  const cornerHoles = (isWavy && runs.length > 1) || !!options.cornerHoles;
 
   const holes: Vec2[] = [];
   const edgeHoles: number[] = [];

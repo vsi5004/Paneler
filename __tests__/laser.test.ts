@@ -517,6 +517,36 @@ describe("stitch holes", () => {
     expect(spread).toBeLessThan(0.5);
   });
 
+  it("tetrahedron: corner holes at every vertex, even spacing between", () => {
+    const topo = topoOf("tetra");
+    const cls = groupPanelsByCongruence(topo)[0];
+    const t = buildLaserTemplate(topo, cls, SETTINGS, { cornerHoles: true });
+    // Triangle: 3 edges, each is a separate run → 3 corner holes.
+    const scale = mmPerUnit(SETTINGS.diameterIn);
+    const flat = laserPanelOutline(topo, cls.representative);
+    for (let i = 0; i < 3; i++) {
+      const cx = flat.corners[i].x * scale;
+      const cy = flat.corners[i].y * scale;
+      const best = Math.min(
+        ...t.holes.map((h) => Math.hypot(h.x - cx, h.y - cy)),
+      );
+      expect(best).toBeLessThan(0.05);
+    }
+    // 3 edges → each edge's hole count is identical.
+    expect(t.edgeHoles.length).toBe(3);
+    expect(t.edgeHoles[0]).toBe(t.edgeHoles[1]);
+    expect(t.edgeHoles[1]).toBe(t.edgeHoles[2]);
+    // Even spacing within each run (no bunching — corner-hole path).
+    const runLen = t.holes.length / 3;
+    expect(Number.isInteger(runLen)).toBe(true);
+    const run = t.holes.slice(0, runLen);
+    const gaps = run
+      .slice(1)
+      .map((h, i) => Math.hypot(h.x - run[i].x, h.y - run[i].y));
+    const spread = Math.max(...gaps) - Math.min(...gaps);
+    expect(spread).toBeLessThan(0.3);
+  });
+
   it("teamgeist: every run is holed, counts mate across both classes", () => {
     // Regression: the short-run rule (no holes on runs < 55% of the
     // longest, meant for the soccer hex's unstitched short edges) was
