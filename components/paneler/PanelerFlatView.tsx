@@ -55,7 +55,10 @@ export default function PanelerFlatView({
   }, [topology, flattenOptions, centerPanelId]);
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
+    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
+      <span className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/80">
+        Double-click a panel to recenter
+      </span>
       <svg
         viewBox={viewBox}
         className="size-full max-h-full max-w-full"
