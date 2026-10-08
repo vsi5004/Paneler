@@ -460,13 +460,15 @@ function sharpenOffsetCorners(
     const dwx = cutPoints[wing2].x - cutPoints[wing1].x;
     const dwy = cutPoints[wing2].y - cutPoints[wing1].y;
     const t = (dwx * t2y - dwy * t2x) / rayCross;
-    if (t < 0) continue;
+    const s = (dwx * t1y - dwy * t1x) / rayCross;
+    if (t < 0 || s < 0) continue;
     const miter: Vec2 = {
       x: cutPoints[wing1].x + t * t1x,
       y: cutPoints[wing1].y + t * t1y,
     };
 
-    if (Math.hypot(miter.x - curr.x, miter.y - curr.y) > biteDepth * 4) continue;
+    const miterDist = Math.hypot(miter.x - curr.x, miter.y - curr.y);
+    if (miterDist > biteDepth * 2.5 || miterDist < apexDist * 0.8) continue;
 
     let pi = (wing1 + 1) % np;
     for (let steps = 0; steps < np; steps++) {
