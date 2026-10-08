@@ -347,7 +347,7 @@ export const PRESETS: PresetEntry[] = [
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, laserCornerHoles: true, topology: tetrahedron },
   { id: "cube", label: "Cube", panels: 6, topology: cube },
-  { id: "octa", label: "Octahedron", panels: 8, topology: octahedron },
+  { id: "octa", label: "Octahedron", panels: 8, laserCornerHoles: true, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
   {
     id: "orbita",
