@@ -65,8 +65,11 @@ export function LaserTemplatePane({
 
   const templates = useMemo(() => {
     const classes = groupPanelsByCongruence(topology);
+    const opts = laserSettings.sharpCorners
+      ? { ...templateOptions, sharpCorners: true }
+      : templateOptions;
     return classes.map((cls) =>
-      buildLaserTemplate(topology, cls, laserSettings, templateOptions),
+      buildLaserTemplate(topology, cls, laserSettings, opts),
     );
   }, [topology, laserSettings, templateOptions]);
 

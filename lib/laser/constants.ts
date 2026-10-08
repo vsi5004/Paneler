@@ -6,6 +6,7 @@
  */
 
 import { SPHERE_RADIUS } from "@/lib/glb/generate";
+import type { LaserSettings } from "@/lib/laser/types";
 
 /** Diameter of each laser-cut stitch hole. */
 export const STITCH_HOLE_DIAMETER_MM = 0.2;
@@ -93,16 +94,7 @@ export function mmPerUnit(
 }
 
 /** Fresh default settings object (new designs, missing extras). */
-export function defaultLaserSettings(): {
-  diameterIn: number;
-  biteDepthMm: number;
-  curvaturePct: number;
-  showHoles: boolean;
-  holeSpacingMm: number;
-  cornerMarginMm: number;
-  shortEdgeHoles: boolean;
-  shortEdgeExtensionMm: number;
-} {
+export function defaultLaserSettings(): LaserSettings {
   return {
     diameterIn: DEFAULT_DIAMETER_IN,
     biteDepthMm: DEFAULT_BITE_DEPTH_MM,
@@ -112,6 +104,7 @@ export function defaultLaserSettings(): {
     cornerMarginMm: CORNER_MARGIN_MM,
     shortEdgeHoles: false,
     shortEdgeExtensionMm: 0,
+    sharpCorners: false,
   };
 }
 

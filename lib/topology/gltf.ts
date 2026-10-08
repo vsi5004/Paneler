@@ -6,6 +6,7 @@ import {
   type PanelTopology,
   shapeForVertexCount,
 } from "@/lib/types";
+import type { LaserSettings } from "@/lib/laser/types";
 
 /**
  * Per-panel rendering hint extracted from a parsed GLB. Lets the renderer
@@ -33,16 +34,7 @@ export interface ParsedGlb {
   design?: {
     presetId?: string;
     params: Record<string, number>;
-    laser?: {
-      diameterIn: number;
-      biteDepthMm: number;
-      curvaturePct: number;
-      showHoles: boolean;
-      holeSpacingMm: number;
-      cornerMarginMm: number;
-      shortEdgeHoles: boolean;
-      shortEdgeExtensionMm: number;
-    };
+    laser?: LaserSettings;
   };
 }
 
@@ -158,18 +150,7 @@ function parseDesignExtras(
     }
   }
 
-  let cleanLaser:
-    | {
-        diameterIn: number;
-        biteDepthMm: number;
-        curvaturePct: number;
-        showHoles: boolean;
-        holeSpacingMm: number;
-        cornerMarginMm: number;
-        shortEdgeHoles: boolean;
-        shortEdgeExtensionMm: number;
-      }
-    | undefined;
+  let cleanLaser: LaserSettings | undefined;
   if (typeof laser === "object" && laser !== null) {
     const {
       diameterIn,
@@ -180,6 +161,7 @@ function parseDesignExtras(
       cornerMarginMm,
       shortEdgeHoles,
       shortEdgeExtensionMm,
+      sharpCorners,
     } = laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
@@ -213,6 +195,8 @@ function parseDesignExtras(
           Number.isFinite(shortEdgeExtensionMm)
             ? shortEdgeExtensionMm
             : 0,
+        sharpCorners:
+          typeof sharpCorners === "boolean" ? sharpCorners : false,
       };
     }
   }

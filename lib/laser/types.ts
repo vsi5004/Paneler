@@ -30,6 +30,8 @@ export interface LaserSettings {
    * runs are real stitched seams).
    */
   shortEdgeHoles: boolean;
+  /** Replace rounded arc joins at convex cut-outline corners with straight bevels. */
+  sharpCorners: boolean;
 }
 
 /** A group of congruent panels that share one template. */

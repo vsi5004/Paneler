@@ -38,6 +38,8 @@ export interface LaserTemplateOptions {
    * designs like the tetrahedron where corner stitches are structural.
    */
   cornerHoles?: boolean;
+  /** Replace rounded arc joins at convex corners with straight bevels. */
+  sharpCorners?: boolean;
 }
 
 export function buildLaserTemplate(
@@ -74,7 +76,9 @@ export function buildLaserTemplate(
     extendShortEdges(samples, unstitchedSpans, settings.shortEdgeExtensionMm),
     settings.biteDepthMm,
   );
-  const cutPoints = sharpenOffsetCorners(rawCut, flatMm.corners, settings.biteDepthMm);
+  const cutPoints = options.sharpCorners
+    ? sharpenOffsetCorners(rawCut, flatMm, settings.biteDepthMm)
+    : rawCut;
   const cutPath = polylinePath(cutPoints);
 
   let minX = Infinity;
@@ -372,15 +376,18 @@ export function offsetOutline(
 
 /**
  * Replace rounded (Minkowski) arcs at convex polygon corners with sharp
- * miter points — the intersection of the two adjacent offset edges.
- * Only convex corners with exterior angle > ~25° are mitered; a miter
- * limit of 3× biteDepth prevents extreme spikes at very acute corners.
+ * miter points. Uses chord directions for the miter (polygon-like sharp
+ * corners) and bezier tangent normals for arc detection (so the wider
+ * arc zone from curved edges is fully captured). Only convex corners
+ * with chord-measured exterior angle > ~25° are mitered; a miter limit
+ * of 3× biteDepth prevents extreme spikes.
  */
 function sharpenOffsetCorners(
   cutPoints: Vec2[],
-  corners: Vec2[],
+  flat: PanelFlat,
   biteDepth: number,
 ): Vec2[] {
+  const { corners } = flat;
   const nc = corners.length;
   if (nc < 3 || cutPoints.length < 3) return cutPoints;
 
@@ -391,18 +398,16 @@ function sharpenOffsetCorners(
     signedArea += a.x * b.y - b.x * a.y;
   }
   const ccw = signedArea > 0;
-
   const CROSS_THRESH = 0.42;
-  const MITER_LIMIT = 3;
 
-  interface MiterInfo {
+  interface CornerInfo {
     corner: Vec2;
-    prev: Vec2;
-    next: Vec2;
-    miter: Vec2;
-    miterDist: number;
+    cn1: Vec2;
+    cn2: Vec2;
+    e1: Vec2;
+    e2: Vec2;
   }
-  const miters: MiterInfo[] = [];
+  const cornerInfos: CornerInfo[] = [];
 
   for (let i = 0; i < nc; i++) {
     const prev = corners[(i - 1 + nc) % nc];
@@ -414,88 +419,85 @@ function sharpenOffsetCorners(
     const len1 = Math.hypot(d1x, d1y);
     const len2 = Math.hypot(d2x, d2y);
     if (len1 < 1e-9 || len2 < 1e-9) continue;
-
     const e1x = d1x / len1, e1y = d1y / len1;
     const e2x = d2x / len2, e2y = d2y / len2;
-    const cross = e1x * e2y - e1y * e2x;
 
-    const isConvex = ccw ? cross > CROSS_THRESH : cross < -CROSS_THRESH;
+    const chordCross = e1x * e2y - e1y * e2x;
+    const isConvex = ccw ? chordCross > CROSS_THRESH : chordCross < -CROSS_THRESH;
     if (!isConvex) continue;
 
-    const n1x = ccw ? e1y : -e1y;
-    const n1y = ccw ? -e1x : e1x;
-    const n2x = ccw ? e2y : -e2y;
-    const n2y = ccw ? -e2x : e2x;
+    const cn1x = ccw ? e1y : -e1y, cn1y = ccw ? -e1x : e1x;
+    const cn2x = ccw ? e2y : -e2y, cn2y = ccw ? -e2x : e2x;
 
-    const p1x = curr.x + n1x * biteDepth;
-    const p1y = curr.y + n1y * biteDepth;
-    const p2x = curr.x + n2x * biteDepth;
-    const p2y = curr.y + n2y * biteDepth;
-
-    const det = e1x * e2y - e1y * e2x;
-    if (Math.abs(det) < 1e-12) continue;
-    const t = ((p2x - p1x) * e2y - (p2y - p1y) * e2x) / det;
-
-    const mx = p1x + t * e1x;
-    const my = p1y + t * e1y;
-    const miterDist = Math.hypot(mx - curr.x, my - curr.y);
-    if (miterDist > MITER_LIMIT * biteDepth) continue;
-
-    miters.push({ corner: curr, prev, next, miter: { x: mx, y: my }, miterDist });
+    cornerInfos.push({
+      corner: curr,
+      cn1: { x: cn1x, y: cn1y },
+      cn2: { x: cn2x, y: cn2y },
+      e1: { x: e1x, y: e1y },
+      e2: { x: e2x, y: e2y },
+    });
   }
 
-  if (miters.length === 0) return cutPoints;
+  if (cornerInfos.length === 0) return cutPoints;
 
   const np = cutPoints.length;
   const tags = new Int32Array(np).fill(-1);
 
-  for (let pi = 0; pi < np; pi++) {
-    const p = cutPoints[pi];
-    for (let mi = 0; mi < miters.length; mi++) {
-      const mc = miters[mi];
-      const C = mc.corner;
-      const dist = Math.hypot(p.x - C.x, p.y - C.y);
-      if (dist > mc.miterDist * 1.15 || dist < biteDepth * 0.8) continue;
+  for (let ci = 0; ci < cornerInfos.length; ci++) {
+    const info = cornerInfos[ci];
+    const C = info.corner;
 
-      const ePCx = C.x - mc.prev.x, ePCy = C.y - mc.prev.y;
-      const lenPC2 = ePCx * ePCx + ePCy * ePCy;
-      const t1 = lenPC2 > 0
-        ? ((p.x - mc.prev.x) * ePCx + (p.y - mc.prev.y) * ePCy) / lenPC2
-        : 2;
+    let apexIdx = -1, apexDist = Infinity;
+    for (let pi = 0; pi < np; pi++) {
+      const d = Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y);
+      if (d < apexDist) { apexDist = d; apexIdx = pi; }
+    }
+    if (apexIdx < 0) continue;
 
-      const eCNx = mc.next.x - C.x, eCNy = mc.next.y - C.y;
-      const lenCN2 = eCNx * eCNx + eCNy * eCNy;
-      const t2 = lenCN2 > 0
-        ? ((p.x - C.x) * eCNx + (p.y - C.y) * eCNy) / lenCN2
-        : -1;
+    const q1x = C.x + info.cn1.x * biteDepth;
+    const q1y = C.y + info.cn1.y * biteDepth;
+    const q2x = C.x + info.cn2.x * biteDepth;
+    const q2y = C.y + info.cn2.y * biteDepth;
+    const ld1 = (p: Vec2) =>
+      Math.abs((p.x - q1x) * info.e1.y - (p.y - q1y) * info.e1.x);
+    const ld2 = (p: Vec2) =>
+      Math.abs((p.x - q2x) * info.e2.y - (p.y - q2y) * info.e2.x);
 
-      if (t1 > 0.95 && t2 < 0.05) {
-        tags[pi] = mi;
-        break;
-      }
+    const maxWalkDist = biteDepth * 3;
+    let wing1 = apexIdx, minD1 = ld1(cutPoints[apexIdx]);
+    for (let steps = 1; steps < np / 3; steps++) {
+      const pi = ((apexIdx - steps) % np + np) % np;
+      const cd = Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y);
+      if (cd > maxWalkDist) break;
+      const d = ld1(cutPoints[pi]);
+      if (d < minD1) { minD1 = d; wing1 = pi; }
+      else if (d > minD1 + biteDepth * 0.5) break;
+    }
+
+    let wing2 = apexIdx, minD2 = ld2(cutPoints[apexIdx]);
+    for (let steps = 1; steps < np / 3; steps++) {
+      const pi = (apexIdx + steps) % np;
+      const cd = Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y);
+      if (cd > maxWalkDist) break;
+      const d = ld2(cutPoints[pi]);
+      if (d < minD2) { minD2 = d; wing2 = pi; }
+      else if (d > minD2 + biteDepth * 0.5) break;
+    }
+
+    // Tag arc points for removal, keeping only the apex (nearest to
+    // corner). The result is wing1 → apex → wing2: two straight
+    // segments meeting at a clean V, replacing the smooth arc.
+    let pi = (wing1 + 1) % np;
+    for (let steps = 0; steps < np; steps++) {
+      if (pi === wing2) break;
+      if (pi !== apexIdx) tags[pi] = ci;
+      pi = (pi + 1) % np;
     }
   }
 
   const result: Vec2[] = [];
-  let idx = 0;
-  while (idx < np) {
-    if (tags[idx] === -1) {
-      result.push(cutPoints[idx]);
-      idx++;
-    } else {
-      const mi = tags[idx];
-      while (idx < np && tags[idx] === mi) idx++;
-      result.push(miters[mi].miter);
-    }
-  }
-
-  if (
-    result.length >= 2 &&
-    tags[0] >= 0 &&
-    tags[np - 1] >= 0 &&
-    tags[0] === tags[np - 1]
-  ) {
-    result.pop();
+  for (let idx = 0; idx < np; idx++) {
+    if (tags[idx] === -1) result.push(cutPoints[idx]);
   }
 
   return result.length >= 3 ? result : cutPoints;

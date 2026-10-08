@@ -199,6 +199,34 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
+        <div className="flex items-center justify-between">
+          <label
+            className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
+            htmlFor="sharp-corners"
+          >
+            Sharp corners
+          </label>
+          <button
+            id="sharp-corners"
+            type="button"
+            role="switch"
+            aria-checked={values.sharpCorners}
+            onClick={() => onChange({ sharpCorners: !values.sharpCorners })}
+            className={`relative h-4 w-8 rounded-full border transition-colors ${
+              values.sharpCorners
+                ? "border-primary bg-primary/30"
+                : "border-border bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full transition-all ${
+                values.sharpCorners
+                  ? "left-[calc(100%-0.75rem)] bg-primary"
+                  : "left-1 bg-muted-foreground"
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </section>
   );

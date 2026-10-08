@@ -31,6 +31,7 @@ const SETTINGS: LaserSettings = {
   cornerMarginMm: 0,
   shortEdgeHoles: false,
   shortEdgeExtensionMm: 0,
+  sharpCorners: false,
 };
 
 /** Distance from point to a closed dense polyline. */

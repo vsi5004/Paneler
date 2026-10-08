@@ -76,6 +76,7 @@ for (const preset of PRESETS) {
       cornerMarginMm: 0,
       shortEdgeHoles: preset.id === "teamgeist" || preset.id === "orbita",
       shortEdgeExtensionMm: 0,
+      sharpCorners: false,
     };
     const sizeKey = size.toFixed(1);
     const dir = join(outDir, preset.id, sizeKey);
