@@ -591,9 +591,15 @@ export function PanelerDesigner({
                       <h2 className="font-heading text-lg tracking-[0.15em] text-foreground">
                         Palette
                       </h2>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        {fabricCount} fabrics
-                      </span>
+                      {topology && (
+                        <button
+                          type="button"
+                          onClick={() => setSummaryOpen(true)}
+                          className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-primary transition-colors hover:border-primary hover:bg-primary/20"
+                        >
+                          Summary
+                        </button>
+                      )}
                     </div>
                     <ColorPalette
                       selected={selectedColor}
@@ -603,17 +609,6 @@ export function PanelerDesigner({
                   </section>
                   {topology && (
                     <>
-                      <div className="workshop-hairline mt-5" />
-                      <div className="mt-4 flex justify-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="font-mono text-[10px] uppercase tracking-[0.2em]"
-                          onClick={() => setSummaryOpen(true)}
-                        >
-                          Color Summary
-                        </Button>
-                      </div>
                       <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
                         <DialogContent className="max-w-sm border-border bg-[oklch(0.08_0_0)]">
                           <DialogHeader>
