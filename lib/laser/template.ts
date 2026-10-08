@@ -376,11 +376,10 @@ export function offsetOutline(
 
 /**
  * Replace rounded (Minkowski) arcs at convex polygon corners with sharp
- * miter points. Uses chord directions for the miter (polygon-like sharp
- * corners) and bezier tangent normals for arc detection (so the wider
- * arc zone from curved edges is fully captured). Only convex corners
- * with chord-measured exterior angle > ~25° are mitered; a miter limit
- * of 3× biteDepth prevents extreme spikes.
+ * miter points. The miter is computed from the seam polygon's chord
+ * directions (not the offset curve tangents), so it produces a clean V
+ * regardless of edge curvature. A tight arc zone (1.15× biteDepth)
+ * preserves the curved offset edges right up to the corner transition.
  */
 function sharpenOffsetCorners(
   cutPoints: Vec2[],
@@ -400,7 +399,12 @@ function sharpenOffsetCorners(
   const ccw = signedArea > 0;
   const CROSS_THRESH = 0.42;
 
-  const convexCorners: Vec2[] = [];
+  const np = cutPoints.length;
+  const arcRadius = biteDepth * 1.5;
+  const LOOK = 6;
+  const tags = new Int32Array(np).fill(-1);
+  const miterInserts = new Map<number, Vec2>();
+
   for (let i = 0; i < nc; i++) {
     const prev = corners[(i - 1 + nc) % nc];
     const curr = corners[i];
@@ -410,69 +414,64 @@ function sharpenOffsetCorners(
     const len1 = Math.hypot(d1x, d1y);
     const len2 = Math.hypot(d2x, d2y);
     if (len1 < 1e-9 || len2 < 1e-9) continue;
-    const cross =
-      (d1x / len1) * (d2y / len2) - (d1y / len1) * (d2x / len2);
+    const e1x = d1x / len1, e1y = d1y / len1;
+    const e2x = d2x / len2, e2y = d2y / len2;
+
+    const cross = e1x * e2y - e1y * e2x;
     const isConvex = ccw ? cross > CROSS_THRESH : cross < -CROSS_THRESH;
-    if (isConvex) convexCorners.push(curr);
-  }
-  if (convexCorners.length === 0) return cutPoints;
-
-  const np = cutPoints.length;
-  const arcRadius = biteDepth * 1.5;
-  const tags = new Int32Array(np).fill(-1);
-  const miterInserts = new Map<number, Vec2>();
-
-  for (let ci = 0; ci < convexCorners.length; ci++) {
-    const C = convexCorners[ci];
+    if (!isConvex) continue;
 
     let apexIdx = -1, apexDist = Infinity;
     for (let pi = 0; pi < np; pi++) {
-      const d = Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y);
+      const d = Math.hypot(cutPoints[pi].x - curr.x, cutPoints[pi].y - curr.y);
       if (d < apexDist) { apexDist = d; apexIdx = pi; }
     }
     if (apexIdx < 0) continue;
 
-    // Walk backward from apex to find wing1: first point outside arc zone.
     let wing1 = -1;
     for (let steps = 1; steps < np / 2; steps++) {
       const pi = ((apexIdx - steps) % np + np) % np;
-      if (Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y) > arcRadius) {
-        wing1 = pi;
-        break;
+      if (Math.hypot(cutPoints[pi].x - curr.x, cutPoints[pi].y - curr.y) > arcRadius) {
+        wing1 = pi; break;
       }
     }
-    // Walk forward from apex to find wing2.
     let wing2 = -1;
     for (let steps = 1; steps < np / 2; steps++) {
       const pi = (apexIdx + steps) % np;
-      if (Math.hypot(cutPoints[pi].x - C.x, cutPoints[pi].y - C.y) > arcRadius) {
-        wing2 = pi;
-        break;
+      if (Math.hypot(cutPoints[pi].x - curr.x, cutPoints[pi].y - curr.y) > arcRadius) {
+        wing2 = pi; break;
       }
     }
     if (wing1 < 0 || wing2 < 0) continue;
 
-    // Tangent directions from the straight offset portions.
-    const LOOK = 4;
-    const w1far = cutPoints[((wing1 - LOOK) % np + np) % np];
-    const w1 = cutPoints[wing1];
-    const w2 = cutPoints[wing2];
-    const w2far = cutPoints[(wing2 + LOOK) % np];
+    // Tangent at wing1: direction the curve is heading INTO the arc zone
+    const w1b = ((wing1 - LOOK) % np + np) % np;
+    const t1x = cutPoints[wing1].x - cutPoints[w1b].x;
+    const t1y = cutPoints[wing1].y - cutPoints[w1b].y;
 
-    const d1x = w1.x - w1far.x, d1y = w1.y - w1far.y;
-    const d2x = w2far.x - w2.x, d2y = w2far.y - w2.y;
-    const cross = d1x * d2y - d1y * d2x;
-    if (Math.abs(cross) < 1e-9) continue;
+    // Tangent at wing2: direction from the curve INTO the arc zone (reversed)
+    const w2b = (wing2 + LOOK) % np;
+    const t2x = cutPoints[wing2].x - cutPoints[w2b].x;
+    const t2y = cutPoints[wing2].y - cutPoints[w2b].y;
 
-    const dx = w2.x - w1.x, dy = w2.y - w1.y;
-    const t = (dx * d2y - dy * d2x) / cross;
-    const miter: Vec2 = { x: w1.x + t * d1x, y: w1.y + t * d1y };
+    // Miter = intersection of rays from each wing along their tangent
+    const rayCross = t1x * t2y - t1y * t2x;
+    if (Math.abs(rayCross) < 1e-9) continue;
+    const dwx = cutPoints[wing2].x - cutPoints[wing1].x;
+    const dwy = cutPoints[wing2].y - cutPoints[wing1].y;
+    const t = (dwx * t2y - dwy * t2x) / rayCross;
+    if (t < 0) continue;
+    const miter: Vec2 = {
+      x: cutPoints[wing1].x + t * t1x,
+      y: cutPoints[wing1].y + t * t1y,
+    };
 
-    // Tag all arc points between wing1 and wing2 for removal.
+    if (Math.hypot(miter.x - curr.x, miter.y - curr.y) > biteDepth * 4) continue;
+
     let pi = (wing1 + 1) % np;
     for (let steps = 0; steps < np; steps++) {
       if (pi === wing2) break;
-      tags[pi] = ci;
+      tags[pi] = i;
       pi = (pi + 1) % np;
     }
     miterInserts.set(wing1, miter);
