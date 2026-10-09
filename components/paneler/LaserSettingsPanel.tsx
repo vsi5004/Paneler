@@ -199,6 +199,7 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
+        {values.curvaturePct === 0 && (
         <div className="flex items-center justify-between">
           <label
             className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
@@ -227,6 +228,7 @@ export function LaserSettingsPanel({
             />
           </button>
         </div>
+        )}
       </div>
     </section>
   );

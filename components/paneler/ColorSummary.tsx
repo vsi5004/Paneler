@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getPanelShape } from "@/lib/designState";
+import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 import type { PanelTopology, PanelColors } from "@/lib/types";
 
 interface ColorSummaryProps {
@@ -25,12 +25,21 @@ export function ColorSummary({
   onSwatchClick,
 }: ColorSummaryProps) {
   const breakdowns = useMemo<ShapeBreakdown[]>(() => {
+    const classes = groupPanelsByCongruence(topology);
+    const panelClassMap = new Map<string, string>();
+    for (const cls of classes) {
+      for (const id of cls.panelIds) {
+        panelClassMap.set(id, cls.label);
+      }
+    }
+    const classOrder = classes.map((c) => c.label);
+
     const byShape = new Map<
       string,
       { total: number; counts: Map<string, number>; unpainted: number }
     >();
     for (const panel of topology.panels) {
-      const shape = getPanelShape(panel.id);
+      const shape = panelClassMap.get(panel.id) ?? "Panel";
       const entry =
         byShape.get(shape) ?? { total: 0, counts: new Map(), unpainted: 0 };
       entry.total += 1;
@@ -42,16 +51,19 @@ export function ColorSummary({
       }
       byShape.set(shape, entry);
     }
-    return [...byShape.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([shape, e]) => ({
-        shape,
-        total: e.total,
-        unpainted: e.unpainted,
-        byColor: [...e.counts.entries()]
-          .map(([color, count]) => ({ color, count }))
-          .sort((a, b) => b.count - a.count),
-      }));
+    return classOrder
+      .filter((label) => byShape.has(label))
+      .map((label) => {
+        const e = byShape.get(label)!;
+        return {
+          shape: label,
+          total: e.total,
+          unpainted: e.unpainted,
+          byColor: [...e.counts.entries()]
+            .map(([color, count]) => ({ color, count }))
+            .sort((a, b) => b.count - a.count),
+        };
+      });
   }, [topology, panelColors]);
 
   return (
