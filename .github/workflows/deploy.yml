@@ -32,6 +32,10 @@ jobs:
         with:
           context: .
           push: true
+          # The Dockerfile floats its Node minor, so always re-resolve the base
+          # image. Without this a warm GHA cache can reuse the previously
+          # resolved FROM layer, and a security bump ships nothing.
+          pull: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

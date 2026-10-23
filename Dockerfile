@@ -2,7 +2,13 @@
 # Based on the canonical Next.js Docker template + the /deploy skill's
 # dockerfile-nextjs.md reference.
 
-FROM node:20-alpine AS base
+# Node 22, not 20: the 2026-10-21 security release (Brotli decoder OOB write,
+# CVE-2026-111497, plus nine others) shipped fixes for 22.x/24.x/26.x only.
+# Node 20 is end-of-life and no patched 20.x exists. The minor floats on
+# purpose, so the next Node security release arrives on the next build.
+# Every stage below derives from this, runner included - which is the stage
+# that actually matters, being the long-lived process taking requests.
+FROM node:22-alpine AS base
 
 # -----------------------------------------------------------------------------
 # Dependencies layer — cached unless package*.json changes.
