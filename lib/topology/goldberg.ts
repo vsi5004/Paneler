@@ -611,3 +611,23 @@ export function goldbergClassI(
   return topo;
 }
 
+
+/**
+ * Geodesic icosahedron: the icosahedron with each face split into n²
+ * triangles, vertices projected onto the unit sphere. The 12 original
+ * vertices keep valence 5; every other vertex has valence 6. Faces keep
+ * the icosahedron's CCW-from-outside winding.
+ */
+export function geodesicIcosahedron(n: number): {
+  vertices: [number, number, number][];
+  faces: [number, number, number][];
+} {
+  const mesh = trisub(icoTriMesh(), n);
+  return {
+    vertices: mesh.vertices.map((v) => {
+      const u = v.clone().normalize();
+      return [u.x, u.y, u.z];
+    }),
+    faces: mesh.faces.map(([a, b, c]) => [a, b, c]),
+  };
+}

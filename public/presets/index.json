@@ -179,6 +179,25 @@
     "devOnly": true
   },
   {
+    "slug": "circle-soccer-6",
+    "label": "Circle Soccer 6",
+    "glbPath": "/presets/circle-soccer-6.glb",
+    "panelCount": 122,
+    "shapeSignature": "122g",
+    "params": [
+      {
+        "key": "circleSize",
+        "label": "Circle size",
+        "min": 50,
+        "max": 150,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ],
+    "devOnly": true
+  },
+  {
     "slug": "gp2",
     "label": "GP(2,0)",
     "glbPath": "/presets/gp2.glb",

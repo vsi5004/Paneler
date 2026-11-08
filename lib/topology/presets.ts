@@ -3,7 +3,7 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
-import { circleSoccer } from "./circleSoccer";
+import { circleSoccer, circleSoccer6 } from "./circleSoccer";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -294,6 +294,20 @@ const SHORT_EDGE_PARAM: PresetParamDef = {
   unit: "%",
 };
 
+// Circle radius as a percent of the default: 100% = Circle Soccer's
+// circles through the soccer ball's pentagon corners (Circle Soccer 6 keeps
+// the same radius-to-nearest-neighbour ratio). Capped at 150% — neighbouring
+// circles touch (seams between fillers vanish) at ~158%.
+const CIRCLE_SIZE_PARAM: PresetParamDef = {
+  key: "circleSize",
+  label: "Circle size",
+  min: 50,
+  max: 150,
+  step: 5,
+  defaultValue: 100,
+  unit: "%",
+};
+
 export const PRESETS: PresetEntry[] = [
   {
     id: "baseball",
@@ -455,22 +469,18 @@ export const PRESETS: PresetEntry[] = [
     label: "Circle Soccer",
     panels: 32,
     devOnly: true,
-    params: [
-      {
-        // Circle radius as a percent of the pentagon it replaces: 100% =
-        // circles through the soccer ball's pentagon corners. Capped at
-        // 150% — neighbouring circles touch (hex-hex seams vanish) ~158%.
-        key: "circleSize",
-        label: "Circle size",
-        min: 50,
-        max: 150,
-        step: 5,
-        defaultValue: 100,
-        unit: "%",
-      },
-    ],
+    params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       circleSoccer(radius, (params?.circleSize ?? 100) / 100),
+  },
+  {
+    id: "circle-soccer-6",
+    label: "Circle Soccer 6",
+    panels: 122,
+    devOnly: true,
+    params: [CIRCLE_SIZE_PARAM],
+    topology: (radius?: number, params?: PresetParams) =>
+      circleSoccer6(radius, (params?.circleSize ?? 100) / 100),
   },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
   {

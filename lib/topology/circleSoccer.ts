@@ -2,6 +2,7 @@ import { Vector3 } from "three";
 import type { PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { ICOSAHEDRON } from "./truncationFamily";
+import { geodesicIcosahedron } from "./goldberg";
 
 // Longest boundary segment on a circle arc, in radians — fine enough that
 // the circles read as round, not as polygons.
@@ -11,6 +12,15 @@ const MAX_ARC_STEP = (2 * Math.PI) / 180;
 // dense enough that each great arc stays close to its chord (same limit
 // as importedBall.ts).
 const MAX_EDGE_ANGLE = (3 * Math.PI) / 180;
+
+/**
+ * A triangulated sphere to hang circles on: one circle per vertex, one
+ * filler panel per triangle. Faces wound CCW from outside.
+ */
+interface CircleParent {
+  vertices: ReadonlyArray<readonly [number, number, number]>;
+  faces: ReadonlyArray<readonly [number, number, number]>;
+}
 
 /**
  * "Circle Soccer" — the classic 32-panel ball with each of the 12
@@ -34,15 +44,39 @@ const MAX_EDGE_ANGLE = (3 * Math.PI) / 180;
  * them even though both are dense "polygon" loops.
  */
 export function circleSoccer(radius = 1, circleSize = 1): PanelTopology {
-  const centers = ICOSAHEDRON.vertices.map(([x, y, z]) =>
+  return circleBall(ICOSAHEDRON, radius, circleSize);
+}
+
+/**
+ * "Circle Soccer 6" — the same construction on a frequency-2 geodesic
+ * icosahedron: 42 circles, 30 of them ringed by six neighbours (the 12
+ * original icosahedron vertices necessarily keep five — Euler forbids an
+ * all-six sphere), plus 80 filler panels, 122 in all.
+ *
+ * Geodesic edges come in two lengths, so ρ is set against the shortest:
+ * `circleSize` 1 gives the same ρ-to-closest-neighbour ratio as Circle
+ * Soccer at 1, and the same ~1.58 touching limit.
+ */
+export function circleSoccer6(radius = 1, circleSize = 1): PanelTopology {
+  return circleBall(geodesicIcosahedron(2), radius, circleSize);
+}
+
+/**
+ * Circles on every vertex of `parent`, each seam along a center-to-center
+ * great arc, one filler panel per face. ρ = circleSize × (the soccer
+ * ball's pentagon-circumradius-to-half-edge ratio) × half the parent's
+ * shortest edge, so circleSize 1 reproduces Circle Soccer on the
+ * icosahedron.
+ */
+function circleBall(
+  parent: CircleParent,
+  radius: number,
+  circleSize: number,
+): PanelTopology {
+  const centers = parent.vertices.map(([x, y, z]) =>
     new Vector3(x, y, z).normalize(),
   );
-  // Pentagon circumradius: the regular truncation point (t = 1/3 along an
-  // icosahedron edge chord) seen from the pentagon's center.
-  const rho0 = centers[0].angleTo(
-    centers[0].clone().lerp(centers[ICOSAHEDRON.faces[0][1]], 1 / 3),
-  );
-  const rho = rho0 * circleSize;
+  const rho = circleSize * DEFAULT_RHO_PER_HALF_EDGE * (minEdgeAngle(parent) / 2);
 
   const vertices: Vector3[] = [];
   const add = (v: Vector3) => vertices.push(v) - 1;
@@ -70,7 +104,7 @@ export function circleSoccer(radius = 1, circleSize = 1): PanelTopology {
 
   // Hexagons, one per icosahedron face, wound like the truncation family:
   // seam along (a,b), arc around b, seam along (b,c), arc around c, …
-  for (const [a, b, c] of ICOSAHEDRON.faces) {
+  for (const [a, b, c] of parent.faces) {
     faces.push([P(a, b), P(b, a), P(b, c), P(c, b), P(c, a), P(a, c)]);
   }
   const hexCount = faces.length;
@@ -80,7 +114,7 @@ export function circleSoccer(radius = 1, circleSize = 1): PanelTopology {
   const circleOf = new Map<number, number>(); // boundary point → circle center
   for (let v = 0; v < centers.length; v++) {
     const neighbors = new Set<number>();
-    for (const face of ICOSAHEDRON.faces) {
+    for (const face of parent.faces) {
       if (face.includes(v)) for (const x of face) if (x !== v) neighbors.add(x);
     }
     const n = centers[v];
@@ -140,3 +174,25 @@ export function circleSoccer(radius = 1, circleSize = 1): PanelTopology {
       `panel_${String(idx + 1).padStart(3, "0")}_${idx < hexCount ? "hexagon" : "circle"}`,
   );
 }
+
+/** Shortest edge of `parent`, as an angle between unit vertex directions. */
+function minEdgeAngle(parent: CircleParent): number {
+  const unit = parent.vertices.map(([x, y, z]) => new Vector3(x, y, z).normalize());
+  let min = Infinity;
+  for (const f of parent.faces) {
+    for (let i = 0; i < 3; i++) {
+      min = Math.min(min, unit[f[i]].angleTo(unit[f[(i + 1) % 3]]));
+    }
+  }
+  return min;
+}
+
+// Pentagon circumradius over half the icosahedron edge, both as angles:
+// the regular truncation point (t = 1/3 along an edge chord) seen from the
+// pentagon's center, against half the center-to-center angle.
+const DEFAULT_RHO_PER_HALF_EDGE = (() => {
+  const [a, b] = ICOSAHEDRON.faces[0];
+  const ca = new Vector3(...ICOSAHEDRON.vertices[a]).normalize();
+  const cb = new Vector3(...ICOSAHEDRON.vertices[b]).normalize();
+  return ca.angleTo(ca.clone().lerp(cb, 1 / 3)) / (ca.angleTo(cb) / 2);
+})();
