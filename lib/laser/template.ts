@@ -40,6 +40,14 @@ export interface LaserTemplateOptions {
   cornerHoles?: boolean;
   /** Replace rounded arc joins at convex corners with straight bevels. */
   sharpCorners?: boolean;
+  /**
+   * Fixed hole counts per seam instead of counts derived from length and
+   * spacing: `mixed` on seams between different panel classes (plus the
+   * usual corner extra at each end for the self-adjacent class), `same`
+   * on seams between congruent panels (0 = unstitched). Holes spread
+   * evenly along each seam, so the counts hold at every footbag size.
+   */
+  fixedHoles?: { mixed: number; same: number };
 }
 
 export function buildLaserTemplate(
@@ -845,6 +853,27 @@ function placeStitchHoles(
       !settings.shortEdgeHoles &&
       resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d;
     const { s0, flatSpan, patternLen, extras } = resolved;
+    if (options.fixedHoles) {
+      // Even cells along the seam: hole k at (k + ½)/n of the run, so both
+      // panels of a seam (same n, near-equal flat lengths) line up. The
+      // self-adjacent class's corner extras sit just inside each corner,
+      // matching the length-derived convention below.
+      const same = resolved.neighborCls === ownClass;
+      const n = same ? options.fixedHoles.same : options.fixedHoles.mixed;
+      if (n <= 0 || flatSpan <= 0) {
+        edgeHoles.push(0);
+        unstitchedSpans.push({ s0, len: flatSpan });
+        continue;
+      }
+      const placeFlat = (sFlat: number) => {
+        holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
+      };
+      if (extras) placeFlat(0.3);
+      for (let k = 0; k < n; k++) placeFlat(((k + 0.5) * flatSpan) / n);
+      if (extras) placeFlat(flatSpan - 0.3);
+      edgeHoles.push(n + (extras ? 2 : 0));
+      continue;
+    }
     if (cornerHoles) {
       const placeFlat = (sFlat: number) => {
         holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));

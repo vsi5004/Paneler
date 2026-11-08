@@ -65,6 +65,7 @@ for (const preset of PRESETS) {
     seamTrueBands: preset.seamTrueFlatten,
     gatherCorrection: preset.gatherCorrection,
     cornerHoles: preset.laserCornerHoles,
+    fixedHoles: preset.laserFixedHoles,
   };
   for (const size of SIZES_IN) {
     const settings: LaserSettings = {

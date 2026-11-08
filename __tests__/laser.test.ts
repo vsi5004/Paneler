@@ -173,6 +173,29 @@ describe("physical calibration", () => {
     expect(templates.get("Pentagon")!.holes.length).toBe(5 * 6);
     expect(templates.get("Hexagon")!.holes.length).toBe(3 * 8);
   });
+
+  it.each(["circle-soccer", "circle-soccer-concave"])(
+    "%s: fixed 6-per-circle-side / 8-per-hex-side holes at any size",
+    (id) => {
+      const topo = topoOf(id);
+      const preset = presetById(id)!;
+      for (const diameterIn of [1.8, 2.2]) {
+        const [hex, circle] = groupPanelsByCongruence(topo)
+          .sort((a, b) => b.panelIds.length - a.panelIds.length)
+          .map((c) =>
+            buildLaserTemplate(topo, c, { ...SETTINGS, diameterIn }, {
+              fixedHoles: preset.laserFixedHoles,
+            }),
+          );
+        // Circle: 5 hex seams at 6 each. Hexagon: hex-hex seams unholed,
+        // 3 circle seams at 6+2.
+        expect(circle.edgeHoles).toEqual([6, 6, 6, 6, 6]);
+        expect(circle.holes).toHaveLength(30);
+        expect([...hex.edgeHoles].sort()).toEqual([0, 0, 0, 8, 8, 8]);
+        expect(hex.holes).toHaveLength(24);
+      }
+    },
+  );
 });
 
 describe("cut outline offset", () => {

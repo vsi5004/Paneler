@@ -168,6 +168,7 @@ export function PanelerDesigner({
       !preset?.laserSharpBendAnchors &&
       !preset?.seamTrueFlatten &&
       !preset?.laserCornerHoles &&
+      !preset?.laserFixedHoles &&
       preset?.gatherCorrection === undefined
     ) {
       return undefined;
@@ -176,6 +177,7 @@ export function PanelerDesigner({
       ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
       ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
       ...(preset.laserCornerHoles ? { cornerHoles: true } : {}),
+      ...(preset.laserFixedHoles ? { fixedHoles: preset.laserFixedHoles } : {}),
       ...(preset.gatherCorrection !== undefined
         ? { gatherCorrection: preset.gatherCorrection }
         : {}),
