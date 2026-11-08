@@ -18,7 +18,6 @@ import {
   kaleidoscopeColors,
   kaleidoscopeTopology,
   kaleidoscopeWarp,
-  PALETTES,
 } from "@/lib/kaleidoscope";
 import { morphFeaturePanels } from "./panelScaleWarp";
 import {
@@ -277,8 +276,8 @@ export interface PresetEntry {
   /** Template colors for panels the design hasn't painted. */
   defaultColors?: (topo: PanelTopology, params: PresetParams) => PanelColors;
   /**
-   * Params whose change re-applies the template colors (a palette
-   * choice), discarding painted colors.
+   * Params whose change re-applies the template colors (e.g. a time that
+   * drives the colors), discarding painted colors.
    */
   recolorParams?: string[];
   /**
@@ -542,15 +541,6 @@ export const PRESETS: PresetEntry[] = [
     params: [
       { key: "flow", label: "Flow", min: 0, max: 100, step: 1, defaultValue: 70, unit: "%" },
       {
-        key: "palette",
-        label: "Palette",
-        min: 0,
-        max: PALETTES.length - 1,
-        step: 1,
-        defaultValue: 0,
-        valueLabels: PALETTES.map((p) => p.name),
-      },
-      {
         // Runs forever: the design never repeats (see lib/kaleidoscope).
         key: "time",
         label: "Time",
@@ -562,7 +552,8 @@ export const PRESETS: PresetEntry[] = [
       },
     ],
     animation: { timeParam: "time" },
-    recolorParams: ["palette"],
+    // Colors drift with time (see lib/kaleidoscope/color.ts).
+    recolorParams: ["time"],
     topology: kaleidoscopeTopology,
     warp: kaleidoscopeWarp,
     defaultColors: kaleidoscopeColors,

@@ -4,7 +4,8 @@ import { Vector3 } from "three";
 import { icosahedralGroup } from "@/lib/kaleidoscope/groups";
 import { frameAt, frameTopology } from "@/lib/kaleidoscope/layout";
 import { cachedWarp, kaleidoscopeField, warpPoint } from "@/lib/kaleidoscope/field";
-import { kaleidoscopeColors, PALETTES } from "@/lib/kaleidoscope";
+import { kaleidoscopeColors } from "@/lib/kaleidoscope";
+import { oklchToHex, schemeAt } from "@/lib/kaleidoscope/color";
 import { presetById, resolvePresetParams } from "@/lib/topology/presets";
 import { generateTemplateDocument } from "@/lib/glb/generate";
 import { parseDocument } from "@/lib/topology/gltf";
@@ -103,15 +104,46 @@ describe("kaleidoscope layout", () => {
     expect(b.filter((id) => a.has(id)).length).toBeGreaterThan(0.9 * b.length);
   });
 
-  it("default colors are palette fabrics, focal panels highlighted", () => {
+  it("colors follow the drifting scheme by role, focal panels highlighted", () => {
     const t = frameTopology(frameAt(30));
-    for (let palette = 0; palette < PALETTES.length; palette++) {
-      const colors = kaleidoscopeColors(t, { palette });
-      const allowed = new Set([...PALETTES[palette].body, PALETTES[palette].highlight]);
-      for (const p of t.panels) expect(allowed.has(colors[p.id])).toBe(true);
-      const focal = t.panels.filter((p) => p.id.endsWith("_axis5"));
-      expect(focal).toHaveLength(12);
-      for (const p of focal) expect(colors[p.id]).toBe(PALETTES[palette].highlight);
+    const scheme = schemeAt(30);
+    const colors = kaleidoscopeColors(t, { time: 30 });
+    const allowed = new Set([...scheme.body, scheme.highlight]);
+    for (const p of t.panels) expect(allowed.has(colors[p.id])).toBe(true);
+    const focal = t.panels.filter((p) => p.id.endsWith("_axis5"));
+    expect(focal).toHaveLength(12);
+    for (const p of focal) expect(colors[p.id]).toBe(scheme.highlight);
+  });
+});
+
+describe("kaleidoscope colors", () => {
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+  it("converts OKLCH to sRGB", () => {
+    expect(oklchToHex(1, 0, 0)).toBe("#ffffff");
+    expect(oklchToHex(0, 0, 0)).toBe("#000000");
+    // Out-of-gamut chroma is reduced, not clipped per channel.
+    expect(oklchToHex(0.5, 1, 140)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("changes gradually: small time steps make small color steps", () => {
+    for (let time = 0; time < 300; time += 7.7) {
+      const a = schemeAt(time);
+      const b = schemeAt(time + 0.1);
+      [...a.body, a.highlight].forEach((c, i) => {
+        const d = rgb(c).map((x, k) => Math.abs(x - rgb([...b.body, b.highlight][i])[k]));
+        expect(Math.max(...d)).toBeLessThan(8);
+      });
+    }
+  });
+
+  it("keeps the body colors' lightness order (dark, mid, light)", () => {
+    const lum = (hex: string) => rgb(hex).reduce((s, x, k) => s + x * [0.2126, 0.7152, 0.0722][k], 0);
+    for (let time = 0; time < 300; time += 11) {
+      const { body, highlight } = schemeAt(time);
+      expect(lum(body[0])).toBeLessThan(lum(body[1]));
+      expect(lum(body[1])).toBeLessThan(lum(body[2]));
+      expect(lum(body[2])).toBeLessThan(lum(highlight));
     }
   });
 });
@@ -159,11 +191,11 @@ describe("kaleidoscope warp", () => {
 
 describe("kaleidoscope preset", () => {
   it("generates a GLB whose params round-trip through the asset extras", () => {
-    const doc = generateTemplateDocument("kaleidoscope", { time: 12.3, palette: 2 });
+    const doc = generateTemplateDocument("kaleidoscope", { time: 12.3, flow: 40 });
     const parsed = parseDocument(doc);
     expect(parsed.topology.panels.length).toBe(frameTopology(frameAt(12.3)).panels.length);
     expect(parsed.design?.presetId).toBe("kaleidoscope");
     expect(parsed.design?.params.time).toBeCloseTo(12.3, 9);
-    expect(parsed.design?.params.palette).toBe(2);
+    expect(parsed.design?.params.flow).toBe(40);
   });
 });

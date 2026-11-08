@@ -252,23 +252,6 @@
         "unit": "%"
       },
       {
-        "key": "palette",
-        "label": "Palette",
-        "min": 0,
-        "max": 6,
-        "step": 1,
-        "defaultValue": 0,
-        "valueLabels": [
-          "Lagoon",
-          "Ember",
-          "Meadow",
-          "Royal",
-          "Desert",
-          "Midnight",
-          "Carnival"
-        ]
-      },
-      {
         "key": "time",
         "label": "Time",
         "min": 0,

@@ -4,10 +4,11 @@ import { getPanelShape } from "@/lib/designState";
 import { icosahedralGroup } from "./groups";
 import { FAMILIES, frameAt, frameTopology } from "./layout";
 import { cachedWarp, kaleidoscopeField } from "./field";
+import { schemeAt } from "./color";
 
 /**
  * Kaleidoscope preset glue: maps the preset's sliders (see presets.ts)
- * onto the layout, the warp and the palette.
+ * onto the layout, the warp and the colors.
  *
  * Geometry is built in two stages so meshing stays fast: the panels are
  * convex power-diagram cells (fan-triangulated in milliseconds), and the
@@ -27,20 +28,6 @@ export function kaleidoscopeWarp(params: Params = {}): ((v: Vector3) => void) | 
   if (flow === 0) return undefined;
   return cachedWarp(icosahedralGroup(), kaleidoscopeField(flow, params.time ?? 0));
 }
-
-/**
- * Curated palettes of real fabrics (Ultrasuede LX): three body colors and
- * a highlight.
- */
-export const PALETTES: { name: string; body: [string, string, string]; highlight: string }[] = [
-  { name: "Lagoon", body: ["#184a71", "#3b8798", "#7d99b9"], highlight: "#f5ddc0" },
-  { name: "Ember", body: ["#632335", "#c8622c", "#a7295e"], highlight: "#f5ddc0" },
-  { name: "Meadow", body: ["#34432e", "#c8ba56", "#3b8798"], highlight: "#eeedea" },
-  { name: "Royal", body: ["#4a1439", "#184a71", "#a7295e"], highlight: "#c8ba56" },
-  { name: "Desert", body: ["#7a4928", "#ceaf80", "#c8622c"], highlight: "#3b8798" },
-  { name: "Midnight", body: ["#0d141e", "#184a71", "#7d99b9"], highlight: "#ffffff" },
-  { name: "Carnival", body: ["#b10607", "#184a71", "#c8ba56"], highlight: "#ffffff" },
-];
 
 let cosets: number[] | null = null;
 
@@ -69,9 +56,9 @@ function cosetOfElement(): number[] {
 }
 
 /**
- * Template colors by visual hierarchy, fixed per panel id so a panel
- * keeps its color for as long as it lives (and gets it back when its
- * family returns):
+ * Colors at the design's time (see color.ts), by visual hierarchy. Each
+ * panel's role is fixed by its id, so as the scheme drifts every panel
+ * fades smoothly from one color to the next:
  *
  *  - the 12 five-fold panels (focal points, like a soccer ball's
  *    pentagons) take the highlight;
@@ -81,16 +68,16 @@ function cosetOfElement(): number[] {
  *    interleaved colors rather than as one blob.
  */
 export function kaleidoscopeColors(topo: PanelTopology, params: Params = {}): PanelColors {
-  const palette = PALETTES[Math.max(0, Math.round(params.palette ?? 0)) % PALETTES.length];
+  const scheme = schemeAt(params.time ?? 0);
   const coset = cosetOfElement();
   const colors: PanelColors = {};
   for (const p of topo.panels) {
     const tag = getPanelShape(p.id);
     const index = Number(p.id.split("_")[1]) - 1;
     const f = FAMILIES.findIndex((fam) => fam.tag === tag);
-    if (f === 0) colors[p.id] = palette.highlight;
-    else if (f === 1 || f === 2) colors[p.id] = palette.body[f - 1];
-    else colors[p.id] = palette.body[(coset[index - FAMILIES[f].offset] + f) % 3];
+    if (f === 0) colors[p.id] = scheme.highlight;
+    else if (f === 1 || f === 2) colors[p.id] = scheme.body[f - 1];
+    else colors[p.id] = scheme.body[(coset[index - FAMILIES[f].offset] + f) % 3];
   }
   return colors;
 }
