@@ -198,6 +198,25 @@
     "devOnly": true
   },
   {
+    "slug": "circle-soccer-concave",
+    "label": "Concave Circle Soccer",
+    "glbPath": "/presets/circle-soccer-concave.glb",
+    "panelCount": 32,
+    "shapeSignature": "32g",
+    "params": [
+      {
+        "key": "circleSize",
+        "label": "Circle size",
+        "min": 50,
+        "max": 150,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ],
+    "devOnly": true
+  },
+  {
     "slug": "gp2",
     "label": "GP(2,0)",
     "glbPath": "/presets/gp2.glb",

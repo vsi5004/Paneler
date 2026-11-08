@@ -62,6 +62,19 @@ export function circleSoccer6(radius = 1, circleSize = 1): PanelTopology {
 }
 
 /**
+ * "Concave Circle Soccer" — Circle Soccer with each of a circle's five
+ * arcs flipped inward: every arc is mirrored across the great circle
+ * through its two endpoints, giving a same-radius arc that bows toward
+ * the circle's center. The circles become five-pointed scalloped panels
+ * and each hexagon's three circle-facing sides bulge outward (convex);
+ * the hex-hex seams stay straight. The junctions and the Circle size
+ * slider behave exactly as in Circle Soccer.
+ */
+export function concaveCircleSoccer(radius = 1, circleSize = 1): PanelTopology {
+  return circleBall(ICOSAHEDRON, radius, circleSize, { concave: true });
+}
+
+/**
  * Circles on every vertex of `parent`, each seam along a center-to-center
  * great arc, one filler panel per face. ρ = circleSize × (the soccer
  * ball's pentagon-circumradius-to-half-edge ratio) × half the parent's
@@ -72,6 +85,7 @@ function circleBall(
   parent: CircleParent,
   radius: number,
   circleSize: number,
+  { concave = false }: { concave?: boolean } = {},
 ): PanelTopology {
   const centers = parent.vertices.map(([x, y, z]) =>
     new Vector3(x, y, z).normalize(),
@@ -148,8 +162,12 @@ function circleBall(
         const ph = vh.clone().projectOnPlane(axis);
         const sweep = Math.atan2(pl.clone().cross(ph).dot(axis), pl.dot(ph));
         const steps = Math.max(2, Math.ceil((Math.abs(sweep) * pl.length()) / MAX_ARC_STEP));
+        // Concave: mirror across the plane of the endpoints' great circle.
+        const mirror = vl.clone().cross(vh).normalize();
         for (let s = 1; s < steps; s++) {
-          pts.push(add(vl.clone().applyAxisAngle(axis, (sweep * s) / steps)));
+          const q = vl.clone().applyAxisAngle(axis, (sweep * s) / steps);
+          if (concave) q.addScaledVector(mirror, -2 * q.dot(mirror));
+          pts.push(add(q));
         }
       } else {
         // Straight seam: great-arc midpoints.
