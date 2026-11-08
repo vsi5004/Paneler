@@ -1,4 +1,5 @@
-import type { PanelTopology } from "@/lib/types";
+import type { Vector3 } from "three";
+import type { PanelColors, PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
@@ -13,6 +14,12 @@ import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
 import { scaleSeamAmplitude } from "./seamAmplitudeWarp";
+import {
+  kaleidoscopeColors,
+  kaleidoscopeTopology,
+  kaleidoscopeWarp,
+  PALETTES,
+} from "@/lib/kaleidoscope";
 import { morphFeaturePanels } from "./panelScaleWarp";
 import {
   truncatedIcosahedronFamily,
@@ -212,6 +219,10 @@ export interface PresetParamDef {
   defaultValue: number;
   /** Display suffix for the value, e.g. "%". Purely cosmetic. */
   unit?: string;
+  /** Names for an integer param's values, indexed from `min`. */
+  valueLabels?: string[];
+  /** Stored and regenerated like any param, but not shown as a slider. */
+  hidden?: boolean;
 }
 
 export type PresetParams = Record<string, number>;
@@ -256,6 +267,25 @@ export interface PresetEntry {
    */
   laserCornerHoles?: boolean;
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
+  /**
+   * Per-vertex warp applied to the subdivided mesh before sphere
+   * projection (see generate.ts). Lets a preset hand over convex panels,
+   * which mesh fast, and curve the seams afterwards. Must be a fold-free
+   * map of the sphere, or the warped mesh would overlap itself.
+   */
+  warp?: (params: PresetParams) => ((v: Vector3) => void) | undefined;
+  /** Template colors for panels the design hasn't painted. */
+  defaultColors?: (topo: PanelTopology, params: PresetParams) => PanelColors;
+  /**
+   * Params whose change re-applies the template colors (a palette
+   * choice), discarding painted colors.
+   */
+  recolorParams?: string[];
+  /**
+   * The preset animates: Play advances `timeParam`, wrapping at `period`
+   * when given (see the designer's Shape panel).
+   */
+  animation?: { timeParam: string; period?: number };
 }
 
 /**
@@ -504,6 +534,38 @@ export const PRESETS: PresetEntry[] = [
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer6(radius, (params?.circleSize ?? 100) / 100),
+  },
+  {
+    id: "kaleidoscope",
+    label: "Kaleidoscope",
+    panels: 72,
+    params: [
+      { key: "flow", label: "Flow", min: 0, max: 100, step: 1, defaultValue: 70, unit: "%" },
+      {
+        key: "palette",
+        label: "Palette",
+        min: 0,
+        max: PALETTES.length - 1,
+        step: 1,
+        defaultValue: 0,
+        valueLabels: PALETTES.map((p) => p.name),
+      },
+      {
+        // Runs forever: the design never repeats (see lib/kaleidoscope).
+        key: "time",
+        label: "Time",
+        min: 0,
+        max: 1e9,
+        step: 0.1,
+        defaultValue: 0,
+        hidden: true,
+      },
+    ],
+    animation: { timeParam: "time" },
+    recolorParams: ["palette"],
+    topology: kaleidoscopeTopology,
+    warp: kaleidoscopeWarp,
+    defaultColors: kaleidoscopeColors,
   },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
   {

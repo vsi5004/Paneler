@@ -38,6 +38,15 @@ class MeshPoint extends CdtPoint {
 export function subdivideTopology(
   topo: PanelTopology,
   levels: number,
+  options: {
+    /**
+     * Fan-triangulate star-shaped panels however densely their boundary is
+     * sampled. For presets that hand over convex panels with evenly spaced
+     * seam points (the Kaleidoscope), where fan apex angles stay large and
+     * the concave mesher would only cost time.
+     */
+    allowDenseFans?: boolean;
+  } = {},
 ): PanelTopology {
   if (levels < 1) {
     return cloneTopology(topo);
@@ -97,7 +106,8 @@ export function subdivideTopology(
     // star-shaped: a fan from the centroid to boundary points fractions
     // of a degree apart makes sliver triangles (the Orbita's star panels
     // measured 0.5-degree min angles), which wreck the ARAP flatten.
-    const denseWavyBoundary = panel.vertexIndices.length > 40;
+    const denseWavyBoundary =
+      !options.allowDenseFans && panel.vertexIndices.length > 40;
     if (
       denseWavyBoundary ||
       !isStarShapedAbout(newVertices, panel.vertexIndices, centroid)

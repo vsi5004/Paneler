@@ -7,6 +7,7 @@ import {
 import { subdivideTopology, puffPanels } from "@/lib/mesh/subdivide";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { buildGlbDocument } from "@/lib/glb/build";
+import type { Vector3 } from "three";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 
 export const SPHERE_RADIUS = 2;
@@ -52,11 +53,15 @@ export function generateTemplateDocument(
     throw new Error(`generateTemplateDocument: unknown preset "${presetId}"`);
   }
   const resolved = resolvePresetParams(preset, params);
+  const topology = preset.topology(1, resolved);
 
-  return generateDocumentFromTopology(preset.topology(1, resolved), {
+  return generateDocumentFromTopology(topology, {
     assetName: presetId,
-    panelColors,
+    panelColors: preset.defaultColors
+      ? { ...preset.defaultColors(topology, resolved), ...panelColors }
+      : panelColors,
     design: { presetId, params: resolved },
+    warp: preset.warp?.(resolved),
     ...options,
   });
 }
@@ -74,11 +79,17 @@ export function generateDocumentFromTopology(
     assetName: string;
     panelColors?: PanelColors;
     design?: { presetId: string; params: PresetParams };
+    /** Applied to every subdivided vertex before projection (see PresetEntry.warp). */
+    warp?: (v: Vector3) => void;
   },
 ): Document {
   const target = options.targetTriangles ?? TARGET_TOTAL_TRIANGLES;
   const level = Math.max(1, Math.ceil(Math.sqrt(target / totalFanTriangles(raw))));
-  const subdivided = subdivideTopology(raw, level);
+  // A warp's contract is convex input panels (see PresetEntry.warp).
+  const subdivided = subdivideTopology(raw, level, {
+    allowDenseFans: Boolean(options.warp),
+  });
+  if (options.warp) for (const v of subdivided.vertices) options.warp(v);
   projectToSphere(subdivided, SPHERE_RADIUS);
   puffPanels(subdivided, SPHERE_RADIUS, PANEL_PUFF);
 

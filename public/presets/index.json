@@ -236,6 +236,50 @@
     "devOnly": true
   },
   {
+    "slug": "kaleidoscope",
+    "label": "Kaleidoscope",
+    "glbPath": "/presets/kaleidoscope.glb",
+    "panelCount": 162,
+    "shapeSignature": "162g",
+    "params": [
+      {
+        "key": "flow",
+        "label": "Flow",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 70,
+        "unit": "%"
+      },
+      {
+        "key": "palette",
+        "label": "Palette",
+        "min": 0,
+        "max": 6,
+        "step": 1,
+        "defaultValue": 0,
+        "valueLabels": [
+          "Lagoon",
+          "Ember",
+          "Meadow",
+          "Royal",
+          "Desert",
+          "Midnight",
+          "Carnival"
+        ]
+      },
+      {
+        "key": "time",
+        "label": "Time",
+        "min": 0,
+        "max": 1000000000,
+        "step": 0.1,
+        "defaultValue": 0,
+        "hidden": true
+      }
+    ]
+  },
+  {
     "slug": "gp2",
     "label": "GP(2,0)",
     "glbPath": "/presets/gp2.glb",

@@ -26,8 +26,13 @@ export interface DesignInfo {
   params: PresetParams;
 }
 
-/** Draft = coarse mesh while a slider drags; full = final quality on release. */
-export type RegenQuality = "draft" | "full";
+/**
+ * Draft = coarse mesh while a slider drags; full = final quality on
+ * release; play = an animation frame — full quality, no debounce. (A
+ * lighter mesh doubled the frame rate but visibly faceted the puffed
+ * panels mid-animation.)
+ */
+export type RegenQuality = "draft" | "full" | "play";
 
 /**
  * Trailing debounce for mid-drag regens. Long enough that the natural
@@ -290,7 +295,25 @@ export function useGlbDesign(): UseGlbDesignResult {
         const newBytes = await serializeDocument(doc);
         if (generation !== regenCounterRef.current) return; // superseded
         skipParseRef.current += 1;
-        setParsed(parseDocument(doc));
+        const next = parseDocument(doc);
+        // Params that change the panel set (the Kaleidoscope's panel count)
+        // bring new ids: adopt their template colors so the flat net and
+        // Summary show what the 3D view shows.
+        const fresh = next.materials.filter(
+          (m) => panelColorsRef.current[m.panelId] === undefined,
+        );
+        if (fresh.length > 0) {
+          setPanelColorsState((prev) => {
+            const merged = { ...prev };
+            for (const m of fresh) {
+              const hex = linearRgbaToHex(m.baseColorLinear);
+              merged[m.panelId] = hex;
+              defaultsRef.current[m.panelId] = hex;
+            }
+            return merged;
+          });
+        }
+        setParsed(next);
         setBytes(newBytes);
         setVersion((v) => v + 1);
         setError(null);
@@ -314,12 +337,17 @@ export function useGlbDesign(): UseGlbDesignResult {
       };
       designInfoRef.current = next;
       setDesignInfo(next);
+      // A palette change re-applies template colors: clearing the current
+      // ones lets applyGenerated adopt every panel's new default.
+      if (presetById(info.presetId)?.recolorParams?.includes(key)) {
+        panelColorsRef.current = {};
+      }
 
       if (regenTimerRef.current !== null) {
         window.clearTimeout(regenTimerRef.current);
         regenTimerRef.current = null;
       }
-      if (quality === "full") {
+      if (quality === "full" || quality === "play") {
         void applyGenerated(next, TARGET_TOTAL_TRIANGLES);
       } else {
         regenTimerRef.current = window.setTimeout(() => {

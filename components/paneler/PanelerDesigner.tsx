@@ -15,6 +15,7 @@ import {
 import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
+import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -143,6 +144,21 @@ export function PanelerDesigner({
     const defs = presetById(designInfo.presetId)?.params;
     return defs && defs.length > 0 ? defs : null;
   }, [designInfo]);
+
+  // Animated presets (the Kaleidoscope): Play advances the time param.
+  const animation = designInfo ? presetById(designInfo.presetId)?.animation : undefined;
+  const playback = usePlayback({
+    timeParam: animation?.timeParam,
+    period: animation?.period ?? Infinity,
+    time: animation ? (designInfo?.params[animation.timeParam] ?? 0) : 0,
+    frameKey: bytes,
+    setDesignParam,
+  });
+  // While playing, the flat net and laser panes hold the last still frame:
+  // re-flattening every animation frame would stall playback. They catch
+  // up when paused.
+  const [netTopology, setNetTopology] = useState(topology);
+  if (!playback.playing && netTopology !== topology) setNetTopology(topology);
 
   // Per-preset laser template options (Orbita: anchor holes on sharp
   // star bends). Memoized so the pane's template memo doesn't churn.
@@ -432,7 +448,8 @@ export function PanelerDesigner({
             variant="ghost"
             size="sm"
             onClick={() => void handleSave()}
-            disabled={saveState === "saving" || !bytes}
+            disabled={saveState === "saving" || !bytes || playback.playing}
+            title={playback.playing ? "Pause to save" : undefined}
             className={`h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${
               saveState === "error" ? "text-destructive" : ""
             }`}
@@ -524,11 +541,11 @@ export function PanelerDesigner({
                       label="2D · Flat net"
                       className="flex-1"
                     >
-                      {topology ? (
+                      {netTopology ? (
                         <div className="flex min-h-0 flex-1 flex-col">
                           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                             <PanelerFlatView
-                              topology={topology}
+                              topology={netTopology}
                               panelColors={panelColors}
                               selectedPanelId={selectedPanelId}
                               onPanelClick={handlePanelClick}
@@ -536,7 +553,7 @@ export function PanelerDesigner({
                             />
                           </div>
                           <LaserTemplatePane
-                            topology={topology}
+                            topology={netTopology}
                             laserSettings={laserSettings}
                             onSettingsChange={setLaserSettings}
                             designName={
@@ -562,6 +579,17 @@ export function PanelerDesigner({
                         paramDefs={shapeParamDefs}
                         values={designInfo.params}
                         onChange={setDesignParam}
+                        playback={
+                          animation
+                            ? {
+                                playing: playback.playing,
+                                onPlay: playback.play,
+                                onPause: playback.pause,
+                                speed: playback.speed,
+                                onSpeedChange: playback.setSpeed,
+                              }
+                            : undefined
+                        }
                       />
                       <div className="workshop-hairline my-5" />
                     </>
@@ -571,12 +599,13 @@ export function PanelerDesigner({
                       <LaserSettingsPanel
                         values={laserSettings}
                         onChange={setLaserSettings}
-                        hasPolygonPanels={topology.panels.some(
+                        hasPolygonPanels={(netTopology ?? topology).panels.some(
                           (p) => p.vertexIndices.length <= 6,
                         )}
                         hasShortEdges={(() => {
-                          const lens = topology.edges.map((e) =>
-                            topology.vertices[e.vertexA].distanceTo(topology.vertices[e.vertexB]),
+                          const t = netTopology ?? topology;
+                          const lens = t.edges.map((e) =>
+                            t.vertices[e.vertexA].distanceTo(t.vertices[e.vertexB]),
                           );
                           const maxLen = Math.max(...lens);
                           return maxLen > 0 && lens.some((l) => l < 0.55 * maxLen);
