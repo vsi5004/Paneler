@@ -75,6 +75,15 @@ export function concaveCircleSoccer(radius = 1, circleSize = 1): PanelTopology {
 }
 
 /**
+ * "Concave Circle Soccer 6" — Circle Soccer 6 (42 circles on the
+ * frequency-2 geodesic icosahedron, 122 panels) with the same inward
+ * flip: 30 six-pointed and 12 five-pointed scalloped panels.
+ */
+export function concaveCircleSoccer6(radius = 1, circleSize = 1): PanelTopology {
+  return circleBall(geodesicIcosahedron(2), radius, circleSize, { concave: true });
+}
+
+/**
  * Circles on every vertex of `parent`, each seam along a center-to-center
  * great arc, one filler panel per face. ρ = circleSize × (the soccer
  * ball's pentagon-circumradius-to-half-edge ratio) × half the parent's

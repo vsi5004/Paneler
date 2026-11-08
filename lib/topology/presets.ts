@@ -3,7 +3,12 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
-import { circleSoccer, circleSoccer6, concaveCircleSoccer } from "./circleSoccer";
+import {
+  circleSoccer,
+  circleSoccer6,
+  concaveCircleSoccer,
+  concaveCircleSoccer6,
+} from "./circleSoccer";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -490,6 +495,15 @@ export const PRESETS: PresetEntry[] = [
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer(radius, (params?.circleSize ?? 100) / 100),
+  },
+  {
+    id: "circle-soccer-concave-6",
+    label: "Concave Circle Soccer 6",
+    panels: 122,
+    devOnly: true,
+    params: [CIRCLE_SIZE_PARAM],
+    topology: (radius?: number, params?: PresetParams) =>
+      concaveCircleSoccer6(radius, (params?.circleSize ?? 100) / 100),
   },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
   {
