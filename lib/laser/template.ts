@@ -117,13 +117,10 @@ export function buildLaserTemplate(
   };
 }
 
-/** Corner extras' distance from the corner, count-controlled templates. */
-const HOLE_COUNT_CORNER_MM = 0.3;
-
 /**
  * Hole-to-hole distance along a seam for count-controlled templates
  * (`options.holeCount`): measured on the template with the fewest panels
- * (the circle), whose holes along a seam sit at the shared pitch.
+ * (the circle), whose holes run at one even pitch all the way round.
  * Undefined for other templates.
  */
 export function holeCountGapMm(
@@ -879,28 +876,26 @@ function placeStitchHoles(
       resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d;
     const { s0, flatSpan, patternLen, extras } = resolved;
     if (options.holeCount) {
-      // The hex edge's N holes run at one even pitch from just inside one
-      // corner to just inside the other: slots 0…N−1. The circle's side
-      // takes the middle N−2 slots, so both panels of a seam (same N,
-      // near-equal flat lengths) line up, and the end slots are the hex's
-      // corner extras — where it stitches to its hex neighbour, leaving the
-      // circle a wider gap at each corner (the classic soccer pattern).
+      // The seam's N − 2 holes sit in even cells — hole k at (k + ½)/(N−2)
+      // of the run — on both panels, so they mate hole for hole and the
+      // circle's holes run at one even pitch all the way round (adjacent
+      // seams meet a full cell apart). The hex adds its corner extras
+      // exactly on its two corners: those stitch it to the neighbouring
+      // hex, not to the circle.
       const same = resolved.neighborCls === ownClass;
-      const total = settings.hexEdgeHoles;
-      if (same || total < 4 || flatSpan <= 2 * HOLE_COUNT_CORNER_MM) {
+      const n = settings.hexEdgeHoles - 2;
+      if (same || n < 2 || flatSpan <= 0) {
         edgeHoles.push(0);
         unstitchedSpans.push({ s0, len: flatSpan });
         continue;
       }
-      const pitch = (flatSpan - 2 * HOLE_COUNT_CORNER_MM) / (total - 1);
-      const first = extras ? 0 : 1;
-      const last = extras ? total - 1 : total - 2;
-      for (let k = first; k <= last; k++) {
-        holes.push(
-          pointAtArcLength(samples, s0 + HOLE_COUNT_CORNER_MM + k * pitch, totalLength),
-        );
-      }
-      edgeHoles.push(last - first + 1);
+      const placeFlat = (sFlat: number) => {
+        holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
+      };
+      if (extras) placeFlat(0);
+      for (let k = 0; k < n; k++) placeFlat(((k + 0.5) * flatSpan) / n);
+      if (extras) placeFlat(flatSpan);
+      edgeHoles.push(n + (extras ? 2 : 0));
       continue;
     }
     if (cornerHoles) {
