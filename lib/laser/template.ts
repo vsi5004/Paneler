@@ -41,13 +41,14 @@ export interface LaserTemplateOptions {
   /** Replace rounded arc joins at convex corners with straight bevels. */
   sharpCorners?: boolean;
   /**
-   * Fixed hole counts per seam instead of counts derived from length and
-   * spacing: `mixed` on seams between different panel classes (plus the
-   * usual corner extra at each end for the self-adjacent class), `same`
-   * on seams between congruent panels (0 = unstitched). Holes spread
-   * evenly along each seam, so the counts hold at every footbag size.
+   * Hole counts set directly by `settings.hexEdgeHoles` instead of derived
+   * from length and spacing (the 32-panel circle soccers): seams between
+   * different panel classes get hexEdgeHoles − 2, plus the usual corner
+   * extra at each end for the self-adjacent class (the hex, so its edge
+   * totals hexEdgeHoles); seams between congruent panels are unstitched.
+   * Holes spread evenly along each seam, so counts hold at every size.
    */
-  fixedHoles?: { mixed: number; same: number };
+  holeCount?: boolean;
 }
 
 export function buildLaserTemplate(
@@ -114,6 +115,27 @@ export function buildLaserTemplate(
       height: maxY - minY + 2 * MARGIN_MM,
     },
   };
+}
+
+/**
+ * Hole-to-hole distance along a seam for count-controlled templates
+ * (`options.holeCount`): measured on the template with the fewest panels
+ * (the circle), whose seams carry evenly spaced holes and no corner
+ * extras. Undefined for other templates.
+ */
+export function holeCountGapMm(
+  topo: PanelTopology,
+  settings: LaserSettings,
+  options: LaserTemplateOptions,
+): number | undefined {
+  if (!options.holeCount) return undefined;
+  const cls = [...groupPanelsByCongruence(topo)].sort(
+    (a, b) => a.panelIds.length - b.panelIds.length,
+  )[0];
+  if (!cls) return undefined;
+  const { holes } = buildLaserTemplate(topo, cls, settings, options);
+  if (holes.length < 2) return undefined;
+  return Math.hypot(holes[1].x - holes[0].x, holes[1].y - holes[0].y);
 }
 
 /**
@@ -853,13 +875,13 @@ function placeStitchHoles(
       !settings.shortEdgeHoles &&
       resolved.len3d < HOLE_MIN_RUN_RATIO * maxLen3d;
     const { s0, flatSpan, patternLen, extras } = resolved;
-    if (options.fixedHoles) {
+    if (options.holeCount) {
       // Even cells along the seam: hole k at (k + ½)/n of the run, so both
       // panels of a seam (same n, near-equal flat lengths) line up. The
       // self-adjacent class's corner extras sit just inside each corner,
       // matching the length-derived convention below.
       const same = resolved.neighborCls === ownClass;
-      const n = same ? options.fixedHoles.same : options.fixedHoles.mixed;
+      const n = same ? 0 : Math.max(0, settings.hexEdgeHoles - 2);
       if (n <= 0 || flatSpan <= 0) {
         edgeHoles.push(0);
         unstitchedSpans.push({ s0, len: flatSpan });

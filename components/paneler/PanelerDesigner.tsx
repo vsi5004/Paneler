@@ -16,6 +16,7 @@ import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
+import { holeCountGapMm } from "@/lib/laser/template";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -168,7 +169,7 @@ export function PanelerDesigner({
       !preset?.laserSharpBendAnchors &&
       !preset?.seamTrueFlatten &&
       !preset?.laserCornerHoles &&
-      !preset?.laserFixedHoles &&
+      !preset?.laserHoleCount &&
       preset?.gatherCorrection === undefined
     ) {
       return undefined;
@@ -177,12 +178,19 @@ export function PanelerDesigner({
       ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
       ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
       ...(preset.laserCornerHoles ? { cornerHoles: true } : {}),
-      ...(preset.laserFixedHoles ? { fixedHoles: preset.laserFixedHoles } : {}),
+      ...(preset.laserHoleCount ? { holeCount: true } : {}),
       ...(preset.gatherCorrection !== undefined
         ? { gatherCorrection: preset.gatherCorrection }
         : {}),
     };
   }, [designInfo]);
+
+  // Count-controlled stitch holes: the resulting hole-to-hole distance,
+  // for the label under the Holes-per-hex-edge slider.
+  const holeCount = useMemo(() => {
+    if (!laserTemplateOptions?.holeCount || !netTopology) return undefined;
+    return { gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions) };
+  }, [netTopology, laserSettings, laserTemplateOptions]);
 
   // Same preset knowledge for the flat net's unfold.
   const flattenOptions = useMemo(
@@ -612,6 +620,7 @@ export function PanelerDesigner({
                           const maxLen = Math.max(...lens);
                           return maxLen > 0 && lens.some((l) => l < 0.55 * maxLen);
                         })()}
+                        holeCount={holeCount}
                       />
                       <div className="workshop-hairline my-5" />
                     </>

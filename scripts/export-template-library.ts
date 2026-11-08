@@ -20,6 +20,7 @@ import { templateToSvg, templateFilename } from "@/lib/laser/svg";
 import {
   DEFAULT_BITE_DEPTH_MM,
   HOLE_SPACING_MM,
+  DEFAULT_HEX_EDGE_HOLES,
 } from "@/lib/laser/constants";
 import type { LaserSettings } from "@/lib/laser/types";
 
@@ -65,7 +66,7 @@ for (const preset of PRESETS) {
     seamTrueBands: preset.seamTrueFlatten,
     gatherCorrection: preset.gatherCorrection,
     cornerHoles: preset.laserCornerHoles,
-    fixedHoles: preset.laserFixedHoles,
+    holeCount: preset.laserHoleCount,
   };
   for (const size of SIZES_IN) {
     const settings: LaserSettings = {
@@ -78,6 +79,7 @@ for (const preset of PRESETS) {
       shortEdgeHoles: preset.id === "teamgeist" || preset.id === "orbita",
       shortEdgeExtensionMm: 0,
       sharpCorners: false,
+      hexEdgeHoles: DEFAULT_HEX_EDGE_HOLES,
     };
     const sizeKey = size.toFixed(1);
     const dir = join(outDir, preset.id, sizeKey);

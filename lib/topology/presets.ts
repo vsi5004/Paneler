@@ -266,10 +266,10 @@ export interface PresetEntry {
    */
   laserCornerHoles?: boolean;
   /**
-   * Fixed stitch-hole counts per seam (see LaserTemplateOptions.fixedHoles)
-   * for designs with an established hole convention.
+   * Stitch holes set by count (the Holes-per-hex-edge slider) instead of
+   * spacing — see LaserTemplateOptions.holeCount.
    */
-  laserFixedHoles?: { mixed: number; same: number };
+  laserHoleCount?: boolean;
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
   /**
    * Per-vertex warp applied to the subdivided mesh before sphere
@@ -508,9 +508,9 @@ export const PRESETS: PresetEntry[] = [
     label: "Circle Soccer",
     panels: 32,
     devOnly: true,
-    // 6 holes per circle side (30 per circle); hex sides facing a circle
-    // get those 6 plus a corner extra at each end (8); hex-hex seams none.
-    laserFixedHoles: { mixed: 6, same: 0 },
+    // Holes by count: N per circle-facing hex side (default 8), N − 2 per
+    // circle side (6, so 30 per circle); hex-hex seams unstitched.
+    laserHoleCount: true,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       circleSoccer(radius, (params?.circleSize ?? 100) / 100),
@@ -529,7 +529,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Concave Circle Soccer",
     panels: 32,
     devOnly: true,
-    laserFixedHoles: { mixed: 6, same: 0 },
+    laserHoleCount: true,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer(radius, (params?.circleSize ?? 100) / 100),

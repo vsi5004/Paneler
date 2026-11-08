@@ -47,6 +47,10 @@ export const MIN_CURVATURE_PCT = 0;
 export const MAX_CURVATURE_PCT = 150;
 export const MIN_HOLE_SPACING_MM = 1.5;
 export const MAX_HOLE_SPACING_MM = 5;
+/** Holes-per-hex-edge slider (count-controlled templates): even, ≥ 4. */
+export const DEFAULT_HEX_EDGE_HOLES = 8;
+export const MIN_HEX_EDGE_HOLES = 4;
+export const MAX_HEX_EDGE_HOLES = 16;
 /** Short-edge extension slider bounds (extra fabric past the corner stitch). */
 export const MIN_SHORT_EDGE_EXTENSION_MM = 0;
 export const MAX_SHORT_EDGE_EXTENSION_MM = 5;
@@ -105,6 +109,7 @@ export function defaultLaserSettings(): LaserSettings {
     shortEdgeHoles: false,
     shortEdgeExtensionMm: 0,
     sharpCorners: false,
+    hexEdgeHoles: DEFAULT_HEX_EDGE_HOLES,
   };
 }
 

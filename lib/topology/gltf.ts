@@ -162,6 +162,7 @@ function parseDesignExtras(
       shortEdgeHoles,
       shortEdgeExtensionMm,
       sharpCorners,
+      hexEdgeHoles,
     } = laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
@@ -197,6 +198,13 @@ function parseDesignExtras(
             : 0,
         sharpCorners:
           typeof sharpCorners === "boolean" ? sharpCorners : false,
+        hexEdgeHoles:
+          typeof hexEdgeHoles === "number" &&
+          Number.isInteger(hexEdgeHoles) &&
+          hexEdgeHoles >= 4 &&
+          hexEdgeHoles % 2 === 0
+            ? hexEdgeHoles
+            : 8,
       };
     }
   }

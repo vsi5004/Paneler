@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { presetById, resolvePresetParams } from "@/lib/topology/presets";
 import type { PanelTopology } from "@/lib/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
-import { buildLaserTemplate, laserPanelOutline } from "@/lib/laser/template";
+import { buildLaserTemplate, holeCountGapMm, laserPanelOutline } from "@/lib/laser/template";
 import { templateFilename, templateToSvg } from "@/lib/laser/svg";
 import {
   DEFAULT_BITE_DEPTH_MM,
@@ -32,6 +32,7 @@ const SETTINGS: LaserSettings = {
   shortEdgeHoles: false,
   shortEdgeExtensionMm: 0,
   sharpCorners: false,
+  hexEdgeHoles: 8,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -175,27 +176,42 @@ describe("physical calibration", () => {
   });
 
   it.each(["circle-soccer", "circle-soccer-concave"])(
-    "%s: fixed 6-per-circle-side / 8-per-hex-side holes at any size",
+    "%s: holes set by count — N per hex edge, N−2 per circle side, any size",
     (id) => {
       const topo = topoOf(id);
-      const preset = presetById(id)!;
-      for (const diameterIn of [1.8, 2.2]) {
+      const options = { holeCount: presetById(id)!.laserHoleCount };
+      for (const [hexEdgeHoles, diameterIn] of [
+        [8, 1.8],
+        [8, 2.2],
+        [4, 1.8],
+        [12, 2.2],
+      ]) {
+        const settings = { ...SETTINGS, diameterIn, hexEdgeHoles };
         const [hex, circle] = groupPanelsByCongruence(topo)
           .sort((a, b) => b.panelIds.length - a.panelIds.length)
-          .map((c) =>
-            buildLaserTemplate(topo, c, { ...SETTINGS, diameterIn }, {
-              fixedHoles: preset.laserFixedHoles,
-            }),
-          );
-        // Circle: 5 hex seams at 6 each. Hexagon: hex-hex seams unholed,
-        // 3 circle seams at 6+2.
-        expect(circle.edgeHoles).toEqual([6, 6, 6, 6, 6]);
-        expect(circle.holes).toHaveLength(30);
-        expect([...hex.edgeHoles].sort()).toEqual([0, 0, 0, 8, 8, 8]);
-        expect(hex.holes).toHaveLength(24);
+          .map((c) => buildLaserTemplate(topo, c, settings, options));
+        const n = hexEdgeHoles - 2;
+        // Circle: 5 hex seams at N−2 each. Hexagon: hex-hex seams unholed,
+        // 3 circle seams at (N−2)+2 corner extras.
+        expect(circle.edgeHoles).toEqual([n, n, n, n, n]);
+        expect(circle.holes).toHaveLength(5 * n);
+        expect([...hex.edgeHoles].sort((a, b) => a - b)).toEqual([0, 0, 0, hexEdgeHoles, hexEdgeHoles, hexEdgeHoles]);
+        expect(hex.holes).toHaveLength(3 * hexEdgeHoles);
       }
     },
   );
+
+  it("reports the hole-to-hole distance for count-controlled templates", () => {
+    const topo = topoOf("circle-soccer");
+    const options = { holeCount: true };
+    const at8 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2 }, options)!;
+    const at12 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2, hexEdgeHoles: 12 }, options)!;
+    // 6 vs 10 holes on the same seam: gaps scale ~6/10.
+    expect(at12 / at8).toBeCloseTo(6 / 10, 1);
+    expect(at8).toBeGreaterThan(2);
+    expect(at8).toBeLessThan(3);
+    expect(holeCountGapMm(topoOf("soccer"), SETTINGS, {})).toBeUndefined();
+  });
 });
 
 describe("cut outline offset", () => {

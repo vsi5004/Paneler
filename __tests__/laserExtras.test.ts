@@ -22,6 +22,7 @@ const LASER = {
   shortEdgeHoles: true,
   shortEdgeExtensionMm: 2.5,
   sharpCorners: false,
+  hexEdgeHoles: 10,
 };
 
 function bareCubeDoc() {
@@ -95,6 +96,7 @@ describe("laser settings persistence", () => {
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
       sharpCorners: false,
+      hexEdgeHoles: 8,
         });
   });
 

@@ -32,6 +32,13 @@ export interface LaserSettings {
   shortEdgeHoles: boolean;
   /** Replace rounded arc joins at convex cut-outline corners with straight bevels. */
   sharpCorners: boolean;
+  /**
+   * Holes on each circle-facing hex edge, for templates whose hole counts
+   * are set directly (the 32-panel circle soccers): even, at least 4. The
+   * circle's side of the seam gets this minus the 2 corner extras.
+   * Ignored by templates that place holes by `holeSpacingMm`.
+   */
+  hexEdgeHoles: number;
 }
 
 /** A group of congruent panels that share one template. */

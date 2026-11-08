@@ -14,6 +14,8 @@ import {
   MIN_CURVATURE_PCT,
   MIN_DIAMETER_IN,
   MIN_HOLE_SPACING_MM,
+  MAX_HEX_EDGE_HOLES,
+  MIN_HEX_EDGE_HOLES,
 } from "@/lib/laser/constants";
 import type { LaserSettings } from "@/lib/laser/types";
 
@@ -35,6 +37,13 @@ interface LaserSettingsPanelProps {
    * designs like the tetrahedron or cube.
    */
   hasShortEdges: boolean;
+  /**
+   * Present for templates whose stitch holes are set by count (the
+   * 32-panel circle soccers): replaces the Hole spacing slider with a
+   * Holes-per-hex-edge slider, and shows the resulting hole-to-hole
+   * distance (undefined while it can't be measured).
+   */
+  holeCount?: { gapMm: number | undefined };
 }
 
 /**
@@ -47,6 +56,7 @@ export function LaserSettingsPanel({
   onChange,
   hasPolygonPanels,
   hasShortEdges,
+  holeCount,
 }: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
     Array.isArray(v) ? v[0] : (v as number);
@@ -95,6 +105,32 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ biteDepthMm: first(v) })}
           />
         </div>
+        {holeCount ? (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              Holes per hex edge
+            </label>
+            <span className="font-mono text-[10px] tabular-nums text-foreground">
+              {values.hexEdgeHoles}
+            </span>
+          </div>
+          <Slider
+            value={[values.hexEdgeHoles]}
+            min={MIN_HEX_EDGE_HOLES}
+            max={MAX_HEX_EDGE_HOLES}
+            step={2}
+            onValueChange={(v) => onChange({ hexEdgeHoles: first(v) })}
+          />
+          <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
+            {holeCount.gapMm !== undefined
+              ? `Holes ${holeCount.gapMm.toFixed(2)}mm apart`
+              : "Measuring hole spacing…"}
+            {" · "}
+            {values.hexEdgeHoles - 2} per circle side
+          </p>
+        </div>
+        ) : (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
@@ -112,6 +148,7 @@ export function LaserSettingsPanel({
             onValueChange={(v) => onChange({ holeSpacingMm: first(v) })}
           />
         </div>
+        )}
         {hasShortEdges && (
         <div className="flex items-center justify-between">
           <label
