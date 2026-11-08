@@ -206,10 +206,10 @@ describe("physical calibration", () => {
     const options = { holeCount: true };
     const at8 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2 }, options)!;
     const at12 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2, hexEdgeHoles: 12 }, options)!;
-    // 6 vs 10 holes on the same seam: gaps scale ~6/10.
-    expect(at12 / at8).toBeCloseTo(6 / 10, 1);
-    expect(at8).toBeGreaterThan(2);
-    expect(at8).toBeLessThan(3);
+    // The hex edge's 8 vs 12 holes split it into 7 vs 11 even steps.
+    expect(at12 / at8).toBeCloseTo(7 / 11, 2);
+    expect(at8).toBeGreaterThan(1.5);
+    expect(at8).toBeLessThan(2.5);
     expect(holeCountGapMm(topoOf("soccer"), SETTINGS, {})).toBeUndefined();
   });
 });
