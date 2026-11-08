@@ -165,6 +165,17 @@
     "glbPath": "/presets/circle-soccer.glb",
     "panelCount": 32,
     "shapeSignature": "32g",
+    "params": [
+      {
+        "key": "circleSize",
+        "label": "Circle size",
+        "min": 50,
+        "max": 150,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ],
     "devOnly": true
   },
   {

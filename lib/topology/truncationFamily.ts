@@ -54,7 +54,7 @@ const DEGENERATE_RATIO = 1e-6;
  * from outside; vertices must share one circumradius and one edge length
  * (edge-transitivity) for the ratio math above to hold.
  */
-interface ParentSolid {
+export interface ParentSolid {
   vertices: ReadonlyArray<readonly [number, number, number]>;
   faces: ReadonlyArray<readonly [number, number, number]>;
   /**
@@ -95,7 +95,7 @@ const OCTAHEDRON: ParentSolid = {
 
 // Mirrors icosahedron() in presets.ts.
 const ICOSA_PHI = (1 + Math.sqrt(5)) / 2;
-const ICOSAHEDRON: ParentSolid = {
+export const ICOSAHEDRON: ParentSolid = {
   vertices: [
     [-1, ICOSA_PHI, 0], // 0
     [1, ICOSA_PHI, 0], // 1
