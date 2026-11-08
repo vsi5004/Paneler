@@ -160,6 +160,14 @@
     ]
   },
   {
+    "slug": "circle-soccer",
+    "label": "Circle Soccer",
+    "glbPath": "/presets/circle-soccer.glb",
+    "panelCount": 32,
+    "shapeSignature": "32g",
+    "devOnly": true
+  },
+  {
     "slug": "gp2",
     "label": "GP(2,0)",
     "glbPath": "/presets/gp2.glb",

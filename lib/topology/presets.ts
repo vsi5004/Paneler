@@ -3,6 +3,7 @@ import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
+import { circleSoccer } from "./circleSoccer";
 import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
@@ -448,6 +449,13 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       truncatedIcosahedronFamily(radius, (params?.shortEdge ?? 100) / 100),
+  },
+  {
+    id: "circle-soccer",
+    label: "Circle Soccer",
+    panels: 32,
+    devOnly: true,
+    topology: circleSoccer,
   },
   { id: "gp2", label: "GP(2,0)", panels: 42, topology: (r?: number) => goldbergClassI(2, r) },
   {

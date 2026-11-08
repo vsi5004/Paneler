@@ -67,7 +67,7 @@ describe("topology presets", () => {
       expect(ids.size).toBe(t.panels.length);
       // Each id starts with panel_, has 3-digit index, ends with shape name.
       for (const p of t.panels) {
-        expect(p.id).toMatch(/^panel_\d{3}_(triangle|quad|pentagon|hexagon|polygon)$/);
+        expect(p.id).toMatch(/^panel_\d{3}_(triangle|quad|pentagon|hexagon|polygon|circle)$/);
       }
     }
   });
