@@ -201,6 +201,64 @@ describe("physical calibration", () => {
     },
   );
 
+  it.each(["circle-soccer", "circle-soccer-concave"])(
+    "%s: hex edges extend past their corners and every hole sits on the seam",
+    (id) => {
+      const preset = presetById(id)!;
+      const segDist = (p: Vec2, a: Vec2, b: Vec2) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+      };
+      for (const circleSize of [60, 100, 150]) {
+        const topo = topoOf(id, { circleSize });
+        const hexCls = groupPanelsByCongruence(topo).find((c) => c.panelIds.length === 20)!;
+        for (const diameterIn of [1.6, 2.15]) {
+          const t = buildLaserTemplate(topo, hexCls, { ...SETTINGS, diameterIn }, { holeCount: true });
+          const seam = [...t.seamPath.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g)].map((m) => ({
+            x: Number(m[1]),
+            y: Number(m[2]),
+          }));
+          // The seam is the extended outline (polyline), and the end holes
+          // on its tips lie on it like every other hole — including the
+          // edge that wraps past the outline's arc-length origin.
+          expect(seam.length).toBeGreaterThan(20);
+          for (const h of t.holes) {
+            const d = Math.min(...seam.map((a, k) => segDist(h, a, seam[(k + 1) % seam.length])));
+            expect(d).toBeLessThan(0.01);
+          }
+        }
+      }
+      expect(preset.laserHoleCount).toBe(true);
+    },
+  );
+
+  it.each(["circle-soccer-6", "circle-soccer-concave-6"])(
+    "%s: only circle-filler seams stitched, N per filler edge, N−2 per circle side",
+    (id) => {
+      const topo = topoOf(id);
+      const options = { holeCount: presetById(id)!.laserHoleCount };
+      for (const hexEdgeHoles of [8, 10]) {
+        const settings = { ...SETTINGS, hexEdgeHoles };
+        const n = hexEdgeHoles - 2;
+        const classes = groupPanelsByCongruence(topo);
+        // Two filler shapes and two circle kinds (5 and 6 neighbours).
+        expect(classes).toHaveLength(4);
+        for (const cls of classes) {
+          const t = buildLaserTemplate(topo, cls, settings, options);
+          if (cls.representative.id.endsWith("_circle")) {
+            expect(new Set(t.edgeHoles)).toEqual(new Set([n]));
+            expect([5, 6]).toContain(t.edgeHoles.length);
+          } else {
+            // Filler-filler seams unstitched, even between the two shapes.
+            expect([...t.edgeHoles].sort((a, b) => a - b)).toEqual([0, 0, 0, hexEdgeHoles, hexEdgeHoles, hexEdgeHoles]);
+          }
+        }
+      }
+    },
+  );
+
   it("reports the hole-to-hole distance for count-controlled templates", () => {
     const topo = topoOf("circle-soccer");
     const options = { holeCount: true };

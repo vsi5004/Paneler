@@ -5,6 +5,7 @@ import {
   type FlattenOptions,
 } from "@/lib/flatten/unfoldNet";
 import { groupPanelsByCongruence } from "./congruence";
+import { getPanelShape } from "@/lib/designState";
 import {
   buildCurvedPanelPath,
   sampleOutline,
@@ -42,11 +43,11 @@ export interface LaserTemplateOptions {
   sharpCorners?: boolean;
   /**
    * Hole counts set directly by `settings.hexEdgeHoles` instead of derived
-   * from length and spacing (the 32-panel circle soccers): seams between
-   * different panel classes get hexEdgeHoles − 2, plus the usual corner
-   * extra at each end for the self-adjacent class (the hex, so its edge
-   * totals hexEdgeHoles); seams between congruent panels are unstitched.
-   * Holes spread evenly along each seam, so counts hold at every size.
+   * from length and spacing (the circle soccers): circle-to-filler seams
+   * get hexEdgeHoles − 2 on both panels, plus a corner extra at each end
+   * on the filler (the hex, so its edge totals hexEdgeHoles); seams
+   * between two fillers are unstitched. Holes spread evenly along each
+   * seam, so counts hold at every size.
    */
   holeCount?: boolean;
 }
@@ -72,8 +73,7 @@ export function buildLaserTemplate(
   };
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);
-  const seamPath = buildCurvedPanelPath(flatMm);
-  const { holes, edgeHoles, unstitchedSpans } = placeStitchHoles(
+  const { holes, edgeHoles, unstitchedSpans, cornerExtensions } = placeStitchHoles(
     topo,
     cls,
     samples,
@@ -81,8 +81,13 @@ export function buildLaserTemplate(
     settings,
     options,
   );
+  // Count-controlled hexes extend their stitched edges past each corner
+  // (see placeStitchHoles); the seam outline grows to meet the extensions.
+  const outline = extendEdgeEnds(samples, unstitchedSpans, cornerExtensions);
+  const seamPath =
+    cornerExtensions.length > 0 ? polylinePath(outline.map((sm) => sm.p)) : buildCurvedPanelPath(flatMm);
   const rawCut = offsetOutline(
-    extendShortEdges(samples, unstitchedSpans, settings.shortEdgeExtensionMm),
+    extendShortEdges(outline, unstitchedSpans, settings.shortEdgeExtensionMm),
     settings.biteDepthMm,
   );
   const cutPoints = options.sharpCorners
@@ -565,6 +570,60 @@ interface Span {
 }
 
 /**
+ * How far a count-controlled hex's stitched edge extends past each of its
+ * corners, millimeters. Its end holes sit on the extension tips, a little
+ * clear of the matching holes, and stitch it to the neighbouring hex.
+ */
+const HEX_EDGE_EXTENSION_MM = 1;
+
+/** A stitched edge's extension past one corner: the corner's arc position and the offset to the tip. */
+interface CornerExtension {
+  s: number;
+  offset: Vec2;
+}
+
+/**
+ * Grow the seam outline to meet stitched-edge extensions: each unstitched
+ * span between two extended corners slides out to join the extension
+ * tips, its displacement blending linearly from the start tip's offset to
+ * the end tip's, so the edge keeps its shape and the outline stays
+ * continuous (the stitched edge runs straight on into its tip).
+ */
+function extendEdgeEnds(
+  samples: OutlineSample[],
+  spans: Span[],
+  extensions: CornerExtension[],
+): OutlineSample[] {
+  if (extensions.length === 0 || spans.length === 0) return samples;
+  // Full perimeter, closing segment included — the same arc-length basis
+  // placeStitchHoles uses, so spans that wrap past the origin match.
+  const last = samples[samples.length - 1];
+  const total = last.s + Math.hypot(samples[0].p.x - last.p.x, samples[0].p.y - last.p.y);
+  const near = (a: number, b: number) => {
+    const d = Math.abs(((a - b) % total + total) % total);
+    return Math.min(d, total - d) < 1e-6;
+  };
+  const offsetAt = (s: number) => extensions.find((e) => near(e.s, s))?.offset;
+  return samples.map((sm) => {
+    for (const span of spans) {
+      const t = ((sm.s - span.s0) % total + total) % total;
+      // Tolerance: on a span wrapping past the origin, its closing corner
+      // can land a rounding error past span.len and must still move.
+      if (t > span.len + 1e-6) continue;
+      const a = offsetAt(span.s0);
+      const b = offsetAt(span.s0 + span.len);
+      if (!a || !b) continue;
+      const f = span.len > 0 ? t / span.len : 0;
+      return {
+        ...sm,
+        p: { x: sm.p.x + a.x + (b.x - a.x) * f, y: sm.p.y + a.y + (b.y - a.y) * f },
+      };
+    }
+    return sm;
+  });
+}
+
+/**
  * Extend the fabric past each UNSTITCHED short edge: the span's samples
  * translate rigidly outward by the extension along the span's mean
  * normal — the short edge slides straight out, in its own direction
@@ -665,7 +724,12 @@ function placeStitchHoles(
   mmScale: number,
   settings: LaserSettings,
   options: LaserTemplateOptions = {},
-): { holes: Vec2[]; edgeHoles: number[]; unstitchedSpans: Span[] } {
+): {
+  holes: Vec2[];
+  edgeHoles: number[];
+  unstitchedSpans: Span[];
+  cornerExtensions: CornerExtension[];
+} {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
   // Pair bunching only on simple polygon panels, where the palindromic
@@ -805,6 +869,7 @@ function placeStitchHoles(
       s0,
       flatSpan,
       len3d,
+      neighborId,
       neighborCls: neighborCls ?? "boundary",
       patternLen: sameClass || neighborId === null ? flatSpan : len3d,
       extras: runGetsExtras(run),
@@ -864,6 +929,7 @@ function placeStitchHoles(
   const holes: Vec2[] = [];
   const edgeHoles: number[] = [];
   const unstitchedSpans: Span[] = [];
+  const cornerExtensions: CornerExtension[] = [];
   for (const resolved of runSpans) {
     if (!resolved) continue;
     // Short-edge rule, judged on the shared 3D length so both panels of
@@ -879,23 +945,45 @@ function placeStitchHoles(
       // The seam's N − 2 holes sit in even cells — hole k at (k + ½)/(N−2)
       // of the run — on both panels, so they mate hole for hole and the
       // circle's holes run at one even pitch all the way round (adjacent
-      // seams meet a full cell apart). The hex adds its corner extras
-      // exactly on its two corners: those stitch it to the neighbouring
-      // hex, not to the circle.
-      const same = resolved.neighborCls === ownClass;
+      // seams meet a full cell apart). The hex's two extras stitch it to
+      // the neighbouring hex: its edge extends HEX_EDGE_EXTENSION_MM past
+      // each corner, straight on along the edge's own direction, and the
+      // extras sit on the tips (the outline grows to meet them — see
+      // extendEdgeEnds). Hex-hex seams stay unstitched.
+      // Only circle-to-filler seams are stitched (by panel id, not shape
+      // class: the 122-panel designs have two filler and two circle
+      // shapes, and filler-filler seams between the two filler shapes
+      // stay unstitched). The filler side takes the corner extras.
+      const isCircle = (id: string) => getPanelShape(id) === "circle";
+      const ownCircle = isCircle(cls.representative.id);
+      const stitched =
+        resolved.neighborId !== null && ownCircle !== isCircle(resolved.neighborId);
+      const fillerExtras = !ownCircle;
       const n = settings.hexEdgeHoles - 2;
-      if (same || n < 2 || flatSpan <= 0) {
+      if (!stitched || n < 2 || flatSpan <= 0) {
         edgeHoles.push(0);
         unstitchedSpans.push({ s0, len: flatSpan });
         continue;
       }
-      const placeFlat = (sFlat: number) => {
-        holes.push(pointAtArcLength(samples, s0 + sFlat, totalLength));
+      const at = (sFlat: number) => pointAtArcLength(samples, s0 + sFlat, totalLength);
+      // Unit direction leaving the run past its start (dir −1) or end (+1).
+      const outward = (sFlat: number, dir: number): Vec2 => {
+        const p = at(sFlat);
+        const q = at(sFlat - dir * 0.3);
+        const len = Math.hypot(p.x - q.x, p.y - q.y) || 1;
+        return { x: (p.x - q.x) / len, y: (p.y - q.y) / len };
       };
-      if (extras) placeFlat(0);
-      for (let k = 0; k < n; k++) placeFlat(((k + 0.5) * flatSpan) / n);
-      if (extras) placeFlat(flatSpan);
-      edgeHoles.push(n + (extras ? 2 : 0));
+      const tip = (sFlat: number, dir: number) => {
+        const p = at(sFlat);
+        const u = outward(sFlat, dir);
+        const offset = { x: u.x * HEX_EDGE_EXTENSION_MM, y: u.y * HEX_EDGE_EXTENSION_MM };
+        cornerExtensions.push({ s: s0 + sFlat, offset });
+        holes.push({ x: p.x + offset.x, y: p.y + offset.y });
+      };
+      if (fillerExtras) tip(0, -1);
+      for (let k = 0; k < n; k++) holes.push(at(((k + 0.5) * flatSpan) / n));
+      if (fillerExtras) tip(flatSpan, 1);
+      edgeHoles.push(n + (fillerExtras ? 2 : 0));
       continue;
     }
     if (cornerHoles) {
@@ -1009,7 +1097,7 @@ function placeStitchHoles(
     }
     edgeHoles.push(n + (extras ? 2 : 0));
   }
-  return { holes, edgeHoles, unstitchedSpans };
+  return { holes, edgeHoles, unstitchedSpans, cornerExtensions };
 }
 
 function pointAtArcLength(

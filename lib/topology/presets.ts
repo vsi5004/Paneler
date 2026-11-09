@@ -520,6 +520,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Circle Soccer 6",
     panels: 122,
     devOnly: true,
+    laserHoleCount: true,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       circleSoccer6(radius, (params?.circleSize ?? 100) / 100),
@@ -539,6 +540,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Concave Circle Soccer 6",
     panels: 122,
     devOnly: true,
+    laserHoleCount: true,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer6(radius, (params?.circleSize ?? 100) / 100),
