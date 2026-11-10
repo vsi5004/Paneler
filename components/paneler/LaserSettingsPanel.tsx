@@ -16,6 +16,7 @@ import {
   MIN_HOLE_SPACING_MM,
   MAX_HEX_EDGE_HOLES,
   MIN_HEX_EDGE_HOLES,
+  curvatureFor,
 } from "@/lib/laser/constants";
 import type { LaserSettings } from "@/lib/laser/types";
 
@@ -45,6 +46,11 @@ interface LaserSettingsPanelProps {
    * controls — short-edge holes and extension, corner margin.
    */
   holeCount?: { gapMm: number | undefined; matchSide: string };
+  /**
+   * The design's panel types (template labels). With more than one, Panel
+   * curvature becomes one slider per type.
+   */
+  panelTypes: string[];
 }
 
 /**
@@ -58,6 +64,7 @@ export function LaserSettingsPanel({
   hasPolygonPanels,
   hasShortEdges,
   holeCount,
+  panelTypes,
 }: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
     Array.isArray(v) ? v[0] : (v as number);
@@ -218,26 +225,38 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
-        {hasPolygonPanels && (
-        <div>
-          <div className="mb-2 flex items-baseline justify-between">
-            <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              Panel curvature
-            </label>
-            <span className="font-mono text-[10px] tabular-nums text-foreground">
-              {values.curvaturePct.toFixed(0)}%
-            </span>
-          </div>
-          <Slider
-            value={[values.curvaturePct]}
-            min={MIN_CURVATURE_PCT}
-            max={MAX_CURVATURE_PCT}
-            step={5}
-            onValueChange={(v) => onChange({ curvaturePct: first(v) })}
-          />
-        </div>
-        )}
-        {values.curvaturePct === 0 && (
+        {hasPolygonPanels &&
+          (panelTypes.length > 1 ? panelTypes : [null]).map((type) => {
+            const pct = type === null ? values.curvaturePct : curvatureFor(values, type);
+            return (
+              <div key={type ?? "all"}>
+                <div className="mb-2 flex items-baseline justify-between">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+                    {type === null ? "Panel curvature" : `${type} curvature`}
+                  </label>
+                  <span className="font-mono text-[10px] tabular-nums text-foreground">
+                    {pct.toFixed(0)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[pct]}
+                  min={MIN_CURVATURE_PCT}
+                  max={MAX_CURVATURE_PCT}
+                  step={5}
+                  onValueChange={(v) =>
+                    onChange(
+                      type === null
+                        ? { curvaturePct: first(v) }
+                        : { curvatureByType: { ...values.curvatureByType, [type]: first(v) } },
+                    )
+                  }
+                />
+              </div>
+            );
+          })}
+        {(panelTypes.length > 1
+          ? panelTypes.some((type) => curvatureFor(values, type) === 0)
+          : values.curvaturePct === 0) && (
         <div className="flex items-center justify-between">
           <label
             className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"

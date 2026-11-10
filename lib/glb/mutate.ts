@@ -48,6 +48,7 @@ export function setLaserExtras(doc: Document, laser: LaserSettings): void {
     diameterIn: laser.diameterIn,
     biteDepthMm: laser.biteDepthMm,
     curvaturePct: laser.curvaturePct,
+    curvatureByType: { ...laser.curvatureByType },
     showHoles: laser.showHoles,
     holeSpacingMm: laser.holeSpacingMm,
     cornerMarginMm: laser.cornerMarginMm,

@@ -17,6 +17,7 @@ import {
   MARGIN_MM,
   SAMPLE_STEP_MM,
   mmPerUnit,
+  curvatureFor,
 } from "./constants";
 import type { LaserSettings, LaserTemplate, PanelClass } from "./types";
 
@@ -38,7 +39,10 @@ export interface LaserTemplateOptions {
    * designs like the tetrahedron where corner stitches are structural.
    */
   cornerHoles?: boolean;
-  /** Replace rounded arc joins at convex corners with straight bevels. */
+  /**
+   * Replace rounded arc joins at convex corners with straight bevels —
+   * applied to templates whose panel type has 0% curvature.
+   */
   sharpCorners?: boolean;
   /**
    * Hole counts set directly by `settings.hexEdgeHoles` instead of derived
@@ -71,7 +75,8 @@ export function buildLaserTemplate(
   // sagitta, 0% = straight polygon edges. Everything downstream (seam
   // path, sampled outline, cut offset, stitch holes) derives from these
   // ratios, so the whole template follows consistently.
-  const curve = settings.curvaturePct / 100;
+  const curvaturePct = curvatureFor(settings, cls.label);
+  const curve = curvaturePct / 100;
   const flatMm: PanelFlat = {
     corners: unscaled.corners.map((c) => ({ x: c.x * scale, y: c.y * scale })),
     sagittaRatios: unscaled.sagittaRatios.map((r) => r * curve),
@@ -95,7 +100,7 @@ export function buildLaserTemplate(
     extendShortEdges(outline, unstitchedSpans, settings.shortEdgeExtensionMm),
     settings.biteDepthMm,
   );
-  const cutPoints = options.sharpCorners
+  const cutPoints = options.sharpCorners && curvaturePct === 0
     ? sharpenOffsetCorners(rawCut, flatMm, settings.biteDepthMm)
     : rawCut;
   const cutPath = polylinePath(cutPoints);

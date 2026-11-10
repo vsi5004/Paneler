@@ -27,6 +27,7 @@ import {
   STITCH_HOLE_DIAMETER_MM,
 } from "@/lib/laser/constants";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface LaserTemplatePaneProps {
   topology: PanelTopology;
@@ -53,6 +54,7 @@ export function LaserTemplatePane({
 }: LaserTemplatePaneProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState(0);
+  const [allOpen, setAllOpen] = useState(false);
   // Pane height as a fraction of the 2D column — user-resizable via the
   // grip on the top edge (drag up = bigger templates / clearer holes).
   const DEFAULT_HEIGHT_FRAC = 0.44;
@@ -65,10 +67,9 @@ export function LaserTemplatePane({
 
   const templates = useMemo(() => {
     const classes = groupPanelsByCongruence(topology);
-    const opts =
-      laserSettings.sharpCorners && laserSettings.curvaturePct === 0
-        ? { ...templateOptions, sharpCorners: true }
-        : templateOptions;
+    const opts = laserSettings.sharpCorners
+      ? { ...templateOptions, sharpCorners: true }
+      : templateOptions;
     return classes.map((cls) =>
       buildLaserTemplate(topology, cls, laserSettings, opts),
     );
@@ -287,6 +288,14 @@ export function LaserTemplatePane({
                 size="sm"
                 variant="outline"
                 className="ml-auto font-mono text-[10px] uppercase tracking-[0.2em]"
+                onClick={() => setAllOpen(true)}
+              >
+                All templates
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono text-[10px] uppercase tracking-[0.2em]"
                 onClick={() =>
                   downloadSvg(
                     templateFilename(designName, current, laserSettings),
@@ -302,6 +311,16 @@ export function LaserTemplatePane({
           )}
         </div>
       </div>
+      <Dialog open={allOpen} onOpenChange={setAllOpen}>
+        <DialogContent className="border-border bg-[oklch(0.08_0_0)] sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-[0.18em] text-foreground">
+              All templates
+            </DialogTitle>
+          </DialogHeader>
+          <AllTemplatesSheet templates={templates} showHoles={laserSettings.showHoles} />
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
@@ -400,7 +419,6 @@ function TemplateCard({
   const dimY = shapeMinY + shapeH + PAD + DIM_BAND / 2;
   const dimX0 = shapeMinX;
   const dimX1 = shapeMinX + shapeW;
-  const holeR = Math.max(STITCH_HOLE_DIAMETER_MM / 2, shapeW / 200);
 
   return (
     <span
@@ -416,48 +434,7 @@ function TemplateCard({
         className="h-full w-full"
         aria-hidden
       >
-        {/* Seam (stitch) line — dashed, quiet. */}
-        <path
-          d={t.seamPath}
-          fill="none"
-          stroke="var(--muted-foreground)"
-          strokeWidth={shapeW / 320}
-          strokeDasharray={`${shapeW / 70} ${shapeW / 100}`}
-          opacity={0.7}
-        />
-        {/* Cut line — the star. */}
-        <path
-          d={t.cutPath}
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth={shapeW / 180}
-        />
-        {/* Stitch pierce points. */}
-        {showHoles && (
-          <g fill="#ffffff" opacity={0.9}>
-            {t.holes.map((h, i) => (
-              <circle key={i} cx={h.x} cy={h.y} r={holeR} />
-            ))}
-          </g>
-        )}
-        {/* Each side's length along the seam (front card only, preview only). */}
-        {front && (
-          <g
-            fill="var(--muted-foreground)"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            style={{
-              fontSize: Math.max(0.9, shapeW / 26),
-              fontFamily: "var(--font-mono, monospace)",
-            }}
-          >
-            {t.edgeLengths.map((e, i) => (
-              <text key={i} x={e.labelAt.x} y={e.labelAt.y}>
-                {e.lengthMm.toFixed(1)}
-              </text>
-            ))}
-          </g>
-        )}
+        <TemplateGraphics template={t} unit={shapeW} showHoles={showHoles} lengths={front} />
         {/* Engineering dimension rule (front card only). */}
         {front && (
           <g
@@ -486,5 +463,154 @@ function TemplateCard({
         )}
       </svg>
     </span>
+  );
+}
+
+/**
+ * A template's seam line, cut line, stitch holes and (optionally) its
+ * side lengths along the seam, in template millimetres. `unit` sets line
+ * weights and text size, so graphics drawn together at one scale share
+ * one `unit`.
+ */
+function TemplateGraphics({
+  template: t,
+  unit,
+  showHoles,
+  lengths,
+}: {
+  template: LaserTemplate;
+  unit: number;
+  showHoles: boolean;
+  lengths: boolean;
+}) {
+  const holeR = Math.max(STITCH_HOLE_DIAMETER_MM / 2, unit / 200);
+  return (
+    <>
+      {/* Seam (stitch) line — dashed, quiet. */}
+      <path
+        d={t.seamPath}
+        fill="none"
+        stroke="var(--muted-foreground)"
+        strokeWidth={unit / 320}
+        strokeDasharray={`${unit / 70} ${unit / 100}`}
+        opacity={0.7}
+      />
+      {/* Cut line — the star. */}
+      <path d={t.cutPath} fill="none" stroke="var(--primary)" strokeWidth={unit / 180} />
+      {/* Stitch pierce points. */}
+      {showHoles && (
+        <g fill="#ffffff" opacity={0.9}>
+          {t.holes.map((h, i) => (
+            <circle key={i} cx={h.x} cy={h.y} r={holeR} />
+          ))}
+        </g>
+      )}
+      {/* Each side's length along the seam (preview only, not exported). */}
+      {lengths && (
+        <g
+          fill="var(--muted-foreground)"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{
+            fontSize: Math.max(0.9, unit / 26),
+            fontFamily: "var(--font-mono, monospace)",
+          }}
+        >
+          {t.edgeLengths.map((e, i) => (
+            <text key={i} x={e.labelAt.x} y={e.labelAt.y}>
+              {e.lengthMm.toFixed(1)}
+            </text>
+          ))}
+        </g>
+      )}
+    </>
+  );
+}
+
+/**
+ * Every panel type's template side by side in one drawing, at one common
+ * scale — so relative sizes read true — each captioned with its name,
+ * how many the design needs and its hole count, over a 10mm scale bar.
+ */
+function AllTemplatesSheet({
+  templates,
+  showHoles,
+}: {
+  templates: LaserTemplate[];
+  showHoles: boolean;
+}) {
+  const GAP = 8;
+  const PAD = 6;
+  const CAPTION = 9;
+  const shapes = templates.map((t) => ({
+    t,
+    x: t.bounds.minX + MARGIN_MM,
+    y: t.bounds.minY + MARGIN_MM,
+    w: t.bounds.width - 2 * MARGIN_MM,
+    h: t.bounds.height - 2 * MARGIN_MM,
+  }));
+  const unit = Math.max(...shapes.map((s) => s.w));
+  const rowH = Math.max(...shapes.map((s) => s.h));
+  // Left edge of each slot: the widths of the slots before it.
+  const lefts: number[] = [];
+  let cursor = 0;
+  for (const sh of shapes) {
+    lefts.push(cursor + PAD);
+    cursor += sh.w + 2 * PAD + GAP;
+  }
+  const placed = shapes.map((sh, i) => ({
+    ...sh,
+    left: lefts[i],
+    dx: lefts[i] - sh.x,
+    dy: PAD + (rowH - sh.h) / 2 - sh.y,
+  }));
+  const totalW = cursor - GAP;
+  const totalH = rowH + 2 * PAD + CAPTION + 8;
+  const text = (size: number) => ({
+    fontSize: size,
+    fontFamily: "var(--font-mono, monospace)",
+  });
+  const barY = rowH + 2 * PAD + CAPTION + 3;
+  return (
+    <svg
+      viewBox={`0 0 ${totalW} ${totalH}`}
+      className="h-auto max-h-[70vh] w-full"
+      role="img"
+      aria-label="All panel templates at the same scale"
+    >
+      {placed.map((p) => (
+        <g key={p.t.classKey}>
+          <g transform={`translate(${p.dx} ${p.dy})`}>
+            <TemplateGraphics template={p.t} unit={unit} showHoles={showHoles} lengths />
+          </g>
+          <text
+            x={p.left + p.w / 2}
+            y={rowH + 2 * PAD + 2}
+            textAnchor="middle"
+            fill="var(--foreground)"
+            style={{ ...text(unit / 16), letterSpacing: "0.1em" }}
+          >
+            {p.t.label.toUpperCase()} × {p.t.count}
+          </text>
+          <text
+            x={p.left + p.w / 2}
+            y={rowH + 2 * PAD + 2 + unit / 12}
+            textAnchor="middle"
+            fill="var(--muted-foreground)"
+            style={text(unit / 22)}
+          >
+            {p.t.holes.length} holes · {p.w.toFixed(1)}×{p.h.toFixed(1)}mm
+          </text>
+        </g>
+      ))}
+      <g stroke="var(--muted-foreground)" strokeWidth={unit / 300}>
+        <line x1={PAD} y1={barY} x2={PAD + 10} y2={barY} />
+        <line x1={PAD} y1={barY - 0.8} x2={PAD} y2={barY + 0.8} />
+        <line x1={PAD + 10} y1={barY - 0.8} x2={PAD + 10} y2={barY + 0.8} />
+      </g>
+      <text x={PAD + 11.5} y={barY} dominantBaseline="middle" fill="var(--muted-foreground)" style={text(unit / 24)}>
+        10 mm
+      </text>
+    </svg>
   );
 }

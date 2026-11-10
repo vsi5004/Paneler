@@ -7,6 +7,7 @@ import {
   shapeForVertexCount,
 } from "@/lib/types";
 import type { LaserSettings } from "@/lib/laser/types";
+import { DEFAULT_HEX_EDGE_HOLES } from "@/lib/laser/constants";
 
 /**
  * Per-panel rendering hint extracted from a parsed GLB. Lets the renderer
@@ -156,6 +157,7 @@ function parseDesignExtras(
       diameterIn,
       biteDepthMm,
       curvaturePct,
+      curvatureByType,
       showHoles,
       holeSpacingMm,
       cornerMarginMm,
@@ -179,6 +181,7 @@ function parseDesignExtras(
           typeof curvaturePct === "number" && Number.isFinite(curvaturePct)
             ? curvaturePct
             : 100,
+        curvatureByType: cleanCurvatureByType(curvatureByType),
         // Backfills for GLBs saved before each field existed.
         showHoles: typeof showHoles === "boolean" ? showHoles : true,
         holeSpacingMm:
@@ -204,7 +207,7 @@ function parseDesignExtras(
           hexEdgeHoles >= 4 &&
           hexEdgeHoles % 2 === 0
             ? hexEdgeHoles
-            : 8,
+            : DEFAULT_HEX_EDGE_HOLES,
       };
     }
   }
@@ -258,4 +261,14 @@ function buildEdges(panels: ReadonlyArray<Panel>): PanelEdge[] {
     }
   }
   return [...edgeMap.values()];
+}
+
+/** Per-panel-type curvature from GLB extras: finite numbers only. */
+function cleanCurvatureByType(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof raw !== "object" || raw === null) return out;
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+  }
+  return out;
 }

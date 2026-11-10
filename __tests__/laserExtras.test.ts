@@ -16,6 +16,7 @@ const LASER = {
   diameterIn: 2.1,
   biteDepthMm: 1.5,
   curvaturePct: 80,
+  curvatureByType: { "Hexagon A": 60, Pentagon: 120 },
   showHoles: false,
   holeSpacingMm: 3.1,
   cornerMarginMm: 1.5,
@@ -90,13 +91,14 @@ describe("laser settings persistence", () => {
       diameterIn: 1.9,
       biteDepthMm: 2,
       curvaturePct: 100,
+      curvatureByType: {},
       showHoles: true,
       holeSpacingMm: 2.5,
       cornerMarginMm: 0,
       shortEdgeHoles: false,
       shortEdgeExtensionMm: 0,
       sharpCorners: false,
-      hexEdgeHoles: 8,
+      hexEdgeHoles: 6,
         });
   });
 

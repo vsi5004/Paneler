@@ -17,6 +17,7 @@ import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
 import { holeCountGapMm } from "@/lib/laser/template";
+import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -195,6 +196,12 @@ export function PanelerDesigner({
       matchSide: matchSide ?? "matching side",
     };
   }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
+
+  // Panel types (template labels) for the per-type curvature sliders.
+  const panelTypes = useMemo(
+    () => (netTopology ? groupPanelsByCongruence(netTopology).map((c) => c.label) : []),
+    [netTopology],
+  );
 
   // Same preset knowledge for the flat net's unfold.
   const flattenOptions = useMemo(
@@ -625,6 +632,7 @@ export function PanelerDesigner({
                           return maxLen > 0 && lens.some((l) => l < 0.55 * maxLen);
                         })()}
                         holeCount={holeCount}
+                        panelTypes={panelTypes}
                       />
                       <div className="workshop-hairline my-5" />
                     </>

@@ -48,7 +48,7 @@ export const MAX_CURVATURE_PCT = 150;
 export const MIN_HOLE_SPACING_MM = 1.5;
 export const MAX_HOLE_SPACING_MM = 5;
 /** Holes-per-hex-edge slider (count-controlled templates): even, ≥ 4. */
-export const DEFAULT_HEX_EDGE_HOLES = 8;
+export const DEFAULT_HEX_EDGE_HOLES = 6;
 export const MIN_HEX_EDGE_HOLES = 4;
 export const MAX_HEX_EDGE_HOLES = 16;
 /** Short-edge extension slider bounds (extra fabric past the corner stitch). */
@@ -103,6 +103,7 @@ export function defaultLaserSettings(): LaserSettings {
     diameterIn: DEFAULT_DIAMETER_IN,
     biteDepthMm: DEFAULT_BITE_DEPTH_MM,
     curvaturePct: DEFAULT_CURVATURE_PCT,
+    curvatureByType: {},
     showHoles: true,
     holeSpacingMm: HOLE_SPACING_MM,
     cornerMarginMm: CORNER_MARGIN_MM,
@@ -122,3 +123,8 @@ export const MARGIN_MM = 10;
 
 /** Sampling density for outline offsetting / hole placement. */
 export const SAMPLE_STEP_MM = 0.4;
+
+/** A panel type's edge curvature: its own override, else the shared value. */
+export function curvatureFor(settings: LaserSettings, typeLabel: string): number {
+  return settings.curvatureByType[typeLabel] ?? settings.curvaturePct;
+}

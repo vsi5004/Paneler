@@ -73,6 +73,7 @@ for (const preset of PRESETS) {
       diameterIn: size,
       biteDepthMm: DEFAULT_BITE_DEPTH_MM,
       curvaturePct: 100,
+      curvatureByType: {},
       showHoles: true,
       holeSpacingMm: HOLE_SPACING_MM,
       cornerMarginMm: 0,

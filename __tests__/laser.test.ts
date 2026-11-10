@@ -26,6 +26,7 @@ const SETTINGS: LaserSettings = {
   diameterIn: 1.8,
   biteDepthMm: DEFAULT_BITE_DEPTH_MM,
   curvaturePct: 100,
+  curvatureByType: {},
   showHoles: true,
   holeSpacingMm: HOLE_SPACING_MM,
   cornerMarginMm: 0,
@@ -277,6 +278,25 @@ describe("physical calibration", () => {
         expect(templates.get("Pentagon")!.edgeHoles).toEqual([n, n, n, n, n]);
       }
     }
+  });
+
+  it("per-type curvature changes only that panel type's template", () => {
+    const topo = topoOf("gp3");
+    const options = { holeCount: presetById("gp3")!.laserHoleCount };
+    const build = (curvatureByType: Record<string, number>) =>
+      new Map(
+        groupPanelsByCongruence(topo).map((c) => [
+          c.label,
+          buildLaserTemplate(topo, c, { ...SETTINGS, curvatureByType }, options),
+        ]),
+      );
+    const base = build({});
+    const flatPent = build({ Pentagon: 0 });
+    expect(flatPent.get("Pentagon")!.cutPath).not.toBe(base.get("Pentagon")!.cutPath);
+    expect(flatPent.get("Hexagon A")!.cutPath).toBe(base.get("Hexagon A")!.cutPath);
+    expect(flatPent.get("Hexagon B")!.cutPath).toBe(base.get("Hexagon B")!.cutPath);
+    expect(templateFilename("ball", flatPent.get("Pentagon")!, { ...SETTINGS, curvatureByType: { Pentagon: 0 } })).toContain("_curve0");
+    expect(templateFilename("ball", flatPent.get("Hexagon A")!, { ...SETTINGS, curvatureByType: { Pentagon: 0 } })).not.toContain("_curve");
   });
 
   it("reports the hole-to-hole distance for count-controlled templates", () => {

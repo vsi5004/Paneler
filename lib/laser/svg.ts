@@ -4,6 +4,7 @@ import {
   HOLE_COLOR,
   HOLE_STROKE_MM,
   STITCH_HOLE_DIAMETER_MM,
+  curvatureFor,
 } from "./constants";
 import type { LaserSettings, LaserTemplate } from "./types";
 
@@ -52,8 +53,8 @@ export function templateFilename(
       .replace(/^-+|-+$/g, "") || "design";
   const size = `${parseFloat(s.diameterIn.toFixed(2))}in`;
   const bite = `${parseFloat(s.biteDepthMm.toFixed(2))}mm`;
-  const curve =
-    s.curvaturePct === 100 ? "" : `_curve${Math.round(s.curvaturePct)}`;
+  const curvaturePct = curvatureFor(s, t.label);
+  const curve = curvaturePct === 100 ? "" : `_curve${Math.round(curvaturePct)}`;
   const holes = s.showHoles ? "" : "_noholes";
   return `${slug(designName)}_${slug(t.label)}_${size}_${bite}${curve}${holes}.svg`;
 }

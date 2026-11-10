@@ -9,6 +9,11 @@ export interface LaserSettings {
   biteDepthMm: number;
   /** Edge curvature, percent of the true spherical bulge (100 = spherical). */
   curvaturePct: number;
+  /**
+   * Per-panel-type curvature overrides, keyed by the type's label
+   * ("Hexagon A", "Pentagon"); types without an entry use `curvaturePct`.
+   */
+  curvatureByType: Record<string, number>;
   /** Include stitch holes in previews and exported SVGs. */
   showHoles: boolean;
   /** Nominal hole-to-hole pitch along a seam, millimeters. */
