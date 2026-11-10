@@ -631,3 +631,48 @@ export function geodesicIcosahedron(n: number): {
     faces: mesh.faces.map(([a, b, c]) => [a, b, c]),
   };
 }
+
+let gp3ShortTable: { pct: number; angle: number }[] | null = null;
+
+/**
+ * GP(3,0)'s short (ring hex to ring hex) edge as an angle on the unit
+ * sphere, at a Short edge slider percent. The relaxation doesn't track the
+ * percent exactly linearly, so it is measured once across the slider's
+ * range and interpolated — for showing the slider as a length.
+ */
+export function gp3ShortEdgeAngle(pct: number): number {
+  if (!gp3ShortTable) {
+    gp3ShortTable = [];
+    for (let p = 0; p <= 140; p += 5) {
+      const topo = goldbergClassI(3, 1, p);
+      const pent = new Set(
+        topo.panels.filter((x) => x.shape === "pentagon").map((x) => x.id),
+      );
+      const ring = new Set(
+        topo.panels
+          .filter(
+            (x) =>
+              x.shape === "hexagon" &&
+              topo.edges.some(
+                (e) =>
+                  (e.panelA === x.id && e.panelB !== null && pent.has(e.panelB)) ||
+                  (e.panelB === x.id && pent.has(e.panelA)),
+              ),
+          )
+          .map((x) => x.id),
+      );
+      let sum = 0;
+      let n = 0;
+      for (const e of topo.edges) {
+        if (!ring.has(e.panelA) || e.panelB === null || !ring.has(e.panelB)) continue;
+        sum += topo.vertices[e.vertexA].angleTo(topo.vertices[e.vertexB]);
+        n++;
+      }
+      gp3ShortTable.push({ pct: p, angle: n ? sum / n : 0 });
+    }
+  }
+  const t = gp3ShortTable;
+  const i = Math.min(t.length - 2, Math.max(0, Math.floor(pct / 5)));
+  const f = (pct - t[i].pct) / (t[i + 1].pct - t[i].pct);
+  return t[i].angle + (t[i + 1].angle - t[i].angle) * f;
+}

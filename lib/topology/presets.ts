@@ -2,7 +2,7 @@ import type { Vector3 } from "three";
 import type { HoleCountConvention } from "@/lib/laser/template";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
-import { goldbergClassI } from "./goldberg";
+import { goldbergClassI, gp3ShortEdgeAngle } from "./goldberg";
 import { baseball } from "./baseball";
 import { spiral } from "./spiral";
 import {
@@ -223,6 +223,12 @@ export interface PresetParamDef {
   valueLabels?: string[];
   /** Stored and regenerated like any param, but not shown as a slider. */
   hidden?: boolean;
+  /**
+   * Show the slider as a length: the edge this param controls, as an angle
+   * on the unit sphere at a given value. The Shape panel converts it to
+   * millimetres at the current footbag size.
+   */
+  lengthAngle?: (value: number) => number;
 }
 
 export type PresetParams = Record<string, number>;
@@ -596,7 +602,8 @@ export const PRESETS: PresetEntry[] = [
     id: "gp3",
     label: "GP(3,0)",
     panels: 92,
-    params: [SHORT_EDGE_PARAM],
+    // Shown as the short side's seam length in mm at the current size.
+    params: [{ ...SHORT_EDGE_PARAM, step: 1, lengthAngle: gp3ShortEdgeAngle }],
     laserHoleCount: GP3_HOLE_COUNT,
     topology: (radius?: number, params?: PresetParams) =>
       goldbergClassI(3, radius, params?.shortEdge ?? 100),

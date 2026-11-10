@@ -104,7 +104,10 @@ export function buildLaserTemplate(
     ? sharpenOffsetCorners(rawCut, flatMm, settings.biteDepthMm)
     : rawCut;
   const cutPath = polylinePath(cutPoints);
-  const edgeLengths = measureRuns(outline, runs, settings.biteDepthMm + EDGE_LABEL_GAP_MM);
+  // Labels give the true seam length on the ball — measured before the
+  // corner extensions, so a hex side reads the same as the side it's sewn
+  // to, and a short side matches the Short edge slider.
+  const edgeLengths = measureRuns(samples, runs, settings.biteDepthMm + EDGE_LABEL_GAP_MM);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -554,11 +557,9 @@ function pointSegmentDistance(p: Vec2, a: Vec2, b: Vec2): number {
 const EDGE_LABEL_GAP_MM = 1.6;
 
 /**
- * Length of each seam run along the (possibly extended) seam outline, and
- * a label point at the run's midpoint pushed `labelOffset` outward. Each
- * outline segment belongs to the run of its starting sample, so a corner
- * extension (stitched edge → tip) counts toward the stitched edge, and the
- * unstitched side runs tip to tip.
+ * Length of each seam run along the seam outline, and a label point at the
+ * run's midpoint pushed `labelOffset` outward. Each outline segment
+ * belongs to the run of its starting sample.
  */
 function measureRuns(
   outline: OutlineSample[],

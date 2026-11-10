@@ -1,6 +1,8 @@
 "use client";
 
 import { Slider } from "@/components/ui/slider";
+import { SPHERE_RADIUS } from "@/lib/glb/generate";
+import { mmPerUnit } from "@/lib/laser/constants";
 import type { PresetParamDef, PresetParams } from "@/lib/topology/presets";
 import type { RegenQuality } from "@/lib/glb/useGlbDesign";
 
@@ -8,6 +10,8 @@ interface ShapeParamsPanelProps {
   paramDefs: PresetParamDef[];
   values: PresetParams;
   onChange: (key: string, value: number, quality: RegenQuality) => void;
+  /** Footbag diameter, for params shown as a length (see lengthAngle). */
+  diameterIn: number;
   /** Present for animated presets (the Kaleidoscope): Play/Pause + Speed. */
   playback?: {
     playing: boolean;
@@ -28,6 +32,7 @@ export function ShapeParamsPanel({
   values,
   onChange,
   playback,
+  diameterIn,
 }: ShapeParamsPanelProps) {
   const visibleDefs = paramDefs.filter((def) => !def.hidden);
   return (
@@ -84,7 +89,9 @@ export function ShapeParamsPanel({
                 <span className="font-mono text-[10px] tabular-nums text-foreground">
                   {def.valueLabels
                     ? def.valueLabels[Math.round(value - def.min)]
-                    : `${value.toFixed(def.step >= 1 ? 0 : 1)}${def.unit ?? ""}`}
+                    : def.lengthAngle
+                      ? `${(def.lengthAngle(value) * SPHERE_RADIUS * mmPerUnit(diameterIn)).toFixed(1)}mm`
+                      : `${value.toFixed(def.step >= 1 ? 0 : 1)}${def.unit ?? ""}`}
                 </span>
               </div>
               <Slider

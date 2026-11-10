@@ -281,7 +281,7 @@
         "label": "Short edge",
         "min": 0,
         "max": 140,
-        "step": 5,
+        "step": 1,
         "defaultValue": 100,
         "unit": "%"
       }

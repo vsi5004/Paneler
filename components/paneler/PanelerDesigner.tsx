@@ -600,6 +600,7 @@ export function PanelerDesigner({
                         paramDefs={shapeParamDefs}
                         values={designInfo.params}
                         onChange={setDesignParam}
+                        diameterIn={laserSettings.diameterIn}
                         playback={
                           animation
                             ? {
