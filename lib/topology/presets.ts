@@ -1,4 +1,5 @@
 import type { Vector3 } from "three";
+import type { HoleCountConvention } from "@/lib/laser/template";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI } from "./goldberg";
@@ -267,9 +268,10 @@ export interface PresetEntry {
   laserCornerHoles?: boolean;
   /**
    * Stitch holes set by count (the Holes-per-hex-edge slider) instead of
-   * spacing — see LaserTemplateOptions.holeCount.
+   * spacing — see LaserTemplateOptions.holeCount. `matchSide` names the
+   * panels whose sides carry N − 2 holes, for the slider's label.
    */
-  laserHoleCount?: boolean;
+  laserHoleCount?: HoleCountConvention & { matchSide: string };
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
   /**
    * Per-vertex warp applied to the subdivided mesh before sphere
@@ -345,6 +347,26 @@ const CIRCLE_SIZE_PARAM: PresetParamDef = {
   step: 5,
   defaultValue: 100,
   unit: "%",
+};
+
+// Circle soccers: every non-circle panel is a filler.
+const CIRCLE_HOLE_COUNT = {
+  isFiller: (_topo: PanelTopology, id: string) => !id.endsWith("_circle"),
+  matchSide: "circle side",
+};
+
+// GP(3,0): the fillers are the hexagons ringing each pentagon (Hexagon A:
+// three long sides, three short); pentagons and the inner hexagons are
+// surrounded by them.
+const GP3_HOLE_COUNT = {
+  isFiller: (topo: PanelTopology, id: string) =>
+    id.endsWith("_hexagon") &&
+    topo.edges.some(
+      (e) =>
+        (e.panelA === id && e.panelB?.endsWith("_pentagon")) ||
+        (e.panelB === id && e.panelA.endsWith("_pentagon")),
+    ),
+  matchSide: "pentagon & inner-hex side",
 };
 
 export const PRESETS: PresetEntry[] = [
@@ -510,7 +532,7 @@ export const PRESETS: PresetEntry[] = [
     devOnly: true,
     // Holes by count: N per circle-facing hex side (default 8), N − 2 per
     // circle side (6, so 30 per circle); hex-hex seams unstitched.
-    laserHoleCount: true,
+    laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       circleSoccer(radius, (params?.circleSize ?? 100) / 100),
@@ -520,7 +542,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Circle Soccer 6",
     panels: 122,
     devOnly: true,
-    laserHoleCount: true,
+    laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       circleSoccer6(radius, (params?.circleSize ?? 100) / 100),
@@ -530,7 +552,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Concave Circle Soccer",
     panels: 32,
     devOnly: true,
-    laserHoleCount: true,
+    laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer(radius, (params?.circleSize ?? 100) / 100),
@@ -540,7 +562,7 @@ export const PRESETS: PresetEntry[] = [
     label: "Concave Circle Soccer 6",
     panels: 122,
     devOnly: true,
-    laserHoleCount: true,
+    laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
       concaveCircleSoccer6(radius, (params?.circleSize ?? 100) / 100),
@@ -575,6 +597,7 @@ export const PRESETS: PresetEntry[] = [
     label: "GP(3,0)",
     panels: 92,
     params: [SHORT_EDGE_PARAM],
+    laserHoleCount: GP3_HOLE_COUNT,
     topology: (radius?: number, params?: PresetParams) =>
       goldbergClassI(3, radius, params?.shortEdge ?? 100),
   },

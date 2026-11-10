@@ -71,6 +71,12 @@ export interface LaserTemplate {
    * 0 = deliberately unstitched short edge.
    */
   edgeHoles: number[];
+  /**
+   * Each seam run's length measured along the seam (stitch) line, as
+   * shown — corner extensions included — with a point just outside the
+   * cut line for its label. Preview only; not exported.
+   */
+  edgeLengths: { lengthMm: number; labelAt: Vec2 }[];
   /** Bounding box including margin. */
   bounds: { minX: number; minY: number; width: number; height: number };
 }

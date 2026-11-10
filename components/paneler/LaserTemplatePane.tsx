@@ -385,7 +385,8 @@ function TemplateCard({
   // The export keeps laser-friendly 10mm margins; the preview crops to
   // the shape itself (plus a little air and a band for the dimension
   // rule) so the template fills its frame.
-  const PAD = 4;
+  // Room around the shape for the edge-length labels outside the cut.
+  const PAD = 6;
   const DIM_BAND = 7;
   const shapeMinX = t.bounds.minX + MARGIN_MM;
   const shapeMinY = t.bounds.minY + MARGIN_MM;
@@ -436,6 +437,24 @@ function TemplateCard({
           <g fill="#ffffff" opacity={0.9}>
             {t.holes.map((h, i) => (
               <circle key={i} cx={h.x} cy={h.y} r={holeR} />
+            ))}
+          </g>
+        )}
+        {/* Each side's length along the seam (front card only, preview only). */}
+        {front && (
+          <g
+            fill="var(--muted-foreground)"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            style={{
+              fontSize: Math.max(0.9, shapeW / 26),
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {t.edgeLengths.map((e, i) => (
+              <text key={i} x={e.labelAt.x} y={e.labelAt.y}>
+                {e.lengthMm.toFixed(1)}
+              </text>
             ))}
           </g>
         )}

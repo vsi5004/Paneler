@@ -178,7 +178,7 @@ export function PanelerDesigner({
       ...(preset.laserSharpBendAnchors ? { sharpBendAnchors: true } : {}),
       ...(preset.seamTrueFlatten ? { seamTrueBands: true } : {}),
       ...(preset.laserCornerHoles ? { cornerHoles: true } : {}),
-      ...(preset.laserHoleCount ? { holeCount: true } : {}),
+      ...(preset.laserHoleCount ? { holeCount: preset.laserHoleCount } : {}),
       ...(preset.gatherCorrection !== undefined
         ? { gatherCorrection: preset.gatherCorrection }
         : {}),
@@ -189,8 +189,12 @@ export function PanelerDesigner({
   // for the label under the Holes-per-hex-edge slider.
   const holeCount = useMemo(() => {
     if (!laserTemplateOptions?.holeCount || !netTopology) return undefined;
-    return { gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions) };
-  }, [netTopology, laserSettings, laserTemplateOptions]);
+    const matchSide = designInfo ? presetById(designInfo.presetId)?.laserHoleCount?.matchSide : undefined;
+    return {
+      gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions),
+      matchSide: matchSide ?? "matching side",
+    };
+  }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
 
   // Same preset knowledge for the flat net's unfold.
   const flattenOptions = useMemo(

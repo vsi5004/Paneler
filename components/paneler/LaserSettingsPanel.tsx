@@ -38,12 +38,13 @@ interface LaserSettingsPanelProps {
    */
   hasShortEdges: boolean;
   /**
-   * Present for templates whose stitch holes are set by count (the
-   * 32-panel circle soccers): replaces the Hole spacing slider with a
-   * Holes-per-hex-edge slider, and shows the resulting hole-to-hole
-   * distance (undefined while it can't be measured).
+   * Present for templates whose stitch holes are set by count (circle
+   * soccers, GP(3,0)): replaces the Hole spacing slider with a
+   * Holes-per-hex-edge slider showing the resulting hole-to-hole distance
+   * (undefined while it can't be measured), and hides the spacing-based
+   * controls — short-edge holes and extension, corner margin.
    */
-  holeCount?: { gapMm: number | undefined };
+  holeCount?: { gapMm: number | undefined; matchSide: string };
 }
 
 /**
@@ -127,7 +128,7 @@ export function LaserSettingsPanel({
               ? `Holes ${holeCount.gapMm.toFixed(2)}mm apart`
               : "Measuring hole spacing…"}
             {" · "}
-            {values.hexEdgeHoles - 2} per circle side
+            {values.hexEdgeHoles - 2} per {holeCount.matchSide}
           </p>
         </div>
         ) : (
@@ -149,7 +150,7 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
-        {hasShortEdges && (
+        {hasShortEdges && !holeCount && (
         <div className="flex items-center justify-between">
           <label
             className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
@@ -179,7 +180,7 @@ export function LaserSettingsPanel({
           </button>
         </div>
         )}
-        {hasShortEdges && !values.shortEdgeHoles && (
+        {hasShortEdges && !values.shortEdgeHoles && !holeCount && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
@@ -198,7 +199,7 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
-        {hasPolygonPanels && (
+        {hasPolygonPanels && !holeCount && (
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">

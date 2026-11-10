@@ -215,7 +215,7 @@ describe("physical calibration", () => {
         const topo = topoOf(id, { circleSize });
         const hexCls = groupPanelsByCongruence(topo).find((c) => c.panelIds.length === 20)!;
         for (const diameterIn of [1.6, 2.15]) {
-          const t = buildLaserTemplate(topo, hexCls, { ...SETTINGS, diameterIn }, { holeCount: true });
+          const t = buildLaserTemplate(topo, hexCls, { ...SETTINGS, diameterIn }, { holeCount: preset.laserHoleCount });
           const seam = [...t.seamPath.matchAll(/[ML] ([-\d.]+) ([-\d.]+)/g)].map((m) => ({
             x: Number(m[1]),
             y: Number(m[2]),
@@ -230,7 +230,7 @@ describe("physical calibration", () => {
           }
         }
       }
-      expect(preset.laserHoleCount).toBe(true);
+      expect(preset.laserHoleCount).toBeDefined();
     },
   );
 
@@ -259,9 +259,29 @@ describe("physical calibration", () => {
     },
   );
 
+  it("GP(3,0): hex A long sides carry N, pentagon and hex B sides N−2, short sides none", () => {
+    const preset = presetById("gp3")!;
+    const options = { holeCount: preset.laserHoleCount };
+    for (const shortEdge of [100, 25]) {
+      const topo = topoOf("gp3", { shortEdge });
+      for (const hexEdgeHoles of [4, 8]) {
+        const n = hexEdgeHoles - 2;
+        const templates = new Map(
+          groupPanelsByCongruence(topo).map((c) => [
+            c.label,
+            buildLaserTemplate(topo, c, { ...SETTINGS, diameterIn: 1.9, hexEdgeHoles }, options),
+          ]),
+        );
+        expect([...templates.get("Hexagon A")!.edgeHoles].sort((a, b) => a - b)).toEqual([0, 0, 0, hexEdgeHoles, hexEdgeHoles, hexEdgeHoles]);
+        expect(templates.get("Hexagon B")!.edgeHoles).toEqual([n, n, n, n, n, n]);
+        expect(templates.get("Pentagon")!.edgeHoles).toEqual([n, n, n, n, n]);
+      }
+    }
+  });
+
   it("reports the hole-to-hole distance for count-controlled templates", () => {
     const topo = topoOf("circle-soccer");
-    const options = { holeCount: true };
+    const options = { holeCount: presetById("circle-soccer")!.laserHoleCount };
     const at8 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2 }, options)!;
     const at12 = holeCountGapMm(topo, { ...SETTINGS, diameterIn: 2.2, hexEdgeHoles: 12 }, options)!;
     // 6 vs 10 holes in even cells along the same seam.
