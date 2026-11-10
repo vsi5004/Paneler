@@ -83,7 +83,7 @@ export function buildLaserTemplate(
   };
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);
-  const { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs } = placeStitchHoles(
+  const { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched } = placeStitchHoles(
     topo,
     cls,
     samples,
@@ -104,10 +104,13 @@ export function buildLaserTemplate(
     ? sharpenOffsetCorners(rawCut, flatMm, settings.biteDepthMm)
     : rawCut;
   const cutPath = polylinePath(cutPoints);
-  // Labels give the true seam length on the ball — measured before the
-  // corner extensions, so a hex side reads the same as the side it's sewn
-  // to, and a short side matches the Short edge slider.
-  const edgeLengths = measureRuns(samples, runs, settings.biteDepthMm + EDGE_LABEL_GAP_MM);
+  // Stitched sides are labelled as cut, corner extensions included (a hex
+  // side reads its mating side plus the two extensions); unstitched short
+  // sides give their true seam length, matching the Short edge slider.
+  const labelGap = settings.biteDepthMm + EDGE_LABEL_GAP_MM;
+  const asCut = measureRuns(outline, runs, labelGap);
+  const onBall = measureRuns(samples, runs, labelGap);
+  const edgeLengths = asCut.map((cut, r) => (runStitched[r] ? cut : onBall[r]));
 
   let minX = Infinity;
   let minY = Infinity;
@@ -788,6 +791,8 @@ function placeStitchHoles(
   unstitchedSpans: Span[];
   cornerExtensions: CornerExtension[];
   runs: number[][];
+  /** Per run (same order as `runs`): whether it carries stitch holes. */
+  runStitched: boolean[];
 } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
@@ -1164,7 +1169,11 @@ function placeStitchHoles(
     }
     edgeHoles.push(n + (extras ? 2 : 0));
   }
-  return { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs };
+  const runStitched = runs.map((_, r) => {
+    const s0 = runSpans[r]?.s0;
+    return s0 !== undefined && !unstitchedSpans.some((u) => u.s0 === s0);
+  });
+  return { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched };
 }
 
 function pointAtArcLength(
