@@ -12,6 +12,7 @@ import {
 } from "@/lib/flatten/panelPath";
 import type { PanelFlat, Vec2 } from "@/lib/flatten/types";
 import {
+  EDGE_MARKER_INSET_MM,
   HOLE_BUNCHING_MM,
   HOLE_MIN_RUN_RATIO,
   MARGIN_MM,
@@ -59,6 +60,13 @@ export interface LaserTemplateOptions {
 /** Which panels are fillers, for `LaserTemplateOptions.holeCount`. */
 export interface HoleCountConvention {
   isFiller: (topo: PanelTopology, panelId: string) => boolean;
+  /**
+   * Seams to mark with one extra hole at the middle of the side, out in the
+   * seam allowance near the cut edge, so a maker can tell apart sides that
+   * look alike (the 92-panel small hex's pentagon side is ~1mm shorter than
+   * its two big-hex sides). Not a stitch hole: not counted in edgeHoles.
+   */
+  markEdge?: (topo: PanelTopology, panelId: string, neighborId: string) => boolean;
 }
 
 export function buildLaserTemplate(
@@ -83,7 +91,7 @@ export function buildLaserTemplate(
   };
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);
-  const { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched } = placeStitchHoles(
+  const { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched } = placeStitchHoles(
     topo,
     cls,
     samples,
@@ -116,7 +124,7 @@ export function buildLaserTemplate(
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const p of [...cutPoints, ...holes]) {
+  for (const p of [...cutPoints, ...holes, ...markerHoles]) {
     if (p.x < minX) minX = p.x;
     if (p.y < minY) minY = p.y;
     if (p.x > maxX) maxX = p.x;
@@ -129,6 +137,7 @@ export function buildLaserTemplate(
     seamPath,
     cutPath,
     holes,
+    markerHoles,
     edgeHoles,
     edgeLengths,
     bounds: {
@@ -787,6 +796,8 @@ function placeStitchHoles(
   options: LaserTemplateOptions = {},
 ): {
   holes: Vec2[];
+  /** Edge-marker holes (HoleCountConvention.markEdge), in the seam allowance. */
+  markerHoles: Vec2[];
   edgeHoles: number[];
   unstitchedSpans: Span[];
   cornerExtensions: CornerExtension[];
@@ -991,8 +1002,13 @@ function placeStitchHoles(
   const cornerHoles = (isWavy && runs.length > 1) || !!options.cornerHoles;
 
   const holes: Vec2[] = [];
+  const markerHoles: Vec2[] = [];
   const edgeHoles: number[] = [];
   const unstitchedSpans: Span[] = [];
+  const centroid = samples.reduce(
+    (c, sm) => ({ x: c.x + sm.p.x / samples.length, y: c.y + sm.p.y / samples.length }),
+    { x: 0, y: 0 },
+  );
   const cornerExtensions: CornerExtension[] = [];
   for (const [runIndex, resolved] of runSpans.entries()) {
     if (!resolved) continue;
@@ -1055,6 +1071,21 @@ function placeStitchHoles(
       if (fillerExtras) tip(0, -1);
       for (let k = 0; k < n; k++) holes.push(at((k + 0.5) * pitch));
       if (fillerExtras) tip(flatSpan, 1);
+      if (settings.edgeMarker && options.holeCount.markEdge?.(topo, cls.representative.id, resolved.neighborId!)) {
+        // Mid-side, pushed out along the outward normal to just inside the cut line.
+        const mid = at(flatSpan / 2);
+        const t0 = at(flatSpan / 2 - 0.3);
+        const t1 = at(flatSpan / 2 + 0.3);
+        const tl = Math.hypot(t1.x - t0.x, t1.y - t0.y) || 1;
+        let nx = (t1.y - t0.y) / tl;
+        let ny = -(t1.x - t0.x) / tl;
+        if (nx * (mid.x - centroid.x) + ny * (mid.y - centroid.y) < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        const out = Math.max(settings.biteDepthMm / 2, settings.biteDepthMm - EDGE_MARKER_INSET_MM);
+        markerHoles.push({ x: mid.x + nx * out, y: mid.y + ny * out });
+      }
       edgeHoles.push(n + (fillerExtras ? 2 : 0));
       continue;
     }
@@ -1173,7 +1204,7 @@ function placeStitchHoles(
     const s0 = runSpans[r]?.s0;
     return s0 !== undefined && !unstitchedSpans.some((u) => u.s0 === s0);
   });
-  return { holes, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched };
+  return { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched };
 }
 
 function pointAtArcLength(

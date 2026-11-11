@@ -45,7 +45,12 @@ interface LaserSettingsPanelProps {
    * (undefined while it can't be measured), and hides the spacing-based
    * controls — short-edge holes and extension, corner margin.
    */
-  holeCount?: { gapMm: number | undefined; matchSide: string };
+  holeCount?: {
+    gapMm: number | undefined;
+    matchSide: string;
+    /** The side the convention marks with an extra hole; shows the Edge marker switch. */
+    markEdgeLabel?: string;
+  };
   /**
    * The design's panel types (template labels). With more than one, Panel
    * curvature becomes one slider per type.
@@ -137,6 +142,41 @@ export function LaserSettingsPanel({
             {" · "}
             {values.hexEdgeHoles - 2} per {holeCount.matchSide}
           </p>
+          {holeCount.markEdgeLabel && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <label
+                  className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
+                  htmlFor="edge-marker"
+                >
+                  Edge marker
+                </label>
+                <button
+                  id="edge-marker"
+                  type="button"
+                  role="switch"
+                  aria-checked={values.edgeMarker}
+                  onClick={() => onChange({ edgeMarker: !values.edgeMarker })}
+                  className={`relative h-4 w-8 rounded-full border transition-colors ${
+                    values.edgeMarker
+                      ? "border-primary bg-primary/30"
+                      : "border-border bg-muted"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full transition-all ${
+                      values.edgeMarker
+                        ? "left-[calc(100%-0.75rem)] bg-primary"
+                        : "left-1 bg-muted-foreground"
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="mt-1.5 font-mono text-[10px] text-muted-foreground">
+                Extra hole near the cut edge marks {holeCount.markEdgeLabel}
+              </p>
+            </div>
+          )}
         </div>
         ) : (
         <div>

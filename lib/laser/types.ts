@@ -44,6 +44,11 @@ export interface LaserSettings {
    * Ignored by templates that place holes by `holeSpacingMm`.
    */
   hexEdgeHoles: number;
+  /**
+   * Cut the edge-marker hole on templates whose hole convention marks a
+   * side (HoleCountConvention.markEdge — the 92-panel small hex).
+   */
+  edgeMarker: boolean;
 }
 
 /** A group of congruent panels that share one template. */
@@ -70,6 +75,12 @@ export interface LaserTemplate {
   cutPath: string;
   /** Stitch hole centers, on the seam line. */
   holes: Vec2[];
+  /**
+   * Extra holes marking a side (e.g. the 92-panel small hex's shorter
+   * pentagon side), in the seam allowance near the cut edge. Cut with the
+   * stitch holes; not stitch holes themselves.
+   */
+  markerHoles: Vec2[];
   /**
    * Holes per seam run (boundary order) as a maker counts them along one
    * edge: pattern holes plus both endpoint corner anchors / extras.

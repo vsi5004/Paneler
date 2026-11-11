@@ -277,7 +277,11 @@ export interface PresetEntry {
    * spacing — see LaserTemplateOptions.holeCount. `matchSide` names the
    * panels whose sides carry N − 2 holes, for the slider's label.
    */
-  laserHoleCount?: HoleCountConvention & { matchSide: string };
+  /**
+   * `markEdgeLabel` names the side `markEdge` marks, for the Edge marker
+   * switch's hint; required when `markEdge` is set.
+   */
+  laserHoleCount?: HoleCountConvention & { matchSide: string; markEdgeLabel?: string };
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
   /**
    * Per-vertex warp applied to the subdivided mesh before sphere
@@ -373,6 +377,11 @@ const GP3_HOLE_COUNT = {
         (e.panelB === id && e.panelA.endsWith("_pentagon")),
     ),
   matchSide: "pentagon & inner-hex side",
+  // The small hex's pentagon side is ~1mm shorter than its big-hex sides
+  // and hard to tell apart by eye: mark it.
+  markEdge: (_topo: PanelTopology, id: string, neighborId: string) =>
+    id.endsWith("_hexagon") && neighborId.endsWith("_pentagon"),
+  markEdgeLabel: "the small hex's shorter pentagon side",
 };
 
 export const PRESETS: PresetEntry[] = [

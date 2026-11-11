@@ -81,6 +81,7 @@ for (const preset of PRESETS) {
       shortEdgeExtensionMm: 0,
       sharpCorners: false,
       hexEdgeHoles: DEFAULT_HEX_EDGE_HOLES,
+      edgeMarker: true,
     };
     const sizeKey = size.toFixed(1);
     const dir = join(outDir, preset.id, sizeKey);

@@ -343,7 +343,7 @@ export function sheetToSvg(
   const holes =
     options.showHoles === false
       ? ""
-      : t.holes
+      : [...t.holes, ...t.markerHoles]
           .map(
             (h) =>
               `      <circle cx="${h.x.toFixed(3)}" cy="${h.y.toFixed(3)}" r="${holeR}" fill="none" stroke="${HOLE_COLOR}" stroke-width="${HOLE_STROKE_MM}"/>`,

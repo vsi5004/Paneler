@@ -49,6 +49,11 @@ export const MIN_HOLE_SPACING_MM = 1.5;
 export const MAX_HOLE_SPACING_MM = 5;
 /** Holes-per-hex-edge slider (count-controlled templates): even, ≥ 4. */
 export const DEFAULT_HEX_EDGE_HOLES = 6;
+/**
+ * How far inside the cut line the edge-marker hole sits (see
+ * HoleCountConvention.markEdge): in the seam allowance, close to the edge.
+ */
+export const EDGE_MARKER_INSET_MM = 0.5;
 export const MIN_HEX_EDGE_HOLES = 4;
 export const MAX_HEX_EDGE_HOLES = 16;
 /** Short-edge extension slider bounds (extra fabric past the corner stitch). */
@@ -111,6 +116,7 @@ export function defaultLaserSettings(): LaserSettings {
     shortEdgeExtensionMm: 0,
     sharpCorners: false,
     hexEdgeHoles: DEFAULT_HEX_EDGE_HOLES,
+    edgeMarker: true,
   };
 }
 

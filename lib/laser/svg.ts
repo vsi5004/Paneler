@@ -22,7 +22,7 @@ export function templateToSvg(
   const { minX, minY, width, height } = t.bounds;
   const holeR = STITCH_HOLE_DIAMETER_MM / 2;
   const includeHoles = options.showHoles !== false;
-  const holes = (includeHoles ? t.holes : [])
+  const holes = (includeHoles ? [...t.holes, ...t.markerHoles] : [])
     .map(
       (h) =>
         `    <circle cx="${h.x.toFixed(3)}" cy="${h.y.toFixed(3)}" r="${holeR}" fill="none" stroke="${HOLE_COLOR}" stroke-width="${HOLE_STROKE_MM}"/>`,

@@ -34,6 +34,7 @@ const SETTINGS: LaserSettings = {
   shortEdgeExtensionMm: 0,
   sharpCorners: false,
   hexEdgeHoles: 8,
+  edgeMarker: true,
 };
 
 /** Distance from point to a closed dense polyline. */
@@ -277,6 +278,43 @@ describe("physical calibration", () => {
         expect(templates.get("Hexagon B")!.edgeHoles).toEqual([n, n, n, n, n, n]);
         expect(templates.get("Pentagon")!.edgeHoles).toEqual([n, n, n, n, n]);
       }
+    }
+  });
+
+  it("GP(3,0): marks the small hex's shorter pentagon side with one hole near the cut edge", () => {
+    const preset = presetById("gp3")!;
+    const options = { holeCount: preset.laserHoleCount };
+    for (const shortEdge of [100, 50, 25]) {
+      const topo = topoOf("gp3", { shortEdge });
+      const templates = new Map(
+        groupPanelsByCongruence(topo).map((c) => [c.label, buildLaserTemplate(topo, c, { ...SETTINGS, diameterIn: 1.8 }, options)]),
+      );
+      expect(templates.get("Hexagon B")!.markerHoles).toHaveLength(0);
+      expect(templates.get("Pentagon")!.markerHoles).toHaveLength(0);
+      const t = templates.get("Hexagon A")!;
+      expect(t.markerHoles).toHaveLength(1);
+      const m = t.markerHoles[0];
+      // Out in the seam allowance, just inside the cut line.
+      expect(distToPolyline(m, parsePathPoints(t.seamPath))).toBeCloseTo(SETTINGS.biteDepthMm - 0.5, 1);
+      // On the shortest stitched side (the pentagon side, ~1mm shorter).
+      const stitched = t.edgeLengths.filter((_, r) => t.edgeHoles[r] > 0);
+      const nearest = stitched.reduce((a, b) =>
+        Math.hypot(a.labelAt.x - m.x, a.labelAt.y - m.y) < Math.hypot(b.labelAt.x - m.x, b.labelAt.y - m.y) ? a : b,
+      );
+      expect(nearest.lengthMm).toBe(Math.min(...stitched.map((e) => e.lengthMm)));
+      expect(Math.max(...stitched.map((e) => e.lengthMm)) - nearest.lengthMm).toBeGreaterThan(0.5);
+      // Exported with the stitch holes, not counted as one.
+      expect((templateToSvg(t).match(/<circle/g) ?? []).length).toBe(t.holes.length + 1);
+      expect(t.edgeHoles.reduce((a, b) => a + b, 0)).toBe(t.holes.length);
+      // The Edge marker switch turns it off.
+      const cls = groupPanelsByCongruence(topo).find((c) => c.label === "Hexagon A")!;
+      expect(buildLaserTemplate(topo, cls, { ...SETTINGS, diameterIn: 1.8, edgeMarker: false }, options).markerHoles).toHaveLength(0);
+    }
+    // Other count-controlled designs carry no marker.
+    const circle = topoOf("circle-soccer");
+    for (const c of groupPanelsByCongruence(circle)) {
+      const t = buildLaserTemplate(circle, c, SETTINGS, { holeCount: presetById("circle-soccer")!.laserHoleCount });
+      expect(t.markerHoles).toHaveLength(0);
     }
   });
 

@@ -517,7 +517,7 @@ function TemplateGraphics({
       {/* Stitch pierce points. */}
       {showHoles && (
         <g fill="#ffffff" opacity={0.9}>
-          {t.holes.map((h, i) => (
+          {[...t.holes, ...t.markerHoles].map((h, i) => (
             <circle key={i} cx={h.x} cy={h.y} r={holeR} />
           ))}
         </g>

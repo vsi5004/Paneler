@@ -190,10 +190,11 @@ export function PanelerDesigner({
   // for the label under the Holes-per-hex-edge slider.
   const holeCount = useMemo(() => {
     if (!laserTemplateOptions?.holeCount || !netTopology) return undefined;
-    const matchSide = designInfo ? presetById(designInfo.presetId)?.laserHoleCount?.matchSide : undefined;
+    const convention = designInfo ? presetById(designInfo.presetId)?.laserHoleCount : undefined;
     return {
       gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions),
-      matchSide: matchSide ?? "matching side",
+      matchSide: convention?.matchSide ?? "matching side",
+      markEdgeLabel: convention?.markEdge ? convention.markEdgeLabel : undefined,
     };
   }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
 

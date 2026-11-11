@@ -56,6 +56,7 @@ export function setLaserExtras(doc: Document, laser: LaserSettings): void {
     shortEdgeExtensionMm: laser.shortEdgeExtensionMm,
     sharpCorners: laser.sharpCorners,
     hexEdgeHoles: laser.hexEdgeHoles,
+    edgeMarker: laser.edgeMarker,
   };
   extras.paneler = paneler;
   asset.extras = extras;

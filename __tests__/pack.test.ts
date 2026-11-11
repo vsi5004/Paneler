@@ -66,7 +66,7 @@ describe("packTemplate", () => {
     const svg = sheetToSvg(t, r, SHEET_6IN, { showHoles: true });
     expect(svg).toContain('width="152.400mm" height="152.400mm" viewBox="0 0 152.400 152.400"');
     expect(svg.match(/<g transform=/g)).toHaveLength(r.placements.length);
-    expect(svg.match(/<circle /g)).toHaveLength(r.placements.length * t.holes.length);
+    expect(svg.match(/<circle /g)).toHaveLength(r.placements.length * (t.holes.length + t.markerHoles.length));
     expect(sheetToSvg(t, r, SHEET_6IN, { showHoles: false })).not.toContain("<circle ");
     expect(cutOutline(t).length).toBeGreaterThan(10);
   });
