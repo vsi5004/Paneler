@@ -16,10 +16,12 @@ import type { LaserTemplate } from "./types";
  * convex panels that is the panel itself; concave panels pack as their
  * hull, which is always safe but leaves their inward curves unused.
  *
- * Two layout families are searched at every rotation: a single lattice
- * (rows of identical copies) and a double lattice (rows alternating with
- * copies turned 180°, which nest into each other — the densest packing
- * family for convex shapes). Spacing comes from no-fit polygons of the
+ * Three layout families are searched at every rotation: a single lattice
+ * (rows of identical copies), a double lattice (rows alternating with
+ * rows of copies turned 180°, which nest into each other — the densest
+ * packing family for convex shapes), and alternating rows (each copy
+ * turned 180° from its row neighbours, so they nest edge to edge even
+ * when rows are spaced apart). Spacing comes from no-fit polygons of the
  * outline grown by a clearance: `gap` between neighbours in a row (0 =
  * edges may touch) and `rowGap` between pieces in different rows, which
  * leaves channels that make cut pieces easy to lift off the sheet. Every
@@ -135,20 +137,34 @@ function rightAt(poly: Poly, y: number): number {
 
 /** Smallest height for the next row, shifted by `shift`, copies every dx. */
 function rowGap(poly: Poly, dx: number, shift: number): number {
+  let minX = Infinity, maxX = -Infinity;
+  for (const p of poly) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); }
   let h = 0;
-  for (let k = -4; k <= 4; k++) {
+  for (let k = Math.ceil((minX - shift) / dx); k <= Math.floor((maxX - shift) / dx); k++) {
     const t = topAt(poly, shift + k * dx);
     if (t !== undefined) h = Math.max(h, t);
   }
   return h;
 }
 
+type Kind = "A" | "B";
+
 interface Layout {
   dx: number;
-  /** Repeating rows: orientation of the NEXT row, its x shift and the row height. */
-  rows: { kind: "A" | "B"; shift: number; height: number }[];
+  /**
+   * Repeating rows. Each row repeats its motif every dx; after it, the next
+   * row starts `height` lower and `shift` further along.
+   */
+  rows: { motif: { kind: Kind; x: number; y: number }[]; shift: number; height: number }[];
   A: Poly;
   B: Poly;
+}
+
+/** Height a row must clear above copies every dx, per (no-fit polygon, x offset, y offset) term. */
+function rowsClear(terms: [Poly, number, number][], dx: number): number {
+  let h = 0;
+  for (const [nfp, x, y] of terms) h = Math.max(h, rowGap(nfp, dx, x) - y);
+  return h;
 }
 
 function layoutsAt(shape: Poly, gap: number, rowClearance: number, angle: number): Layout[] {
@@ -164,7 +180,10 @@ function layoutsAt(shape: Poly, gap: number, rowClearance: number, angle: number
     if (h < single.h) single = { h, s };
   }
   const nAB = noFit(A, B, between);
-  const nBA = noFit(B, A, between);
+  // B is A turned 180°, so B–A no-fit polygons are A–B ones negated, and
+  // B–B equals A–A (which is centrally symmetric).
+  const neg = (p: Poly) => p.map((q) => ({ x: -q.x, y: -q.y }));
+  const nBA = neg(nAB);
   let dbl = { total: Infinity, s1: 0, h1: 0, s2: 0, h2: 0 };
   for (const s1 of samples) {
     const h1 = rowGap(nAB, dx, s1);
@@ -175,18 +194,69 @@ function layoutsAt(shape: Poly, gap: number, rowClearance: number, angle: number
       if (h1 + h2 < dbl.total) dbl = { total: h1 + h2, s1, h1, s2, h2 };
     }
   }
-  return [
-    { dx, rows: [{ kind: "A", shift: single.s, height: single.h }], A, B },
+  const layouts: Layout[] = [
+    { dx, rows: [{ motif: [{ kind: "A", x: 0, y: 0 }], shift: single.s, height: single.h }], A, B },
     {
       dx,
       rows: [
-        { kind: "B", shift: dbl.s1, height: dbl.h1 },
-        { kind: "A", shift: dbl.s2, height: dbl.h2 },
+        { motif: [{ kind: "A", x: 0, y: 0 }], shift: dbl.s1, height: dbl.h1 },
+        { motif: [{ kind: "B", x: 0, y: 0 }], shift: dbl.s2, height: dbl.h2 },
       ],
       A,
       B,
     },
   ];
+
+  // Alternating rows (A B A B…): each copy turned 180° from its row
+  // neighbours, which nest edge to edge. B sits at (u, v) from A.
+  const tAB = noFit(A, B, gap);
+  const tBA = neg(tAB);
+  const { minY, maxY } = bbox(tAB);
+  let alt = { area: Infinity, layout: null as Layout | null };
+  for (let i = 0; i <= 24; i++) {
+    const v = minY + ((maxY - minY) * i) / 24;
+    const u = rightAt(tAB, v);
+    // Next A after B; copies of A (and of B) a period apart must clear too.
+    const period = Math.max(u + rightAt(tBA, -v), dx);
+    let best = { h: Infinity, s: 0 };
+    for (let k = 0; k < 16; k++) {
+      const s = (period * k) / 16;
+      // The next row's A at (s, h) and B at (s + u, h + v) clear this row's
+      // A and B (B–B is the same as A–A)…
+      const terms: [Poly, number, number][] = [
+        [nAA, s, 0],
+        [nAB, s + u, v],
+        [nBA, s - u, -v],
+      ];
+      // …and so does the row after it, at (2s, 2h).
+      const two = rowsClear(terms.map(([p, x, y]) => [p, x + s, y]), period);
+      const h = Math.max(rowsClear(terms, period), two / 2);
+      if (h < best.h) best = { h, s };
+    }
+    const area = period * best.h;
+    if (area < alt.area) {
+      alt = {
+        area,
+        layout: {
+          dx: period,
+          rows: [
+            {
+              motif: [
+                { kind: "A", x: 0, y: 0 },
+                { kind: "B", x: u, y: v },
+              ],
+              shift: best.s,
+              height: best.h,
+            },
+          ],
+          A,
+          B,
+        },
+      };
+    }
+  }
+  if (alt.layout) layouts.push(alt.layout);
+  return layouts;
 }
 
 function bbox(poly: Poly) {
@@ -202,25 +272,25 @@ function bbox(poly: Poly) {
 
 function fill(lay: Layout, o: PackOptions, x0: number, y0: number) {
   const boxes = { A: bbox(lay.A), B: bbox(lay.B) };
-  const placed: { kind: "A" | "B"; x: number; y: number; row: number }[] = [];
+  const top = Math.min(...lay.rows.flatMap((r) => r.motif.map((m) => m.y + boxes[m.kind].minY)));
+  const placed: { kind: Kind; x: number; y: number; row: number }[] = [];
   let y = y0;
   let shift = x0;
-  let kind: "A" | "B" = "A";
-  for (let i = 0; i < 10000; i++) {
-    const bx = boxes[kind];
-    if (y + bx.maxY > o.sheetH - o.margin) break;
-    if (y + bx.minY >= o.margin) {
+  for (let i = 0; i < 10000 && y + top <= o.sheetH - o.margin; i++) {
+    const row = lay.rows[i % lay.rows.length];
+    for (const m of row.motif) {
+      const bx = boxes[m.kind];
+      const py = y + m.y;
+      if (py + bx.minY < o.margin || py + bx.maxY > o.sheetH - o.margin) continue;
       const lo = o.margin - bx.minX;
-      let x = shift + Math.ceil((lo - shift) / lay.dx) * lay.dx;
+      let x = shift + m.x + Math.ceil((lo - shift - m.x) / lay.dx) * lay.dx;
       while (x + bx.maxX <= o.sheetW - o.margin) {
-        placed.push({ kind, x, y, row: i });
+        placed.push({ kind: m.kind, x, y: py, row: i });
         x += lay.dx;
       }
     }
-    const next = lay.rows[i % lay.rows.length];
-    y += next.height;
-    shift += next.shift;
-    kind = next.kind;
+    y += row.height;
+    shift += row.shift;
   }
   return placed;
 }

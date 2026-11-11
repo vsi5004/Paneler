@@ -40,12 +40,23 @@ describe("packTemplate", () => {
   });
 
   it("keeps rows 1.5mm apart when asked, while pieces in a row still touch", () => {
-    const t = templatesOf("gp3", { shortEdge: 50 }).find((x) => x.label === "Pentagon")!;
+    const t = templatesOf("gp3", { shortEdge: 50 }).find((x) => x.label === "Hexagon A")!;
     const tight = packTemplate(t, SHEET_6IN);
     const spaced = packTemplate(t, { ...SHEET_6IN, rowGap: 1.5 });
     // packTemplate verifies every cross-row pair at >= rowGap and throws otherwise.
     expect(spaced.placements.length).toBeLessThan(tight.placements.length);
     expect(spaced.placements.length).toBeGreaterThan(0.75 * tight.placements.length);
+  });
+
+  it("alternates pieces 180° within a row so row spacing costs little", () => {
+    const counts = Object.fromEntries(
+      templatesOf("gp3", { shortEdge: 50 }).map((t) => [t.label, packTemplate(t, { ...SHEET_6IN, rowGap: 1.5 })]),
+    );
+    // Rows of identical copies managed 100 / 60 / 95 here.
+    expect(counts["Hexagon A"].placements.length).toBeGreaterThanOrEqual(110);
+    expect(counts["Pentagon"].placements.length).toBeGreaterThanOrEqual(104);
+    const turns = new Set(counts["Hexagon A"].placements.map((p) => Math.round((((p.deg % 360) + 360) % 360))));
+    expect(turns.size).toBe(2);
   });
 
   it("packs concave panels by their hull", () => {
