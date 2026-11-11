@@ -28,6 +28,7 @@ import {
 } from "@/lib/laser/constants";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PackSheetsDialog } from "./PackSheetsDialog";
 
 interface LaserTemplatePaneProps {
   topology: PanelTopology;
@@ -55,6 +56,7 @@ export function LaserTemplatePane({
   const [collapsed, setCollapsed] = useState(false);
   const [selected, setSelected] = useState(0);
   const [allOpen, setAllOpen] = useState(false);
+  const [packOpen, setPackOpen] = useState(false);
   // Pane height as a fraction of the 2D column — user-resizable via the
   // grip on the top edge (drag up = bigger templates / clearer holes).
   const DEFAULT_HEIGHT_FRAC = 0.44;
@@ -296,6 +298,14 @@ export function LaserTemplatePane({
                 size="sm"
                 variant="outline"
                 className="font-mono text-[10px] uppercase tracking-[0.2em]"
+                onClick={() => setPackOpen(true)}
+              >
+                Pack sheets
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono text-[10px] uppercase tracking-[0.2em]"
                 onClick={() =>
                   downloadSvg(
                     templateFilename(designName, current, laserSettings),
@@ -311,6 +321,13 @@ export function LaserTemplatePane({
           )}
         </div>
       </div>
+      <PackSheetsDialog
+        open={packOpen}
+        onOpenChange={setPackOpen}
+        templates={templates}
+        laserSettings={laserSettings}
+        designName={designName}
+      />
       <Dialog open={allOpen} onOpenChange={setAllOpen}>
         <DialogContent className="border-border bg-[oklch(0.08_0_0)] sm:max-w-4xl">
           <DialogHeader>
