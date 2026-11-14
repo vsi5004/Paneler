@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { presetById, resolvePresetParams } from "@/lib/topology/presets";
 import type { PanelTopology } from "@/lib/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
-import { buildLaserTemplate, holeCountGapMm, laserPanelOutline } from "@/lib/laser/template";
+import { buildLaserTemplate, holeCountGapMm, laserPanelOutline, unstitchedSideMm } from "@/lib/laser/template";
 import { templateFilename, templateToSvg } from "@/lib/laser/svg";
 import {
   DEFAULT_BITE_DEPTH_MM,
@@ -316,6 +316,41 @@ describe("physical calibration", () => {
       const t = buildLaserTemplate(circle, c, SETTINGS, { holeCount: presetById("circle-soccer")!.laserHoleCount });
       expect(t.markerHoles).toHaveLength(0);
     }
+  });
+
+  it("GP(3,0): labels the small hex's short sides corner stitch to corner stitch", () => {
+    const preset = presetById("gp3")!;
+    for (const shortEdge of [100, 50, 25]) {
+      const topo = topoOf("gp3", { shortEdge });
+      const cls = groupPanelsByCongruence(topo).find((c) => c.label === "Hexagon A")!;
+      const t = buildLaserTemplate(topo, cls, { ...SETTINGS, diameterIn: 1.8 }, { holeCount: preset.laserHoleCount });
+      const firsts = t.edgeHoles.map((_, r) => t.edgeHoles.slice(0, r).reduce((a, b) => a + b, 0));
+      const n = t.edgeHoles.length;
+      let shortSides = 0;
+      t.edgeHoles.forEach((count, r) => {
+        if (count > 0) return;
+        shortSides++;
+        const prev = (r + n - 1) % n;
+        const next = (r + 1) % n;
+        const a = t.holes[firsts[prev] + t.edgeHoles[prev] - 1];
+        const b = t.holes[firsts[next]];
+        expect(t.edgeLengths[r].lengthMm).toBeCloseTo(Math.hypot(a.x - b.x, a.y - b.y), 1);
+        // Its dimension line's ticks sit straight out from those two stitches.
+        const { from, to, nOut } = t.edgeLengths[r].dimension;
+        for (const [end, hole] of [[from, a], [to, b]]) {
+          expect(Math.abs((end.x - hole.x) * nOut.y - (end.y - hole.y) * nOut.x)).toBeLessThan(0.1);
+          expect((end.x - hole.x) * nOut.x + (end.y - hole.y) * nOut.y).toBeGreaterThan(SETTINGS.biteDepthMm);
+        }
+      });
+      expect(shortSides).toBe(3);
+      // The Short edge slider reads the same lengths (unstitchedSideMm).
+      const shortLabels = t.edgeLengths.filter((_, r) => t.edgeHoles[r] === 0).map((e) => e.lengthMm);
+      expect(unstitchedSideMm(topo, { ...SETTINGS, diameterIn: 1.8 }, { holeCount: preset.laserHoleCount })).toEqual({
+        minMm: Math.min(...shortLabels),
+        maxMm: Math.max(...shortLabels),
+      });
+    }
+    expect(unstitchedSideMm(topoOf("soccer"), SETTINGS, {})).toBeUndefined();
   });
 
   it("per-type curvature changes only that panel type's template", () => {

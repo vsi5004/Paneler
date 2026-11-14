@@ -20,7 +20,7 @@ import {
   mmPerUnit,
   curvatureFor,
 } from "./constants";
-import type { LaserSettings, LaserTemplate, PanelClass } from "./types";
+import type { EdgeLength, LaserSettings, LaserTemplate, PanelClass } from "./types";
 
 /**
  * Build the laser template for one panel class: seam outline (the
@@ -91,7 +91,7 @@ export function buildLaserTemplate(
   };
 
   const samples = sampleOutline(flatMm, SAMPLE_STEP_MM);
-  const { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched } = placeStitchHoles(
+  const { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs } = placeStitchHoles(
     topo,
     cls,
     samples,
@@ -112,13 +112,10 @@ export function buildLaserTemplate(
     ? sharpenOffsetCorners(rawCut, flatMm, settings.biteDepthMm)
     : rawCut;
   const cutPath = polylinePath(cutPoints);
-  // Stitched sides are labelled as cut, corner extensions included (a hex
-  // side reads its mating side plus the two extensions); unstitched short
-  // sides give their true seam length, matching the Short edge slider.
-  const labelGap = settings.biteDepthMm + EDGE_LABEL_GAP_MM;
-  const asCut = measureRuns(outline, runs, labelGap);
-  const onBall = measureRuns(samples, runs, labelGap);
-  const edgeLengths = asCut.map((cut, r) => (runStitched[r] ? cut : onBall[r]));
+  // Labels measure the seam outline as cut, corner extensions included: a
+  // hex side reads its mating side plus the two extensions, and a short
+  // side between extended corners reads corner stitch to corner stitch.
+  const edgeLengths = measureRuns(outline, runs, settings.biteDepthMm + EDGE_LABEL_GAP_MM);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -168,6 +165,30 @@ export function holeCountGapMm(
   const { holes } = buildLaserTemplate(topo, cls, settings, options);
   if (holes.length < 2) return undefined;
   return Math.hypot(holes[1].x - holes[0].x, holes[1].y - holes[0].y);
+}
+
+/**
+ * Count-controlled designs: the shortest and longest unstitched side
+ * between two stitched ones, as the templates label it (corner stitch to
+ * corner stitch). GP(3,0)'s Short edge slider reads this.
+ */
+export function unstitchedSideMm(
+  topo: PanelTopology,
+  settings: LaserSettings,
+  options: LaserTemplateOptions,
+): { minMm: number; maxMm: number } | undefined {
+  if (!options.holeCount) return undefined;
+  const lengths: number[] = [];
+  for (const cls of groupPanelsByCongruence(topo)) {
+    const t = buildLaserTemplate(topo, cls, settings, options);
+    const n = t.edgeHoles.length;
+    t.edgeHoles.forEach((holes, r) => {
+      if (holes === 0 && t.edgeHoles[(r + n - 1) % n] > 0 && t.edgeHoles[(r + 1) % n] > 0) {
+        lengths.push(t.edgeLengths[r].lengthMm);
+      }
+    });
+  }
+  return lengths.length > 0 ? { minMm: Math.min(...lengths), maxMm: Math.max(...lengths) } : undefined;
 }
 
 /**
@@ -569,15 +590,16 @@ function pointSegmentDistance(p: Vec2, a: Vec2, b: Vec2): number {
 const EDGE_LABEL_GAP_MM = 1.6;
 
 /**
- * Length of each seam run along the seam outline, and a label point at the
- * run's midpoint pushed `labelOffset` outward. Each outline segment
+ * Length of each seam run along the seam outline, a label point at the
+ * run's midpoint pushed `labelOffset` outward, and a dimension line through
+ * it spanning the run. Each outline segment
  * belongs to the run of its starting sample.
  */
 function measureRuns(
   outline: OutlineSample[],
   runs: number[][],
   labelOffset: number,
-): { lengthMm: number; labelAt: Vec2 }[] {
+): EdgeLength[] {
   const runOfEdge = new Map<number, number>();
   runs.forEach((run, r) => run.forEach((e) => runOfEdge.set(e, r)));
   type Seg = { i: number; a: OutlineSample; b: OutlineSample; len: number };
@@ -608,10 +630,18 @@ function measureRuns(
       }
       half -= x.len;
     }
-    return {
-      lengthMm,
-      labelAt: { x: at.p.x + at.nOut.x * labelOffset, y: at.p.y + at.nOut.y * labelOffset },
-    };
+    const labelAt = { x: at.p.x + at.nOut.x * labelOffset, y: at.p.y + at.nOut.y * labelOffset };
+    // Dimension line: through the label point, parallel to the run's
+    // chord, spanning the run's two ends.
+    const p0 = list[0]?.a.p ?? labelAt;
+    const p1 = list[list.length - 1]?.b.p ?? labelAt;
+    const cl = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+    const u = { x: (p1.x - p0.x) / cl, y: (p1.y - p0.y) / cl };
+    let n = { x: u.y, y: -u.x };
+    if (n.x * at.nOut.x + n.y * at.nOut.y < 0) n = { x: -n.x, y: -n.y };
+    const along = (q: Vec2) => (q.x - labelAt.x) * u.x + (q.y - labelAt.y) * u.y;
+    const onLine = (q: Vec2) => ({ x: labelAt.x + u.x * along(q), y: labelAt.y + u.y * along(q) });
+    return { lengthMm, labelAt, dimension: { from: onLine(p0), to: onLine(p1), nOut: n } };
   });
 }
 
@@ -802,8 +832,6 @@ function placeStitchHoles(
   unstitchedSpans: Span[];
   cornerExtensions: CornerExtension[];
   runs: number[][];
-  /** Per run (same order as `runs`): whether it carries stitch holes. */
-  runStitched: boolean[];
 } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
@@ -1200,11 +1228,7 @@ function placeStitchHoles(
     }
     edgeHoles.push(n + (extras ? 2 : 0));
   }
-  const runStitched = runs.map((_, r) => {
-    const s0 = runSpans[r]?.s0;
-    return s0 !== undefined && !unstitchedSpans.some((u) => u.s0 === s0);
-  });
-  return { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs, runStitched };
+  return { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs };
 }
 
 function pointAtArcLength(

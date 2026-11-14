@@ -64,6 +64,19 @@ export interface PanelClass {
 }
 
 /** A ready-to-render/export template. All coordinates in millimeters. */
+/** One seam run's measured length, for the preview's side labels. */
+export interface EdgeLength {
+  lengthMm: number;
+  /** Middle of the dimension line, just outside the cut line. */
+  labelAt: Vec2;
+  /**
+   * Dimension line, drawn like a mechanical drawing's: parallel to the
+   * side's chord, spanning where the measurement starts and ends, with
+   * `nOut` pointing away from the panel (the number sits on that side).
+   */
+  dimension: { from: Vec2; to: Vec2; nOut: Vec2 };
+}
+
 export interface LaserTemplate {
   classKey: string;
   label: string;
@@ -88,12 +101,12 @@ export interface LaserTemplate {
    */
   edgeHoles: number[];
   /**
-   * Each seam run's length along the seam (stitch) line — stitched runs as
-   * cut (corner extensions included), unstitched short runs as on the ball
-   * — with a point just outside the cut line for its label. Preview only;
-   * not exported.
+   * Each seam run's length along the seam (stitch) line as cut — corner
+   * extensions included, so a short side between extended corners reads
+   * corner stitch to corner stitch — with a point just outside the cut
+   * line for its label. Preview only; not exported.
    */
-  edgeLengths: { lengthMm: number; labelAt: Vec2 }[];
+  edgeLengths: EdgeLength[];
   /** Bounding box including margin. */
   bounds: { minX: number; minY: number; width: number; height: number };
 }

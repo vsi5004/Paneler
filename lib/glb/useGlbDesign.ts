@@ -49,6 +49,11 @@ export interface UseGlbDesignResult {
   /** Latest GLB bytes — kept so the renderer can pass them to GLTFLoader. */
   bytes: Uint8Array | null;
   topology: PanelTopology | null;
+  /**
+   * Shape param values `topology` was built from. Lags `designInfo.params`
+   * while a slider drag waits on its debounced regen.
+   */
+  topologyParams: PresetParams | null;
   panelColors: PanelColors;
   /**
    * Preset id + shape param values parsed from the GLB's asset extras, or null
@@ -402,6 +407,7 @@ export function useGlbDesign(): UseGlbDesignResult {
   return {
     bytes,
     topology: parsed?.topology ?? null,
+    topologyParams: parsed?.design?.params ?? null,
     panelColors,
     designInfo,
     version,

@@ -501,6 +501,7 @@ function TemplateGraphics({
   lengths: boolean;
 }) {
   const holeR = Math.max(STITCH_HOLE_DIAMETER_MM / 2, unit / 200);
+  const fontSize = Math.max(0.9, unit / 26);
   return (
     <>
       {/* Seam (stitch) line — dashed, quiet. */}
@@ -522,22 +523,34 @@ function TemplateGraphics({
           ))}
         </g>
       )}
-      {/* Each side's length along the seam (preview only, not exported). */}
+      {/* Each side's length along the seam (preview only, not exported),
+          as a dimension: a line spanning the measured run with a tick at
+          each end, and the number just outside it. */}
       {lengths && (
         <g
           fill="var(--muted-foreground)"
+          stroke="var(--muted-foreground)"
           textAnchor="middle"
           dominantBaseline="middle"
-          style={{
-            fontSize: Math.max(0.9, unit / 26),
-            fontFamily: "var(--font-mono, monospace)",
-          }}
+          style={{ fontSize, fontFamily: "var(--font-mono, monospace)" }}
         >
-          {t.edgeLengths.map((e, i) => (
-            <text key={i} x={e.labelAt.x} y={e.labelAt.y}>
-              {e.lengthMm.toFixed(1)}
-            </text>
-          ))}
+          {t.edgeLengths.map(({ lengthMm, labelAt, dimension: { from, to, nOut: n } }, i) => {
+            const tick = fontSize * 0.35;
+            const text = fontSize * 0.75;
+            return (
+              <g key={i}>
+                <g strokeWidth={unit / 320} strokeLinecap="round" fill="none">
+                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                  {[from, to].map((q, j) => (
+                    <line key={j} x1={q.x - n.x * tick} y1={q.y - n.y * tick} x2={q.x + n.x * tick} y2={q.y + n.y * tick} />
+                  ))}
+                </g>
+                <text x={labelAt.x + n.x * text} y={labelAt.y + n.y * text} stroke="none">
+                  {lengthMm.toFixed(1)}
+                </text>
+              </g>
+            );
+          })}
         </g>
       )}
     </>

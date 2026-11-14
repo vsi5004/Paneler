@@ -16,7 +16,7 @@ import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
-import { holeCountGapMm } from "@/lib/laser/template";
+import { holeCountGapMm, unstitchedSideMm } from "@/lib/laser/template";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,7 @@ export function PanelerDesigner({
   const {
     bytes,
     topology,
+    topologyParams,
     panelColors,
     designInfo,
     loadFromUrl,
@@ -197,6 +198,17 @@ export function PanelerDesigner({
       markEdgeLabel: convention?.markEdge ? convention.markEdgeLabel : undefined,
     };
   }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
+
+  // Length sliders on count-controlled designs (GP(3,0)'s Short edge) read
+  // the short side as the templates label it, corner stitch to corner
+  // stitch, rather than its bare seam length.
+  const templateLengths = useMemo(() => {
+    const def = shapeParamDefs?.find((d) => d.lengthAngle);
+    const atValue = def ? topologyParams?.[def.key] : undefined;
+    if (!def || atValue === undefined || !laserTemplateOptions?.holeCount || !netTopology) return undefined;
+    const side = unstitchedSideMm(netTopology, laserSettings, laserTemplateOptions);
+    return side ? { [def.key]: { atValue, ...side } } : undefined;
+  }, [shapeParamDefs, topologyParams, netTopology, laserSettings, laserTemplateOptions]);
 
   // Panel types (template labels) for the per-type curvature sliders.
   const panelTypes = useMemo(
@@ -602,6 +614,7 @@ export function PanelerDesigner({
                         values={designInfo.params}
                         onChange={setDesignParam}
                         diameterIn={laserSettings.diameterIn}
+                        templateLengths={templateLengths}
                         playback={
                           animation
                             ? {

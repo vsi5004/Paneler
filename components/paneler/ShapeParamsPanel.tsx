@@ -12,6 +12,13 @@ interface ShapeParamsPanelProps {
   onChange: (key: string, value: number, quality: RegenQuality) => void;
   /** Footbag diameter, for params shown as a length (see lengthAngle). */
   diameterIn: number;
+  /**
+   * Per param key: the length the laser templates actually label for that
+   * edge (minMm–maxMm), measured on the geometry built at `atValue`. A
+   * length param reads this instead of the bare seam length, shifted by
+   * how far the slider has moved since — exact once the geometry catches up.
+   */
+  templateLengths?: Record<string, { atValue: number; minMm: number; maxMm: number }>;
   /** Present for animated presets (the Kaleidoscope): Play/Pause + Speed. */
   playback?: {
     playing: boolean;
@@ -33,8 +40,18 @@ export function ShapeParamsPanel({
   onChange,
   playback,
   diameterIn,
+  templateLengths,
 }: ShapeParamsPanelProps) {
   const visibleDefs = paramDefs.filter((def) => !def.hidden);
+  const lengthText = (def: PresetParamDef, value: number, lengthAngle: (v: number) => number) => {
+    const mm = (v: number) => lengthAngle(v) * SPHERE_RADIUS * mmPerUnit(diameterIn);
+    const measured = templateLengths?.[def.key];
+    if (!measured) return `${mm(value).toFixed(1)}mm`;
+    const shift = mm(value) - mm(measured.atValue);
+    const lo = Math.max(0, measured.minMm + shift).toFixed(1);
+    const hi = Math.max(0, measured.maxMm + shift).toFixed(1);
+    return lo === hi ? `${lo}mm` : `${lo}–${hi}mm`;
+  };
   return (
     <section>
       <div className="mb-3 flex items-baseline justify-between">
@@ -90,7 +107,7 @@ export function ShapeParamsPanel({
                   {def.valueLabels
                     ? def.valueLabels[Math.round(value - def.min)]
                     : def.lengthAngle
-                      ? `${(def.lengthAngle(value) * SPHERE_RADIUS * mmPerUnit(diameterIn)).toFixed(1)}mm`
+                      ? lengthText(def, value, def.lengthAngle)
                       : `${value.toFixed(def.step >= 1 ? 0 : 1)}${def.unit ?? ""}`}
                 </span>
               </div>
