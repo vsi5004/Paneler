@@ -175,8 +175,7 @@
         "defaultValue": 100,
         "unit": "%"
       }
-    ],
-    "devOnly": true
+    ]
   },
   {
     "slug": "circle-soccer-6",
@@ -194,8 +193,7 @@
         "defaultValue": 100,
         "unit": "%"
       }
-    ],
-    "devOnly": true
+    ]
   },
   {
     "slug": "circle-soccer-concave",
@@ -213,8 +211,7 @@
         "defaultValue": 100,
         "unit": "%"
       }
-    ],
-    "devOnly": true
+    ]
   },
   {
     "slug": "circle-soccer-concave-6",
@@ -232,8 +229,7 @@
         "defaultValue": 100,
         "unit": "%"
       }
-    ],
-    "devOnly": true
+    ]
   },
   {
     "slug": "kaleidoscope",

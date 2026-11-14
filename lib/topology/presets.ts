@@ -544,7 +544,6 @@ export const PRESETS: PresetEntry[] = [
     id: "circle-soccer",
     label: "Circle Soccer",
     panels: 32,
-    devOnly: true,
     // Holes by count: N per circle-facing hex side (default 8), N − 2 per
     // circle side (6, so 30 per circle); hex-hex seams unstitched.
     laserHoleCount: CIRCLE_HOLE_COUNT,
@@ -556,7 +555,6 @@ export const PRESETS: PresetEntry[] = [
     id: "circle-soccer-6",
     label: "Circle Soccer 6",
     panels: 122,
-    devOnly: true,
     laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
@@ -566,7 +564,6 @@ export const PRESETS: PresetEntry[] = [
     id: "circle-soccer-concave",
     label: "Concave Circle Soccer",
     panels: 32,
-    devOnly: true,
     laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
@@ -576,7 +573,6 @@ export const PRESETS: PresetEntry[] = [
     id: "circle-soccer-concave-6",
     label: "Concave Circle Soccer 6",
     panels: 122,
-    devOnly: true,
     laserHoleCount: CIRCLE_HOLE_COUNT,
     params: [CIRCLE_SIZE_PARAM],
     topology: (radius?: number, params?: PresetParams) =>
