@@ -14,9 +14,10 @@ interface ShapeParamsPanelProps {
   diameterIn: number;
   /**
    * Per param key: the length the laser templates actually label for that
-   * edge (minMm–maxMm), measured on the geometry built at `atValue`. A
-   * length param reads this instead of the bare seam length, shifted by
-   * how far the slider has moved since — exact once the geometry catches up.
+   * edge (its sides span minMm–maxMm), measured on the geometry built at
+   * `atValue`. A length param reads this instead of the bare seam length,
+   * shifted by how far the slider has moved since — exact once the
+   * geometry catches up.
    */
   templateLengths?: Record<string, { atValue: number; minMm: number; maxMm: number }>;
   /** Present for animated presets (the Kaleidoscope): Play/Pause + Speed. */
@@ -47,10 +48,9 @@ export function ShapeParamsPanel({
     const mm = (v: number) => lengthAngle(v) * SPHERE_RADIUS * mmPerUnit(diameterIn);
     const measured = templateLengths?.[def.key];
     if (!measured) return `${mm(value).toFixed(1)}mm`;
+    // One number, to the hundredth: the middle of the sides' small spread.
     const shift = mm(value) - mm(measured.atValue);
-    const lo = Math.max(0, measured.minMm + shift).toFixed(1);
-    const hi = Math.max(0, measured.maxMm + shift).toFixed(1);
-    return lo === hi ? `${lo}mm` : `${lo}–${hi}mm`;
+    return `${Math.max(0, (measured.minMm + measured.maxMm) / 2 + shift).toFixed(2)}mm`;
   };
   return (
     <section>
