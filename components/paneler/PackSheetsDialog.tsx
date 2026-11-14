@@ -59,8 +59,8 @@ export function PackSheetsDialog({
   const valid = sheetW > 0 && sheetH > 0;
   const key = `${sheetW}|${sheetH}|${rowGap}`;
 
-  // Pack whenever the sheet changes, off the render: the search takes a
-  // fraction of a second per panel type.
+  // Pack whenever the sheet changes (the sliders commit on release), off the
+  // render: the search takes a fraction of a second per panel type.
   useEffect(() => {
     if (!open || !valid) return;
     const options: PackOptions = { sheetW, sheetH, gap: 0, rowGap, margin: EDGE_MARGIN_MM };
@@ -91,8 +91,8 @@ export function PackSheetsDialog({
         </DialogHeader>
 
         <section className="grid gap-4 sm:grid-cols-2">
-          <SizeSlider id="pack-width" label="Width" inches={widthIn} onChange={setWidthIn} />
-          <SizeSlider id="pack-height" label="Height" inches={heightIn} onChange={setHeightIn} />
+          <SizeSlider id="pack-width" label="Width" inches={widthIn} onCommit={setWidthIn} />
+          <SizeSlider id="pack-height" label="Height" inches={heightIn} onCommit={setHeightIn} />
         </section>
 
         <section className="grid gap-2" aria-live="polite">
@@ -184,18 +184,25 @@ export function PackSheetsDialog({
   );
 }
 
-/** A sheet dimension slider, read out in inches and millimetres. */
+/**
+ * A sheet dimension slider, read out in inches and millimetres. The readout
+ * follows the thumb; `onCommit` fires only on release (or a key press), so a
+ * drag never waits on a repack.
+ */
 function SizeSlider({
   id,
   label,
   inches,
-  onChange,
+  onCommit,
 }: {
   id: string;
   label: string;
   inches: number;
-  onChange: (inches: number) => void;
+  onCommit: (inches: number) => void;
 }) {
+  const [dragIn, setDragIn] = useState<number | null>(null);
+  const shown = dragIn ?? inches;
+  const first = (v: number | readonly number[]) => (Array.isArray(v) ? v[0] : (v as number));
   return (
     <div className="grid gap-2">
       <div className="flex items-baseline justify-between gap-2">
@@ -203,16 +210,20 @@ function SizeSlider({
           {label}
         </label>
         <span className="text-sm tabular-nums text-foreground">
-          {inches.toFixed(2)} in <span className="text-muted-foreground">· {(inches * MM_PER_IN).toFixed(1)} mm</span>
+          {shown.toFixed(2)} in <span className="text-muted-foreground">· {(shown * MM_PER_IN).toFixed(1)} mm</span>
         </span>
       </div>
       <Slider
         aria-labelledby={`${id}-label`}
-        value={[inches]}
+        value={[shown]}
         min={MIN_IN}
         max={MAX_IN}
         step={STEP_IN}
-        onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : (v as number))}
+        onValueChange={(v) => setDragIn(first(v))}
+        onValueCommitted={(v) => {
+          setDragIn(null);
+          onCommit(first(v));
+        }}
       />
     </div>
   );
