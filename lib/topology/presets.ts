@@ -1,5 +1,6 @@
 import type { Vector3 } from "three";
 import type { HoleCountConvention } from "@/lib/laser/template";
+import type { LaserSettings } from "@/lib/laser/types";
 import type { PanelColors, PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI, gp3ShortEdgeAngle } from "./goldberg";
@@ -22,6 +23,7 @@ import {
 } from "@/lib/kaleidoscope";
 import { morphFeaturePanels } from "./panelScaleWarp";
 import {
+  soccerShortEdgeAngle,
   truncatedIcosahedronFamily,
   truncatedOctahedronFamily,
 } from "./truncationFamily";
@@ -290,6 +292,11 @@ export interface PresetEntry {
    * map of the sphere, or the warped mesh would overlap itself.
    */
   warp?: (params: PresetParams) => ((v: Vector3) => void) | undefined;
+  /**
+   * Laser settings the baked template ships with, over the global
+   * defaults (e.g. the soccer ball's 8 holes per hex edge).
+   */
+  laserDefaults?: Partial<LaserSettings>;
   /** Template colors for panels the design hasn't painted. */
   defaultColors?: (topo: PanelTopology, params: PresetParams) => PanelColors;
   /**
@@ -368,6 +375,13 @@ const CIRCLE_HOLE_COUNT = {
 // GP(3,0): the fillers are the hexagons ringing each pentagon (Hexagon A:
 // three long sides, three short); pentagons and the inner hexagons are
 // surrounded by them.
+// Soccer follows the 92-panel bag: every hexagon touches pentagons, so
+// hexes are the fillers — N holes per pentagon side (corner-extension
+// tips included), N − 2 on the pentagon's side, hex-hex seams unstitched.
+const SOCCER_HOLE_COUNT = {
+  isFiller: (_topo: PanelTopology, id: string) => id.endsWith("_hexagon"),
+  matchSide: "pentagon side",
+};
 const GP3_HOLE_COUNT = {
   isFiller: (topo: PanelTopology, id: string) =>
     id.endsWith("_hexagon") &&
@@ -523,18 +537,24 @@ export const PRESETS: PresetEntry[] = [
     id: "soccer",
     label: "Soccer Ball",
     panels: 32,
+    laserHoleCount: SOCCER_HOLE_COUNT,
+    laserDefaults: { hexEdgeHoles: 8 },
     params: [
       {
         // Percent of the hexagons' long edge: 100% = classic soccer ball
         // (truncated icosahedron, all edges equal), 0% = icosidodecahedron
-        // (hexagons collapse to triangles).
+        // (hexagons collapse to triangles). Shown, and stepped, as the
+        // hex-hex side's length in mm (corner stitch to corner stitch, as
+        // the template labels it). The default, 40.102%, is 4.00mm at the
+        // template's 1.8in with 8 holes per hex edge.
         key: "shortEdge",
         label: "Short edge",
         min: 0,
         max: 100,
         step: 1,
-        defaultValue: 100,
+        defaultValue: 40.102,
         unit: "%",
+        lengthAngle: soccerShortEdgeAngle,
       },
     ],
     topology: (radius?: number, params?: PresetParams) =>
@@ -582,6 +602,7 @@ export const PRESETS: PresetEntry[] = [
     id: "kaleidoscope",
     label: "Kaleidoscope",
     panels: 72,
+    devOnly: true,
     params: [
       { key: "flow", label: "Flow", min: 0, max: 100, step: 1, defaultValue: 70, unit: "%" },
       {

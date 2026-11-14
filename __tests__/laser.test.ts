@@ -119,8 +119,9 @@ describe("physical calibration", () => {
     // area (what determines finished bag size), not any single panel's
     // side — the proven design under-sizes hexes / over-sizes pentagons
     // relative to equal-area sharing. Proven 32-panel 1.8in bag:
-    // 9192mm² of seam-enclosed fabric (footbag-templates JSONs).
-    const topo = topoOf("soccer");
+    // 9192mm² of seam-enclosed fabric (footbag-templates JSONs) — the
+    // classic all-equal-edges ball.
+    const topo = topoOf("soccer", { shortEdge: 100 });
     const scale = mmPerUnit(1.8);
     let total = 0;
     for (const panel of topo.panels) {
@@ -318,6 +319,32 @@ describe("physical calibration", () => {
     }
   });
 
+  it("soccer: holes per side like the 92-panel bag — N per hex's pentagon side, N − 2 per pentagon side", () => {
+    const preset = presetById("soccer")!;
+    for (const shortEdge of [100, 40]) {
+      const topo = topoOf("soccer", { shortEdge });
+      const t = new Map(
+        groupPanelsByCongruence(topo).map((c) => [c.label, buildLaserTemplate(topo, c, SETTINGS, { holeCount: preset.laserHoleCount })]),
+      );
+      const n = SETTINGS.hexEdgeHoles;
+      // Hex-hex seams carry no holes; pentagon sides alternate with them.
+      expect([...t.get("Hexagon")!.edgeHoles].sort()).toEqual([0, 0, 0, n, n, n]);
+      expect(t.get("Pentagon")!.edgeHoles).toEqual([n - 2, n - 2, n - 2, n - 2, n - 2]);
+      expect(t.get("Hexagon")!.markerHoles).toHaveLength(0);
+    }
+    // Its baked template ships with 8 per hex edge (6 elsewhere).
+    expect(preset.laserDefaults?.hexEdgeHoles).toBe(8);
+    // Short edge reads as a length, like GP(3,0)'s: the hex-hex side, which
+    // vanishes at 0% and equals the long side at 100%.
+    const angle = preset.params![0].lengthAngle!;
+    expect(angle(0)).toBe(0);
+    const topo = topoOf("soccer", { shortEdge: 100 });
+    const e = topo.edges[0];
+    expect(angle(100)).toBeCloseTo(topo.vertices[e.vertexA].clone().normalize().angleTo(topo.vertices[e.vertexB].clone().normalize()), 4);
+    expect(angle(50)).toBeGreaterThan(0);
+    expect(angle(50)).toBeLessThan(angle(100));
+  });
+
   it("GP(3,0): labels the small hex's short sides corner stitch to corner stitch", () => {
     const preset = presetById("gp3")!;
     for (const shortEdge of [100, 50, 25]) {
@@ -511,7 +538,7 @@ describe("stitch holes", () => {
     };
     // Regular soccer: pent-seam count k on the pentagon; hexagon = 3
     // pent seams at k+2 plus 3 hex-hex seams at k.
-    const soccer = check("soccer");
+    const soccer = check("soccer", { shortEdge: 100 });
     const pentK = soccer.get("Pentagon")!.holes.length / 5;
     expect(Number.isInteger(pentK)).toBe(true);
     expect(soccer.get("Hexagon")!.holes.length).toBe(
@@ -1135,7 +1162,7 @@ describe("stitch holes", () => {
 
 describe("curvature", () => {
   it("0% straightens polygon edges (holes land on the corner chords)", () => {
-    const topo = topoOf("soccer");
+    const topo = topoOf("soccer", { shortEdge: 100 });
     const pent = groupPanelsByCongruence(topo).find((c) => c.cornerCount === 5)!;
     const straight = buildLaserTemplate(topo, pent, {
       ...SETTINGS,

@@ -16,6 +16,8 @@ import { NodeIO } from "@gltf-transform/core";
 
 import { PRESETS, type PresetParamDef } from "@/lib/topology/presets";
 import { generateTemplateDocument } from "@/lib/glb/generate";
+import { setLaserExtras } from "@/lib/glb/mutate";
+import { defaultLaserSettings } from "@/lib/laser/constants";
 import { parseDocument } from "@/lib/topology/gltf";
 import type { PanelShape } from "@/lib/types";
 
@@ -41,6 +43,9 @@ async function main() {
 
   for (const preset of PRESETS) {
     const doc = generateTemplateDocument(preset.id);
+    if (preset.laserDefaults) {
+      setLaserExtras(doc, { ...defaultLaserSettings(), ...preset.laserDefaults });
+    }
     const bytes = await io.writeBinary(doc);
     const panels = parseDocument(doc).topology.panels;
 

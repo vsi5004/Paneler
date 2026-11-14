@@ -1,8 +1,7 @@
 "use client";
 
 import { Slider } from "@/components/ui/slider";
-import { SPHERE_RADIUS } from "@/lib/glb/generate";
-import { mmPerUnit } from "@/lib/laser/constants";
+import { labelMm, valueForMm, type LengthOffset } from "@/lib/laser/lengthSlider";
 import type { PresetParamDef, PresetParams } from "@/lib/topology/presets";
 import type { RegenQuality } from "@/lib/glb/useGlbDesign";
 
@@ -13,13 +12,11 @@ interface ShapeParamsPanelProps {
   /** Footbag diameter, for params shown as a length (see lengthAngle). */
   diameterIn: number;
   /**
-   * Per param key: the length the laser templates actually label for that
-   * edge (its sides span minMm–maxMm), measured on the geometry built at
-   * `atValue`. A length param reads this instead of the bare seam length,
-   * shifted by how far the slider has moved since — exact once the
-   * geometry catches up.
+   * Per length param: the correction from its seam length to the length
+   * the laser templates label (see lib/laser/lengthSlider.ts). Without it
+   * a length param shows its bare seam length.
    */
-  templateLengths?: Record<string, { atValue: number; minMm: number; maxMm: number }>;
+  templateLengths?: Record<string, LengthOffset[]>;
   /** Present for animated presets (the Kaleidoscope): Play/Pause + Speed. */
   playback?: {
     playing: boolean;
@@ -44,13 +41,16 @@ export function ShapeParamsPanel({
   templateLengths,
 }: ShapeParamsPanelProps) {
   const visibleDefs = paramDefs.filter((def) => !def.hidden);
-  const lengthText = (def: PresetParamDef, value: number, lengthAngle: (v: number) => number) => {
-    const mm = (v: number) => lengthAngle(v) * SPHERE_RADIUS * mmPerUnit(diameterIn);
-    const measured = templateLengths?.[def.key];
-    if (!measured) return `${mm(value).toFixed(1)}mm`;
-    // One number, to the hundredth: the middle of the sides' small spread.
-    const shift = mm(value) - mm(measured.atValue);
-    return `${Math.max(0, (measured.minMm + measured.maxMm) / 2 + shift).toFixed(2)}mm`;
+  // A length param's slider runs in the millimetres it shows, in 0.1mm
+  // steps, and converts back to the param's own value underneath.
+  const lengthScale = (def: PresetParamDef) => {
+    const offsets = templateLengths?.[def.key];
+    const toMm = (v: number) => labelMm(def, v, diameterIn, offsets);
+    const min = Math.ceil(toMm(def.min) * 10) / 10;
+    const max = Math.floor(toMm(def.max) * 10) / 10;
+    const toValue = (mm: number) =>
+      mm <= min ? def.min : mm >= max ? def.max : valueForMm(def, mm, diameterIn, offsets);
+    return { toMm, toValue, min, max };
   };
   return (
     <section>
@@ -97,6 +97,12 @@ export function ShapeParamsPanel({
       <div className="flex flex-col gap-4">
         {visibleDefs.map((def) => {
           const value = values[def.key] ?? def.defaultValue;
+          const length = def.lengthAngle ? lengthScale(def) : null;
+          const fromSlider = (next: number | readonly number[]) => {
+            const v = Array.isArray(next) ? next[0] : (next as number);
+            return length ? length.toValue(v) : v;
+          };
+
           return (
             <div key={def.key}>
               <div className="mb-2 flex items-baseline justify-between">
@@ -106,24 +112,18 @@ export function ShapeParamsPanel({
                 <span className="font-mono text-[10px] tabular-nums text-foreground">
                   {def.valueLabels
                     ? def.valueLabels[Math.round(value - def.min)]
-                    : def.lengthAngle
-                      ? lengthText(def, value, def.lengthAngle)
+                    : length
+                      ? `${length.toMm(value).toFixed(2)}mm`
                       : `${value.toFixed(def.step >= 1 ? 0 : 1)}${def.unit ?? ""}`}
                 </span>
               </div>
               <Slider
-                value={[value]}
-                min={def.min}
-                max={def.max}
-                step={def.step}
-                onValueChange={(next) => {
-                  const v = Array.isArray(next) ? next[0] : next;
-                  onChange(def.key, v, "draft");
-                }}
-                onValueCommitted={(next) => {
-                  const v = Array.isArray(next) ? next[0] : next;
-                  onChange(def.key, v, "full");
-                }}
+                value={[length ? length.toMm(value) : value]}
+                min={length ? length.min : def.min}
+                max={length ? length.max : def.max}
+                step={length ? 0.1 : def.step}
+                onValueChange={(next) => onChange(def.key, fromSlider(next), "draft")}
+                onValueCommitted={(next) => onChange(def.key, fromSlider(next), "full")}
               />
             </div>
           );

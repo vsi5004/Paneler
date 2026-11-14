@@ -224,3 +224,32 @@ export function truncatedIcosahedronFamily(
 ): PanelTopology {
   return truncationFamily(ICOSAHEDRON, radius, shortEdgeRatio);
 }
+
+let soccerShortTable: { pct: number; angle: number }[] | null = null;
+
+/**
+ * The soccer ball's short (hex to hex) edge as an angle on the unit
+ * sphere, at a Short edge slider percent (0 at the icosidodecahedron,
+ * where the hexes are triangles). Measured once across the slider's range
+ * and interpolated — for showing the slider as a length.
+ */
+export function soccerShortEdgeAngle(pct: number): number {
+  if (!soccerShortTable) {
+    soccerShortTable = [];
+    for (let p = 0; p <= 100; p += 5) {
+      const topo = truncatedIcosahedronFamily(1, p / 100);
+      let sum = 0;
+      let n = 0;
+      for (const e of topo.edges) {
+        if (!e.panelA.endsWith("_hexagon") || !e.panelB?.endsWith("_hexagon")) continue;
+        sum += topo.vertices[e.vertexA].angleTo(topo.vertices[e.vertexB]);
+        n++;
+      }
+      soccerShortTable.push({ pct: p, angle: n ? sum / n : 0 });
+    }
+  }
+  const t = soccerShortTable;
+  const i = Math.min(t.length - 2, Math.max(0, Math.floor(pct / 5)));
+  const f = (pct - t[i].pct) / (t[i + 1].pct - t[i].pct);
+  return t[i].angle + (t[i + 1].angle - t[i].angle) * f;
+}

@@ -9,10 +9,16 @@ import {
 } from "@/components/ui/dialog";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
-  Group,
-  MeshStandardMaterial,
+  ACESFilmicToneMapping,
+  AmbientLight,
   Box3,
+  DirectionalLight,
+  Group,
+  PerspectiveCamera,
+  Scene,
+  SRGBColorSpace,
   Vector3,
+  WebGLRenderer,
   type Object3D,
 } from "three";
 import { GLTFLoader } from "three-stdlib";
@@ -115,7 +121,7 @@ function SpecimenCard({
 
       <div className="relative mx-auto my-2 aspect-square w-full max-w-[140px]">
         {visible ? (
-          <GlbThumbnail glbPath={template.glbPath} />
+          <GlbThumbnail glbPath={template.glbPath} label={template.label} />
         ) : (
           <div className="size-full rounded bg-muted/10" />
         )}
@@ -165,10 +171,66 @@ function CornerBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const sceneCache = new Map<string, Group>();
 
-function GlbThumbnail({ glbPath }: { glbPath: string }) {
+// Thumbnails are still images drawn by one shared renderer. A live canvas
+// per card meant a WebGL context per template, and browsers keep only ~16:
+// past that the oldest cards' contexts were dropped and showed as broken.
+// The hovered card alone gets a live, spinning canvas.
+const SNAPSHOT_PX = 280;
+const CAMERA = { fov: 30, near: 0.1, far: 100, z: 4 };
+/** The still's turn about the vertical; the live canvas starts here too. */
+const SNAPSHOT_TURN = 0.6;
+const snapshotCache = new Map<string, string>();
+let snapshotRenderer: WebGLRenderer | null = null;
+
+/** Center a model and scale its largest side to 1.8, as the card frames it. */
+function fitModel(obj: Object3D) {
+  const box = new Box3().setFromObject(obj);
+  const center = new Vector3();
+  box.getCenter(center);
+  obj.position.sub(center);
+  const size = new Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  if (maxDim > 0) obj.scale.setScalar(1.8 / maxDim);
+}
+
+/** The model as a still image, lit and framed like the live canvas. */
+function snapshot(glbPath: string, scene: Group): string {
+  const cached = snapshotCache.get(glbPath);
+  if (cached) return cached;
+  // Match the live canvas's (react-three-fiber's) renderer defaults.
+  snapshotRenderer ??= new WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  const renderer = snapshotRenderer;
+  renderer.setSize(SNAPSHOT_PX, SNAPSHOT_PX, false);
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.outputColorSpace = SRGBColorSpace;
+  renderer.setClearColor(0x000000, 0);
+
+  const stage = new Scene();
+  stage.add(new AmbientLight(0xffffff, 0.6));
+  const key = new DirectionalLight(0xffffff, 1.0);
+  key.position.set(3, 4, 5);
+  const fill = new DirectionalLight(0xffffff, 0.3);
+  fill.position.set(-2, -1, -3);
+  stage.add(key, fill);
+  const model = scene.clone();
+  fitModel(model);
+  model.rotation.y = SNAPSHOT_TURN;
+  stage.add(model);
+
+  const camera = new PerspectiveCamera(CAMERA.fov, 1, CAMERA.near, CAMERA.far);
+  camera.position.set(0, 0, CAMERA.z);
+  renderer.render(stage, camera);
+  const url = renderer.domElement.toDataURL("image/png");
+  snapshotCache.set(glbPath, url);
+  return url;
+}
+
+function GlbThumbnail({ glbPath, label }: { glbPath: string; label: string }) {
   const [scene, setScene] = useState<Group | null>(
     () => sceneCache.get(glbPath)?.clone() ?? null,
   );
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     if (sceneCache.has(glbPath)) {
@@ -216,17 +278,28 @@ function GlbThumbnail({ glbPath }: { glbPath: string }) {
   }
 
   return (
-    <Canvas
-      frameloop="always"
-      gl={{ antialias: true, alpha: true }}
-      camera={{ fov: 30, near: 0.1, far: 100, position: [0, 0, 4] }}
-      style={{ background: "transparent" }}
+    <div
+      className="size-full"
+      onPointerEnter={() => setLive(true)}
+      onPointerLeave={() => setLive(false)}
     >
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 4, 5]} intensity={1.0} />
-      <directionalLight position={[-2, -1, -3]} intensity={0.3} />
-      <AutoRotatingModel scene={scene} />
-    </Canvas>
+      {live ? (
+        <Canvas
+          frameloop="always"
+          gl={{ antialias: true, alpha: true }}
+          camera={{ fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far, position: [0, 0, CAMERA.z] }}
+          style={{ background: "transparent" }}
+        >
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[3, 4, 5]} intensity={1.0} />
+          <directionalLight position={[-2, -1, -3]} intensity={0.3} />
+          <AutoRotatingModel scene={scene} />
+        </Canvas>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- a generated data URL, not an asset to optimize
+        <img src={snapshot(glbPath, scene)} alt={label} className="size-full" draggable={false} />
+      )}
+    </div>
   );
 }
 
@@ -235,17 +308,8 @@ function AutoRotatingModel({ scene }: { scene: Group }) {
 
   useEffect(() => {
     if (!ref.current) return;
-    const box = new Box3().setFromObject(ref.current);
-    const center = new Vector3();
-    box.getCenter(center);
-    ref.current.position.sub(center);
-    const size = new Vector3();
-    box.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) {
-      const scale = 1.8 / maxDim;
-      ref.current.scale.setScalar(scale);
-    }
+    fitModel(ref.current);
+    ref.current.rotation.y = SNAPSHOT_TURN;
   }, [scene]);
 
   useFrame((_, delta) => {

@@ -16,7 +16,8 @@ import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
-import { holeCountGapMm, unstitchedSideMm } from "@/lib/laser/template";
+import { holeCountGapMm } from "@/lib/laser/template";
+import { templateLengthOffsets, type LengthOffset } from "@/lib/laser/lengthSlider";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,6 @@ export function PanelerDesigner({
   const {
     bytes,
     topology,
-    topologyParams,
     panelColors,
     designInfo,
     loadFromUrl,
@@ -199,16 +199,30 @@ export function PanelerDesigner({
     };
   }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
 
-  // Length sliders on count-controlled designs (GP(3,0)'s Short edge) read
-  // the short side as the templates label it, corner stitch to corner
-  // stitch, rather than its bare seam length.
-  const templateLengths = useMemo(() => {
-    const def = shapeParamDefs?.find((d) => d.lengthAngle);
-    const atValue = def ? topologyParams?.[def.key] : undefined;
-    if (!def || atValue === undefined || !laserTemplateOptions?.holeCount || !netTopology) return undefined;
-    const side = unstitchedSideMm(netTopology, laserSettings, laserTemplateOptions);
-    return side ? { [def.key]: { atValue, ...side } } : undefined;
-  }, [shapeParamDefs, topologyParams, netTopology, laserSettings, laserTemplateOptions]);
+  // Length sliders on count-controlled designs (GP(3,0)'s and the soccer
+  // ball's Short edge) show, and step in, the short side as the templates
+  // label it — corner stitch to corner stitch — not its bare seam length.
+  // Measuring that across the slider takes a fraction of a second, so it
+  // runs once laser settings settle, not per change.
+  const lengthDef = shapeParamDefs?.find((d) => d.lengthAngle);
+  const otherParams = designInfo && lengthDef
+    ? JSON.stringify({ ...designInfo.params, [lengthDef.key]: undefined })
+    : "";
+  const [templateLengths, setTemplateLengths] = useState<Record<string, LengthOffset[]>>();
+  useEffect(() => {
+    const preset = designInfo ? presetById(designInfo.presetId) : undefined;
+    const id = window.setTimeout(() => {
+      setTemplateLengths(
+        preset && lengthDef && laserTemplateOptions?.holeCount
+          ? { [lengthDef.key]: templateLengthOffsets(preset, lengthDef, JSON.parse(otherParams), laserSettings, laserTemplateOptions) }
+          : undefined,
+      );
+    }, 200);
+    return () => window.clearTimeout(id);
+    // designInfo is read through presetId and otherParams: a drag of the
+    // length param itself must not re-measure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designInfo?.presetId, lengthDef, otherParams, laserSettings, laserTemplateOptions]);
 
   // Panel types (template labels) for the per-type curvature sliders.
   const panelTypes = useMemo(

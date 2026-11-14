@@ -282,8 +282,9 @@ describe("resolvePresetParams", () => {
 
   it("falls back to declared defaults", () => {
     expect(resolvePresetParams(cubocta)).toEqual({ shortEdge: 0 });
+    // 4.00mm stitch to stitch at the soccer template's 1.8in / 8 holes.
     expect(resolvePresetParams(presetById("soccer")!)).toEqual({
-      shortEdge: 100,
+      shortEdge: 40.102,
     });
   });
 

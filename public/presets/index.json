@@ -154,7 +154,7 @@
         "min": 0,
         "max": 100,
         "step": 1,
-        "defaultValue": 100,
+        "defaultValue": 40.102,
         "unit": "%"
       }
     ]
@@ -256,7 +256,8 @@
         "defaultValue": 0,
         "hidden": true
       }
-    ]
+    ],
+    "devOnly": true
   },
   {
     "slug": "gp2",
