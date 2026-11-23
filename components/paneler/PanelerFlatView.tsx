@@ -71,7 +71,6 @@ export default function PanelerFlatView({
           const flat = layout.get(panel.id);
           if (!flat || flat.corners.length < 3) return null;
           const fill = panelColors[panel.id] ?? DEFAULT_PANEL_COLOR;
-          const selected = selectedSet.has(panel.id);
           const isCenter = panel.id === centerPanelId;
           return (
             <path
@@ -79,8 +78,8 @@ export default function PanelerFlatView({
               d={buildCurvedPanelPath(flat)}
               fill={fill}
               stroke={isCenter ? "var(--primary)" : "#ffffff"}
-              strokeWidth={isCenter ? 0.05 : selected ? 0.04 : 0.012}
-              strokeOpacity={isCenter || selected ? 1 : 0.75}
+              strokeWidth={isCenter ? 0.05 : 0.012}
+              strokeOpacity={isCenter ? 1 : 0.75}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
               style={{ cursor: "pointer" }}
@@ -93,6 +92,20 @@ export default function PanelerFlatView({
                 setCenterPanelId(panel.id === centerPanelId ? null : panel.id);
               }}
             />
+          );
+        })}
+        {/* Selected panels' borders, drawn last so neighbours don't cover them:
+            a lime line (the app's accent) over a wider dark one, in screen
+            pixels, so it reads on light and dark fabric at any zoom. */}
+        {topology.panels.map((panel) => {
+          const flat = layout.get(panel.id);
+          if (!selectedSet.has(panel.id) || !flat || flat.corners.length < 3) return null;
+          const d = buildCurvedPanelPath(flat);
+          return (
+            <g key={`selected-${panel.id}`} pointerEvents="none">
+              <path d={d} fill="none" stroke="#030610" strokeWidth={6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              <path d={d} fill="none" stroke="var(--primary)" strokeWidth={3} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </g>
           );
         })}
       </svg>

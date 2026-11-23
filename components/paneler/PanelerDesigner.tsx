@@ -39,7 +39,7 @@ import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
 import { EmptyDesignState } from "./EmptyDesignState";
 import { ShapeParamsPanel } from "./ShapeParamsPanel";
-import { ShapeSelection } from "./ShapeSelection";
+import { PaneTools } from "./PaneTools";
 import { TemplateGalleryModal } from "./TemplateGalleryModal";
 import PanelerFlatView from "./PanelerFlatView";
 
@@ -131,13 +131,6 @@ export function PanelerDesigner({
     () => (topology ? groupPanelsByCongruence(topology) : []),
     [topology],
   );
-  const selectedClass = useMemo(
-    () =>
-      selectedPanelId
-        ? shapeClasses.find((c) => c.panelIds.includes(selectedPanelId)) ?? null
-        : null,
-    [shapeClasses, selectedPanelId],
-  );
 
   // Several panels at once: every panel of one shape ("Select all", with its
   // label) or panels shift-clicked one by one (no label). They stay selected
@@ -148,46 +141,61 @@ export function PanelerDesigner({
     [selection, selectedPanelId],
   );
 
-  // Undo: each paint action saves the colors from before it. The history is
-  // per design (cleared on load) and capped so a long session stays small.
-  const undoStackRef = useRef<PanelColors[]>([]);
-  const [undoDepth, setUndoDepth] = useState(0);
+  // Undo and Redo: each paint action saves the colors from before it; Undo
+  // moves one step back (keeping it for Redo), and a new paint drops what
+  // Redo had. Per design (cleared on load), capped so a long session stays small.
+  const historyRef = useRef<{ undo: PanelColors[]; redo: PanelColors[] }>({ undo: [], redo: [] });
+  const [history, setHistory] = useState({ undo: 0, redo: 0 });
+  const recordHistory = useCallback(() => {
+    setHistory({ undo: historyRef.current.undo.length, redo: historyRef.current.redo.length });
+  }, []);
   const paint = useCallback(
     (next: PanelColors) => {
       if (sameColors(panelColors, next)) return;
-      undoStackRef.current = [...undoStackRef.current, panelColors].slice(-UNDO_LIMIT);
-      setUndoDepth(undoStackRef.current.length);
+      historyRef.current = { undo: [...historyRef.current.undo, panelColors].slice(-UNDO_LIMIT), redo: [] };
+      recordHistory();
       setPanelColors(next);
     },
-    [panelColors, setPanelColors],
+    [panelColors, recordHistory, setPanelColors],
   );
-  const handleUndo = useCallback(() => {
-    const earlier = undoStackRef.current.pop();
-    if (!earlier) return;
-    setUndoDepth(undoStackRef.current.length);
-    setPanelColors(restoreColors(panelColors, earlier));
-  }, [panelColors, setPanelColors]);
+  const step = useCallback(
+    (from: "undo" | "redo") => {
+      const to = from === "undo" ? "redo" : "undo";
+      const state = historyRef.current[from].pop();
+      if (!state) return;
+      historyRef.current[to] = [...historyRef.current[to], panelColors].slice(-UNDO_LIMIT);
+      recordHistory();
+      setPanelColors(restoreColors(panelColors, state));
+    },
+    [panelColors, recordHistory, setPanelColors],
+  );
+  const handleUndo = useCallback(() => step("undo"), [step]);
+  const handleRedo = useCallback(() => step("redo"), [step]);
   // A newly loaded design starts with nothing selected and nothing to undo.
   const startFresh = useCallback(() => {
     setSelectedPanelId(null);
     setSelection(null);
-    undoStackRef.current = [];
-    setUndoDepth(0);
+    historyRef.current = { undo: [], redo: [] };
+    setHistory({ undo: 0, redo: 0 });
   }, []);
 
-  // Cmd/Ctrl+Z, except while typing in a field (its own undo wins there).
+  // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes. Not while typing in
+  // a field, whose own undo wins there.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      const redo = (key === "z" && e.shiftKey) || (key === "y" && e.ctrlKey && !e.metaKey);
+      if (!redo && !(key === "z" && !e.shiftKey)) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
       e.preventDefault();
-      handleUndo();
+      if (redo) handleRedo();
+      else handleUndo();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleUndo]);
-
+  }, [handleRedo, handleUndo]);
 
   // Palette groups for the sidebar. The stitcher's own fabrics lead — those are
   // the colors they can actually sew — with the built-ins below as reference.
@@ -572,17 +580,6 @@ export function PanelerDesigner({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleUndo}
-            disabled={undoDepth === 0}
-            title="Undo the last paint (⌘Z / Ctrl+Z)"
-            className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-          >
-            <UndoIcon />
-            Undo
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
             onClick={() => void handleSave()}
             disabled={saveState === "saving" || !bytes || playback.playing}
             title={playback.playing ? "Pause to save" : undefined}
@@ -663,7 +660,24 @@ export function PanelerDesigner({
               <div className="flex flex-1 overflow-hidden">
                 <div className="flex flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-                    <CanvasFrame label="3D · Sphere" className="flex-1">
+                    <CanvasFrame
+                      label="3D · Sphere"
+                      className="flex-1"
+                      actions={
+                        topology ? (
+                          <PaneTools
+                            classes={shapeClasses}
+                            selection={selection}
+                            onSelectAll={(c) => setSelection({ label: c.label, panelIds: c.panelIds })}
+                            onClear={() => setSelection(null)}
+                            canUndo={history.undo > 0}
+                            canRedo={history.redo > 0}
+                            onUndo={handleUndo}
+                            onRedo={handleRedo}
+                          />
+                        ) : null
+                      }
+                    >
                       <PanelerCanvas
                         glbBytes={bytes}
                         panelColors={panelColors}
@@ -750,19 +764,6 @@ export function PanelerDesigner({
                         })()}
                         holeCount={holeCount}
                         panelTypes={panelTypes}
-                      />
-                      <div className="workshop-hairline my-5" />
-                    </>
-                  )}
-                  {topology && (
-                    <>
-                      <ShapeSelection
-                        selection={selection}
-                        selectedClass={selectedClass}
-                        onSelectAll={(c) =>
-                          setSelection({ label: c.label, panelIds: c.panelIds })
-                        }
-                        onClear={() => setSelection(null)}
                       />
                       <div className="workshop-hairline my-5" />
                     </>
@@ -876,10 +877,13 @@ function Sigil() {
 function CanvasFrame({
   label,
   className,
+  actions,
   children,
 }: {
   label: string;
   className?: string;
+  /** Tools pinned to the pane's top-right corner. */
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -892,6 +896,7 @@ function CanvasFrame({
           {label}
         </span>
       </div>
+      {actions && <div className="absolute right-3 top-2 z-10">{actions}</div>}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );
@@ -931,15 +936,6 @@ function SaveIcon() {
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
-    </svg>
-  );
-}
-
-function UndoIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polyline points="9 14 4 9 9 4" />
-      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
     </svg>
   );
 }

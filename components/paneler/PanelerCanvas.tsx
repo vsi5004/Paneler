@@ -11,8 +11,6 @@ import {
   type DirectionalLight,
   Float32BufferAttribute,
   Group,
-  LineBasicMaterial,
-  LineSegments,
   PointsMaterial,
   Vector3 as Vec3,
   type Mesh,
@@ -20,7 +18,7 @@ import {
   type Texture,
 } from "three";
 import * as THREE from "three";
-import { GLTFLoader } from "three-stdlib";
+import { GLTFLoader, LineMaterial, LineSegments2, LineSegmentsGeometry } from "three-stdlib";
 
 import type { PanelColors } from "@/lib/types";
 import { loadSuedeTextures } from "@/lib/mesh/suedeTexture";
@@ -49,6 +47,14 @@ function dragThreshold(pointerType: string): number {
     : CLICK_DRAG_THRESHOLD;
 }
 const SEAM_NODE_NAME = "__seams";
+
+/** Selected panels' border: [color, width in px, draw order], dark halo first. */
+const SELECTION_OUTLINE: [number, number, number][] = [
+  [0x030610, 7, 10],
+  [0xb0f42f, 3.5, 11],
+];
+/** A selected panel's border shows while the panel faces the camera this much (cosine). */
+const OUTLINE_FACING = 0.12;
 
 interface PanelerCanvasProps {
   /** The GLB bytes for the current design. Null while loading. */
@@ -376,7 +382,8 @@ function PanelGroup({
 }) {
   // Track pointer-down origin so we can distinguish click from camera drag.
   const downRef = useRef<{ x: number; y: number } | null>(null);
-  const outlinesRef = useRef<LineSegments[]>([]);
+  const outlinesRef = useRef<LineSegments2[]>([]);
+  const size = useThree((s) => s.size);
 
   // Sync per-panel material colors from React state.
   useEffect(() => {
@@ -413,25 +420,51 @@ function PanelGroup({
         // adjacent triangle). An angle-threshold EdgesGeometry broke here:
         // steep puff-bevel walls on large panels exceeded any threshold and
         // sprayed white lines across the panel interior.
+        // A thick lime line (the app's accent) over a wider dark one, so the
+        // border reads on light and dark fabric alike. Plain GL lines are
+        // always 1 px, hence LineSegments2. The border lies in the seam's
+        // groove, where neighbouring puffs hide it, so it is drawn on top of
+        // everything, and shown only while its panel faces the camera
+        // (useFrame below) so borders on the far side don't show through.
         const edges = buildOpenEdgesGeometry(mesh.geometry);
-        const lineMat = new LineBasicMaterial({ color: 0xffffff });
-        const outline = new LineSegments(edges, lineMat);
-        outline.raycast = () => {};
-        outline.scale.setScalar(1.005);
-        mesh.add(outline);
-        outlinesRef.current.push(outline);
+        const positions = edges.getAttribute("position").array as Float32Array;
+        edges.dispose();
+        mesh.geometry.computeBoundingSphere();
+        const facing = mesh.localToWorld(mesh.geometry.boundingSphere!.center.clone()).normalize();
+        for (const [color, width, order] of SELECTION_OUTLINE) {
+          const geometry = new LineSegmentsGeometry().setPositions(positions);
+          const material = new LineMaterial({ color, linewidth: width, depthTest: false });
+          material.resolution.set(size.width, size.height);
+          const outline = new LineSegments2(geometry, material);
+          outline.raycast = () => {};
+          outline.renderOrder = order;
+          outline.userData.facing = facing;
+          mesh.add(outline);
+          outlinesRef.current.push(outline);
+        }
       }
     });
 
     return () => {
       for (const outline of outlinesRef.current) {
         outline.geometry.dispose();
-        (outline.material as LineBasicMaterial).dispose();
+        outline.material.dispose();
         outline.removeFromParent();
       }
       outlinesRef.current = [];
     };
-  }, [group, selectedPanelIds, panelColors]);
+  }, [group, selectedPanelIds, panelColors, size]);
+
+  useFrame(({ camera }) => {
+    if (outlinesRef.current.length === 0) return;
+    const toCamera = camera.position.clone().normalize();
+    for (const outline of outlinesRef.current) {
+      const facing = outline.userData.facing as Vec3 | undefined;
+      // three.js scene objects are mutable by design; this is per-frame view state, not React state.
+      // eslint-disable-next-line react-hooks/immutability
+      outline.visible = !facing || facing.dot(toCamera) > OUTLINE_FACING;
+    }
+  });
 
   // Sync suede normal/roughness maps onto every panel material — skipping the
   // baked seam mesh, which doesn't shade like fabric.
