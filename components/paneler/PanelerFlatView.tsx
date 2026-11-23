@@ -12,8 +12,10 @@ const VIEWPORT_PADDING = 0.08; // fraction of bounding box
 interface PanelerFlatViewProps {
   topology: PanelTopology;
   panelColors: PanelColors;
-  selectedPanelId: string | null;
-  onPanelClick: (panelId: string) => void;
+  /** Panels drawn selected: one, or several picked together. */
+  selectedPanelIds: readonly string[];
+  /** `shift` is true for a shift-click, which adds to the selection instead of painting. */
+  onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
   /** Per-preset flatten routing (Spiral: seam-true bands). */
   flattenOptions?: { seamTrueBands?: boolean };
 }
@@ -34,11 +36,12 @@ interface PanelerFlatViewProps {
 export default function PanelerFlatView({
   topology,
   panelColors,
-  selectedPanelId,
+  selectedPanelIds,
   onPanelClick,
   flattenOptions,
 }: PanelerFlatViewProps) {
   const [centerPanelId, setCenterPanelId] = useState<string | null>(null);
+  const selectedSet = useMemo(() => new Set(selectedPanelIds), [selectedPanelIds]);
 
   // Reset center when the design changes.
   useEffect(() => setCenterPanelId(null), [topology]);
@@ -68,7 +71,7 @@ export default function PanelerFlatView({
           const flat = layout.get(panel.id);
           if (!flat || flat.corners.length < 3) return null;
           const fill = panelColors[panel.id] ?? DEFAULT_PANEL_COLOR;
-          const selected = panel.id === selectedPanelId;
+          const selected = selectedSet.has(panel.id);
           const isCenter = panel.id === centerPanelId;
           return (
             <path
@@ -83,7 +86,7 @@ export default function PanelerFlatView({
               style={{ cursor: "pointer" }}
               onClick={(e) => {
                 e.stopPropagation();
-                onPanelClick(panel.id);
+                onPanelClick(panel.id, { shift: e.shiftKey });
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation();

@@ -52,6 +52,58 @@ export function applyShapeColor(
   return next;
 }
 
+/**
+ * Several panels selected to paint together: every panel of one shape (with
+ * that shape's label) or panels shift-clicked one by one (label null).
+ */
+export interface PanelSelection {
+  label: string | null;
+  panelIds: string[];
+}
+
+/**
+ * Shift-click: add the panel to the selection, or take it out if it is in.
+ * The panel already selected by a plain click joins, since it is highlighted
+ * too. Once changed by hand it is no longer "all hexagons", so the label
+ * goes. An emptied selection is no selection.
+ */
+export function togglePanel(
+  selection: PanelSelection | null,
+  singleSelected: string | null,
+  panelId: string,
+): PanelSelection | null {
+  const ids = selection?.panelIds ?? (singleSelected ? [singleSelected] : []);
+  const next = ids.includes(panelId) ? ids.filter((id) => id !== panelId) : [...ids, panelId];
+  return next.length === 0 ? null : { label: null, panelIds: next };
+}
+
+/** Paint several panels at once: a selected shape or shift-clicked panels. */
+export function applyColorToPanels(
+  panelColors: PanelColors,
+  panelIds: readonly string[],
+  color: string,
+): PanelColors {
+  const next = { ...panelColors };
+  for (const id of panelIds) next[id] = color;
+  return next;
+}
+
+/**
+ * Undo: put back every color an earlier state had. Painting never removes a
+ * panel's color, so this restores it exactly; a panel added since (a slider
+ * that changes the panel count) keeps its color instead of going blank.
+ */
+export function restoreColors(current: PanelColors, earlier: PanelColors): PanelColors {
+  return { ...current, ...earlier };
+}
+
+/** Whether two color maps paint every panel alike, so a no-op click adds no undo step. */
+export function sameColors(a: PanelColors, b: PanelColors): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => a[k] === b[k]);
+}
+
 export function applyColorToUnpainted(
   panelColors: PanelColors,
   allPanelIds: string[],

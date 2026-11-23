@@ -8,9 +8,12 @@ import { DEFAULT_PALETTE } from "@/lib/defaultPalettes";
 import { FABRIC_GROUPS } from "@/lib/fabrics";
 import {
   applyColor,
+  applyColorToPanels,
   applyColorToUnpainted,
-  applyShapeColor,
-  getPanelShape,
+  restoreColors,
+  sameColors,
+  togglePanel,
+  type PanelSelection,
 } from "@/lib/designState";
 import type { PaletteEntry, PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
@@ -36,6 +39,7 @@ import { ColorSummary } from "./ColorSummary";
 import { DesignNav } from "./DesignNav";
 import { EmptyDesignState } from "./EmptyDesignState";
 import { ShapeParamsPanel } from "./ShapeParamsPanel";
+import { ShapeSelection } from "./ShapeSelection";
 import { TemplateGalleryModal } from "./TemplateGalleryModal";
 import PanelerFlatView from "./PanelerFlatView";
 
@@ -83,6 +87,9 @@ const PanelerCanvas = dynamic(() => import("./PanelerCanvas"), {
 
 const PRESETS_BASE = (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + "/presets";
 
+/** How many paint actions Undo can step back through. */
+const UNDO_LIMIT = 100;
+
 export function PanelerDesigner({
   user,
   logoutAction,
@@ -117,6 +124,70 @@ export function PanelerDesigner({
     laserSettings,
     setLaserSettings,
   } = design;
+
+  // Panels grouped by their actual shape, as the Summary groups them (ids
+  // keep their preset's default shape name, so they can't be used for this).
+  const shapeClasses = useMemo(
+    () => (topology ? groupPanelsByCongruence(topology) : []),
+    [topology],
+  );
+  const selectedClass = useMemo(
+    () =>
+      selectedPanelId
+        ? shapeClasses.find((c) => c.panelIds.includes(selectedPanelId)) ?? null
+        : null,
+    [shapeClasses, selectedPanelId],
+  );
+
+  // Several panels at once: every panel of one shape ("Select all", with its
+  // label) or panels shift-clicked one by one (no label). They stay selected
+  // and the next palette color paints them all; a plain click goes back to one.
+  const [selection, setSelection] = useState<PanelSelection | null>(null);
+  const highlightedIds = useMemo(
+    () => selection?.panelIds ?? (selectedPanelId ? [selectedPanelId] : []),
+    [selection, selectedPanelId],
+  );
+
+  // Undo: each paint action saves the colors from before it. The history is
+  // per design (cleared on load) and capped so a long session stays small.
+  const undoStackRef = useRef<PanelColors[]>([]);
+  const [undoDepth, setUndoDepth] = useState(0);
+  const paint = useCallback(
+    (next: PanelColors) => {
+      if (sameColors(panelColors, next)) return;
+      undoStackRef.current = [...undoStackRef.current, panelColors].slice(-UNDO_LIMIT);
+      setUndoDepth(undoStackRef.current.length);
+      setPanelColors(next);
+    },
+    [panelColors, setPanelColors],
+  );
+  const handleUndo = useCallback(() => {
+    const earlier = undoStackRef.current.pop();
+    if (!earlier) return;
+    setUndoDepth(undoStackRef.current.length);
+    setPanelColors(restoreColors(panelColors, earlier));
+  }, [panelColors, setPanelColors]);
+  // A newly loaded design starts with nothing selected and nothing to undo.
+  const startFresh = useCallback(() => {
+    setSelectedPanelId(null);
+    setSelection(null);
+    undoStackRef.current = [];
+    setUndoDepth(0);
+  }, []);
+
+  // Cmd/Ctrl+Z, except while typing in a field (its own undo wins there).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      e.preventDefault();
+      handleUndo();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleUndo]);
+
 
   // Palette groups for the sidebar. The stitcher's own fabrics lead — those are
   // the colors they can actually sew — with the built-ins below as reference.
@@ -256,10 +327,10 @@ export function PanelerDesigner({
       const glbBytes = await ds.fetchGlb(id);
       setActiveTemplateSlug(null);
       setUploadedName(row.name);
-      setSelectedPanelId(null);
+      startFresh();
       await loadFromBytes(glbBytes);
     },
-    [ds, loadFromBytes],
+    [ds, loadFromBytes, startFresh],
   );
 
   // Open the gallery — the actual creation happens after the user picks a template.
@@ -291,17 +362,17 @@ export function PanelerDesigner({
         if (row) {
           setActiveTemplateSlug(null);
           setUploadedName(row.name);
-          setSelectedPanelId(null);
+          startFresh();
           await loadFromBytes(bytes);
         }
       } else {
         setActiveTemplateSlug(slug);
         setUploadedName(null);
-        setSelectedPanelId(null);
+        startFresh();
         await loadFromUrl(url);
       }
     },
-    [templates, dbEnabled, ds, loadFromBytes, loadFromUrl],
+    [templates, dbEnabled, ds, loadFromBytes, loadFromUrl, startFresh],
   );
 
   // One-shot template manifest fetch. The bake script writes
@@ -338,11 +409,26 @@ export function PanelerDesigner({
   );
 
   const handlePanelClick = useCallback(
-    (panelId: string) => {
+    (panelId: string, { shift = false }: { shift?: boolean } = {}) => {
+      if (shift) {
+        setSelection(togglePanel(selection, selectedPanelId, panelId));
+        setSelectedPanelId(panelId);
+        return;
+      }
       setSelectedPanelId(panelId);
-      setPanelColors((prev: PanelColors) => applyColor(prev, panelId, selectedColor));
+      setSelection(null);
+      paint(applyColor(panelColors, panelId, selectedColor));
     },
-    [selectedColor, setPanelColors],
+    [panelColors, paint, selectedColor, selection, selectedPanelId],
+  );
+
+  // Picking a color with several panels selected paints them all.
+  const handlePickColor = useCallback(
+    (color: string) => {
+      setSelectedColor(color);
+      if (selection) paint(applyColorToPanels(panelColors, selection.panelIds, color));
+    },
+    [panelColors, paint, selection],
   );
 
 
@@ -353,7 +439,7 @@ export function PanelerDesigner({
         setUploadError(null);
         setActiveTemplateSlug(null);
         setUploadedName(file.name);
-        setSelectedPanelId(null);
+        startFresh();
         // A file-picker upload doesn't give us a writable handle, so saves
         // will need to re-prompt for a location. The "Open" flow does.
         fileHandleRef.current = null;
@@ -363,7 +449,7 @@ export function PanelerDesigner({
         window.setTimeout(() => setUploadError(null), 5000);
       }
     },
-    [loadFromBytes],
+    [loadFromBytes, startFresh],
   );
 
   const handleOpen = useCallback(async () => {
@@ -373,14 +459,14 @@ export function PanelerDesigner({
       if (!opened) return;
       setActiveTemplateSlug(null);
       setUploadedName(opened.name);
-      setSelectedPanelId(null);
+      startFresh();
       fileHandleRef.current = opened.handle;
       await loadFromBytes(opened.bytes);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Open failed");
       window.setTimeout(() => setUploadError(null), 5000);
     }
-  }, [loadFromBytes]);
+  }, [loadFromBytes, startFresh]);
 
   const handleSave = useCallback(async () => {
     setSaveState("saving");
@@ -421,15 +507,6 @@ export function PanelerDesigner({
     if (!selectedPanelId) return;
     design.resetPanel(selectedPanelId);
   }, [design, selectedPanelId]);
-
-  const handlePaintShape = useCallback(
-    (shape: string) => {
-      setPanelColors((prev: PanelColors) =>
-        applyShapeColor(prev, allPanelIds, shape, selectedColor),
-      );
-    },
-    [allPanelIds, selectedColor, setPanelColors],
-  );
 
   const handleFillUnpainted = useCallback(() => {
     setPanelColors((prev: PanelColors) =>
@@ -491,6 +568,17 @@ export function PanelerDesigner({
           >
             <OpenIcon />
             Open
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleUndo}
+            disabled={undoDepth === 0}
+            title="Undo the last paint (⌘Z / Ctrl+Z)"
+            className="h-7 gap-1.5 rounded-md border border-border bg-background/40 px-2 font-mono text-[11px] uppercase tracking-[0.12em] hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            <UndoIcon />
+            Undo
           </Button>
           <Button
             variant="ghost"
@@ -579,7 +667,7 @@ export function PanelerDesigner({
                       <PanelerCanvas
                         glbBytes={bytes}
                         panelColors={panelColors}
-                        selectedPanelId={selectedPanelId}
+                        selectedPanelIds={highlightedIds}
                         suedeEnabled={suedeEnabled}
                         onPanelClick={handlePanelClick}
                       />
@@ -595,7 +683,7 @@ export function PanelerDesigner({
                             <PanelerFlatView
                               topology={netTopology}
                               panelColors={panelColors}
-                              selectedPanelId={selectedPanelId}
+                              selectedPanelIds={highlightedIds}
                               onPanelClick={handlePanelClick}
                               flattenOptions={flattenOptions}
                             />
@@ -666,6 +754,19 @@ export function PanelerDesigner({
                       <div className="workshop-hairline my-5" />
                     </>
                   )}
+                  {topology && (
+                    <>
+                      <ShapeSelection
+                        selection={selection}
+                        selectedClass={selectedClass}
+                        onSelectAll={(c) =>
+                          setSelection({ label: c.label, panelIds: c.panelIds })
+                        }
+                        onClear={() => setSelection(null)}
+                      />
+                      <div className="workshop-hairline my-5" />
+                    </>
+                  )}
                   {/* Palette */}
                   <section>
                     <div className="mb-3 flex items-baseline justify-between">
@@ -684,7 +785,7 @@ export function PanelerDesigner({
                     </div>
                     <ColorPalette
                       selected={selectedColor}
-                      onSelect={setSelectedColor}
+                      onSelect={handlePickColor}
                       groups={paletteGroups}
                     />
                   </section>
@@ -830,6 +931,15 @@ function SaveIcon() {
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="9 14 4 9 9 4" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
     </svg>
   );
 }

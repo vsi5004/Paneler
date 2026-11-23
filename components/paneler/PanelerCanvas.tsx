@@ -54,9 +54,11 @@ interface PanelerCanvasProps {
   /** The GLB bytes for the current design. Null while loading. */
   glbBytes: Uint8Array | null;
   panelColors: PanelColors;
-  selectedPanelId: string | null;
+  /** Panels drawn with a selection outline: one, or several picked together. */
+  selectedPanelIds: readonly string[];
   suedeEnabled: boolean;
-  onPanelClick: (panelId: string) => void;
+  /** `shift` is true for a shift-click, which adds to the selection instead of painting. */
+  onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
   /**
    * Opt-in still-image capture, used only by the public order form so the
    * stitcher's email can show the ball.
@@ -71,7 +73,7 @@ interface PanelerCanvasProps {
 export default function PanelerCanvas({
   glbBytes,
   panelColors,
-  selectedPanelId,
+  selectedPanelIds,
   suedeEnabled,
   onPanelClick,
   onCaptureReady,
@@ -104,7 +106,7 @@ export default function PanelerCanvas({
         <PanelGroup
           group={group}
           panelColors={panelColors}
-          selectedPanelId={selectedPanelId}
+          selectedPanelIds={selectedPanelIds}
           suedeMaps={suedeEnabled ? maps : null}
           onPanelClick={onPanelClick}
         />
@@ -362,19 +364,19 @@ function buildOpenEdgesGeometry(geom: BufferGeometry): BufferGeometry {
 function PanelGroup({
   group,
   panelColors,
-  selectedPanelId,
+  selectedPanelIds,
   suedeMaps,
   onPanelClick,
 }: {
   group: Group;
   panelColors: PanelColors;
-  selectedPanelId: string | null;
+  selectedPanelIds: readonly string[];
   suedeMaps: { normal: Texture; roughness: Texture } | null;
-  onPanelClick: (panelId: string) => void;
+  onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
 }) {
   // Track pointer-down origin so we can distinguish click from camera drag.
   const downRef = useRef<{ x: number; y: number } | null>(null);
-  const outlineRef = useRef<LineSegments | null>(null);
+  const outlinesRef = useRef<LineSegments[]>([]);
 
   // Sync per-panel material colors from React state.
   useEffect(() => {
@@ -397,6 +399,7 @@ function PanelGroup({
   // Highlight the selected panel with a tinted emissive boost (preserves
   // the panel's own color instead of washing to white) and a border outline.
   useEffect(() => {
+    const selected = new Set(selectedPanelIds);
     group.traverse((obj) => {
       const mesh = obj as Mesh;
       if (!mesh.isMesh) return;
@@ -404,7 +407,7 @@ function PanelGroup({
       if (!panelId) return;
       const mat = mesh.material as MeshStandardMaterial | undefined;
       if (!mat || Array.isArray(mat) || !("emissive" in mat)) return;
-      if (panelId === selectedPanelId) {
+      if (selected.has(panelId)) {
         // Border outline from the panel's OPEN edges (each panel is its own
         // mesh, so its true border is exactly the edges with only one
         // adjacent triangle). An angle-threshold EdgesGeometry broke here:
@@ -416,19 +419,19 @@ function PanelGroup({
         outline.raycast = () => {};
         outline.scale.setScalar(1.005);
         mesh.add(outline);
-        outlineRef.current = outline;
+        outlinesRef.current.push(outline);
       }
     });
 
     return () => {
-      if (outlineRef.current) {
-        outlineRef.current.geometry.dispose();
-        (outlineRef.current.material as LineBasicMaterial).dispose();
-        outlineRef.current.removeFromParent();
-        outlineRef.current = null;
+      for (const outline of outlinesRef.current) {
+        outline.geometry.dispose();
+        (outline.material as LineBasicMaterial).dispose();
+        outline.removeFromParent();
       }
+      outlinesRef.current = [];
     };
-  }, [group, selectedPanelId, panelColors]);
+  }, [group, selectedPanelIds, panelColors]);
 
   // Sync suede normal/roughness maps onto every panel material — skipping the
   // baked seam mesh, which doesn't shade like fabric.
@@ -472,7 +475,7 @@ function PanelGroup({
         const panelId = hit?.userData?.panelId as string | undefined;
         if (panelId) {
           e.stopPropagation();
-          onPanelClick(panelId);
+          onPanelClick(panelId, { shift: e.shiftKey });
         }
       }}
     />

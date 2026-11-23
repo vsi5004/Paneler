@@ -6,6 +6,10 @@ import {
   resetAll,
   applyShapeColor,
   applyColorToUnpainted,
+  applyColorToPanels,
+  restoreColors,
+  sameColors,
+  togglePanel,
 } from "@/lib/designState";
 
 // ---------------------------------------------------------------------------
@@ -116,3 +120,48 @@ describe("applyColorToUnpainted", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Several panels at once, and Undo
+// ---------------------------------------------------------------------------
+describe("applyColorToPanels", () => {
+  it("paints exactly the selected panels", () => {
+    const before = { a: "#111111", b: "#222222", c: "#333333" };
+    expect(applyColorToPanels(before, ["a", "c"], "#ffffff")).toEqual({ a: "#ffffff", b: "#222222", c: "#ffffff" });
+    expect(before.a).toBe("#111111");
+  });
+});
+
+describe("togglePanel (shift-click)", () => {
+  it("starts from the panel already selected, adds, and removes", () => {
+    const two = togglePanel(null, "a", "b");
+    expect(two).toEqual({ label: null, panelIds: ["a", "b"] });
+    expect(togglePanel(two, "b", "c")?.panelIds).toEqual(["a", "b", "c"]);
+    expect(togglePanel(two, "b", "a")).toEqual({ label: null, panelIds: ["b"] });
+  });
+
+  it("starts empty when nothing was selected, and an emptied selection is none", () => {
+    const one = togglePanel(null, null, "a");
+    expect(one).toEqual({ label: null, panelIds: ["a"] });
+    expect(togglePanel(one, "a", "a")).toBeNull();
+  });
+
+  it("turns 'all hexagons' into a hand-picked selection once changed", () => {
+    const hexagons = { label: "Hexagon", panelIds: ["h1", "h2"] };
+    expect(togglePanel(hexagons, "h2", "p1")).toEqual({ label: null, panelIds: ["h1", "h2", "p1"] });
+  });
+});
+
+describe("Undo helpers", () => {
+  it("restores every color the earlier state had, keeping panels added since", () => {
+    const earlier = { a: "#111111", b: "#222222" };
+    const now = { a: "#ffffff", b: "#222222", c: "#999999" };
+    expect(restoreColors(now, earlier)).toEqual({ a: "#111111", b: "#222222", c: "#999999" });
+  });
+
+  it("tells a real change from a click that changed nothing", () => {
+    expect(sameColors({ a: "#111111" }, { a: "#111111" })).toBe(true);
+    expect(sameColors({ a: "#111111" }, { a: "#222222" })).toBe(false);
+    expect(sameColors({ a: "#111111" }, { a: "#111111", b: "#222222" })).toBe(false);
+  });
+});

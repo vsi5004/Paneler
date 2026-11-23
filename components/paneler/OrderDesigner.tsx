@@ -259,7 +259,7 @@ export function OrderDesigner({
           <PanelerCanvas
             glbBytes={design.bytes}
             panelColors={design.panelColors}
-            selectedPanelId={selectedPanelId}
+            selectedPanelIds={selectedPanelId ? [selectedPanelId] : []}
             suedeEnabled
             onPanelClick={handlePanelClick}
             onCaptureReady={(fn) => {
