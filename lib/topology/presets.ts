@@ -1,7 +1,7 @@
 import { Vector3 } from "three";
 import type { HoleCountConvention } from "@/lib/laser/template";
 import type { LaserSettings } from "@/lib/laser/types";
-import type { PanelColors, PanelTopology } from "@/lib/types";
+import { panelId, type PanelColors, type PanelTopology } from "@/lib/types";
 import { topologyFromFaces } from "./fromFaces";
 import { goldbergClassI, gp3ShortEdgeAngle } from "./goldberg";
 import { baseball } from "./baseball";
@@ -249,16 +249,44 @@ export function rhombicDodecahedron(radius = 1): PanelTopology {
 
 /**
  * The 26-panel bag: a rhombicuboctahedron. 6 squares on the axes, 12 between
- * them, 8 triangles at the corners. `bigSquares` is the axis squares' side
- * over the others' (100% = the regular solid, all squares equal); above 100%
- * the 12 become oblongs and the triangles shrink. Vertices are the signed
- * permutations of (1, 1, s), all one distance from the centre for any s.
+ * them, 8 triangles at the corners. The triangles are hexagons whose three
+ * short sides have no length, and the axis squares octagons likewise: those
+ * short sides are where the two meet. Two shape controls:
+ *
+ * - `bigSquares`: the axis panels' side next to a square over the corner
+ *   panels' side next to a square (100% = all squares equal); above 100% the
+ *   12 become oblongs.
+ * - `shortEdge`: the corner panels' short side over their long side. 0 = the
+ *   triangles and squares above; 100% (with bigSquares 100%) = the truncated
+ *   cuboctahedron, squares, hexagons and octagons with every side equal.
+ *
+ * Vertices are the signed permutations of (1, q, r), all one distance from
+ * the centre; at shortEdge 0, q = 1 and each pair of them is one corner.
+ * Panel ids keep the triangle and square names at every setting, so painted
+ * colors survive the sliders.
  */
-export function rhombicuboctahedron(radius = 1, bigSquares = 1): PanelTopology {
-  const s = 1 + Math.SQRT2 / bigSquares;
-  const vertices = signedPermutations([1, 1, s]);
+function rhombicuboctahedronCorner(bigSquares: number, shortEdge: number): { q: number; r: number } {
+  const long = 2 / bigSquares; // a corner panel's side next to a square
+  const q = 1 + (shortEdge * long) / Math.SQRT2;
+  return { q, r: q + long / Math.SQRT2 };
+}
+
+/** The 26-panel's short side (hexagon to octagon) as an angle on the unit sphere. */
+export function rhombicuboctahedronShortAngle(shortEdgePct: number, params?: PresetParams): number {
+  const { q, r } = rhombicuboctahedronCorner((params?.bigSquares ?? 100) / 100, shortEdgePct / 100);
+  // From (1, q, r) to (q, 1, r): a chord of √2(q − 1) on a sphere of radius √(1 + q² + r²).
+  const chord = Math.SQRT2 * (q - 1);
+  return 2 * Math.asin(chord / (2 * Math.sqrt(1 + q * q + r * r)));
+}
+
+export function rhombicuboctahedron(radius = 1, bigSquares = 1, shortEdge = 0): PanelTopology {
+  const { q, r } = rhombicuboctahedronCorner(bigSquares, shortEdge);
   const normals = [...signedPermutations([1, 0, 0]), ...signedPermutations([1, 1, 0]), ...signedPermutations([1, 1, 1])];
-  return topologyFromFaces(vertices, facesByNormals(vertices, normals), radius);
+  const vertices = signedPermutations([1, q, r]);
+  const faces = facesByNormals(vertices, normals);
+  // 6 axis + 12 between: quads; 8 corners: triangles (their shapes at shortEdge 0).
+  const idFor = (index: number) => panelId(index, index < 18 ? "quad" : "triangle");
+  return topologyFromFaces(vertices, faces, radius, idFor);
 }
 
 // -----------------------------------------------------------------------------
@@ -286,9 +314,10 @@ export interface PresetParamDef {
   /**
    * Show the slider as a length: the edge this param controls, as an angle
    * on the unit sphere at a given value. The Shape panel converts it to
-   * millimetres at the current footbag size.
+   * millimetres at the current footbag size. `params` are the design's other
+   * shape values, for an edge that also depends on them.
    */
-  lengthAngle?: (value: number) => number;
+  lengthAngle?: (value: number, params?: PresetParams) => number;
 }
 
 export type PresetParams = Record<string, number>;
@@ -607,9 +636,23 @@ export const PRESETS: PresetEntry[] = [
         defaultValue: 100,
         unit: "%",
       },
+      {
+        // The corner panels' short side over their long side: 0% = triangles
+        // and squares, growing into hexagons and octagons. Shown, and
+        // stepped, in mm; the default, 23.84%, is 4.00mm at 1.8in (with Big
+        // squares at 100%).
+        key: "shortEdge",
+        label: "Short edge",
+        min: 0,
+        max: 100,
+        step: 1,
+        defaultValue: 23.84,
+        unit: "%",
+        lengthAngle: rhombicuboctahedronShortAngle,
+      },
     ],
     topology: (radius?: number, params?: PresetParams) =>
-      rhombicuboctahedron(radius, (params?.bigSquares ?? 100) / 100),
+      rhombicuboctahedron(radius, (params?.bigSquares ?? 100) / 100, (params?.shortEdge ?? 0) / 100),
   },
   {
     id: "soccer",

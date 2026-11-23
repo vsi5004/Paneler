@@ -1,4 +1,4 @@
-import type { PanelTopology } from "@/lib/types";
+import { isWavyPanel, type PanelTopology } from "@/lib/types";
 import {
   flattenPanelUnscaled,
   symmetrizeWavyPanel,
@@ -206,7 +206,7 @@ export function laserPanelOutline(
   panel: PanelClass["representative"],
   flatten: FlattenOptions = {},
 ): PanelFlat {
-  if (panel.vertexIndices.length > 6) {
+  if (isWavyPanel(panel, topo)) {
     const symmetrized = symmetrizeWavyPanel(panel, topo, flatten);
     if (symmetrized) return alignPrincipalAxis(symmetrized);
   }
@@ -840,7 +840,7 @@ function placeStitchHoles(
   // (trionda, baseball: >6 corners) seam alignment can't be verified
   // visually, so a mismatched 2.1-vs-2.9 pairing would go unnoticed —
   // uniform spacing removes the risk.
-  const isWavy = cls.representative.vertexIndices.length > 6;
+  const isWavy = isWavyPanel(cls.representative, topo);
   const bunching = isWavy ? 0 : HOLE_BUNCHING_MM;
   const loop = cls.representative.vertexIndices;
   const nEdges = loop.length;

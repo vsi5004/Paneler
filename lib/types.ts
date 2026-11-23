@@ -36,6 +36,27 @@ export function shapeForVertexCount(n: number): PanelShape {
   return "polygon";
 }
 
+const vertexUses = new WeakMap<PanelTopology, Map<number, number>>();
+
+/**
+ * Whether a panel is wavy (a seam that curves between its corners: Trionda,
+ * Orbita, the Baseball, Circle Soccer) rather than a straight-sided polygon.
+ * Wavy outlines carry seam points between corners, vertices only two panels
+ * share; a polygon's every vertex is a corner where three or more meet. So an
+ * octagon is a polygon, not wavy, whatever its corner count. Six corners or
+ * fewer is always a polygon, as before.
+ */
+export function isWavyPanel(panel: Panel, topo: PanelTopology): boolean {
+  if (panel.vertexIndices.length <= 6) return false;
+  let uses = vertexUses.get(topo);
+  if (!uses) {
+    uses = new Map();
+    for (const p of topo.panels) for (const v of p.vertexIndices) uses.set(v, (uses.get(v) ?? 0) + 1);
+    vertexUses.set(topo, uses);
+  }
+  return panel.vertexIndices.some((v) => (uses.get(v) ?? 0) < 3);
+}
+
 /**
  * NOTE: the shape suffix is cosmetic/grouping only — never rebuild a panel's
  * id from its current `shape`. Parameterized presets (see truncationFamily.ts)

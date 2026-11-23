@@ -16,8 +16,8 @@ export interface LengthOffset {
 }
 
 /** The seam length a length param (one with `lengthAngle`) sets, in mm. */
-export function seamMm(def: PresetParamDef, value: number, diameterIn: number): number {
-  return (def.lengthAngle?.(value) ?? 0) * SPHERE_RADIUS * mmPerUnit(diameterIn);
+export function seamMm(def: PresetParamDef, value: number, diameterIn: number, params?: PresetParams): number {
+  return (def.lengthAngle?.(value, params) ?? 0) * SPHERE_RADIUS * mmPerUnit(diameterIn);
 }
 
 /**
@@ -66,6 +66,7 @@ export function labelMm(
   value: number,
   diameterIn: number,
   offsets: LengthOffset[] | undefined,
+  params?: PresetParams,
 ): number {
   let offset = 0;
   if (offsets && offsets.length > 0) {
@@ -77,7 +78,7 @@ export function labelMm(
       offset = a.offsetMm + ((b.offsetMm - a.offsetMm) * (value - a.value)) / (b.value - a.value);
     }
   }
-  return Math.max(0, seamMm(def, value, diameterIn) + offset);
+  return Math.max(0, seamMm(def, value, diameterIn, params) + offset);
 }
 
 /** The value whose label length is `mm` (the length grows with the value). */
@@ -86,12 +87,13 @@ export function valueForMm(
   mm: number,
   diameterIn: number,
   offsets: LengthOffset[] | undefined,
+  params?: PresetParams,
 ): number {
   let lo = def.min;
   let hi = def.max;
   for (let i = 0; i < 40; i++) {
     const mid = (lo + hi) / 2;
-    if (labelMm(def, mid, diameterIn, offsets) < mm) lo = mid;
+    if (labelMm(def, mid, diameterIn, offsets, params) < mm) lo = mid;
     else hi = mid;
   }
   return Math.round(((lo + hi) / 2) * 1000) / 1000;

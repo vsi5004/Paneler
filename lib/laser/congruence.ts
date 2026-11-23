@@ -99,6 +99,9 @@ export function groupPanelsByCongruence(topo: PanelTopology): PanelClass[] {
   // Label: capitalized shape name, "polygon" → "Panel"; disambiguate
   // repeats with " A"/" B"… in the sorted (descending-count) order.
   const nameOf = (cornerCount: number): string => {
+    // Display only: panel ids keep shapeForVertexCount's names ("polygon"),
+    // so a saved design's colors are unaffected.
+    if (cornerCount === 8) return "Octagon";
     const shape = shapeForVertexCount(cornerCount);
     if (shape === "polygon") return "Panel";
     return shape.charAt(0).toUpperCase() + shape.slice(1);

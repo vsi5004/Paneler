@@ -269,3 +269,41 @@ describe("unfoldNet", () => {
     }
   });
 });
+
+describe("26-panel net and panel kinds", () => {
+  it("lays the 26-panel's rings out without overlapping panels", async () => {
+    const { presetById, resolvePresetParams } = await import("@/lib/topology/presets");
+    const preset = presetById("rhombicubocta")!;
+    const topo = preset.topology(1, resolvePresetParams(preset));
+    const layout = unfoldNet(topo);
+    const discs = [...layout.values()].map((f) => {
+      const cx = f.corners.reduce((s, c) => s + c.x, 0) / f.corners.length;
+      const cy = f.corners.reduce((s, c) => s + c.y, 0) / f.corners.length;
+      return { cx, cy, r: Math.max(...f.corners.map((c) => Math.hypot(c.x - cx, c.y - cy))) };
+    });
+    expect(discs).toHaveLength(26);
+    for (let i = 0; i < discs.length; i++)
+      for (let j = i + 1; j < discs.length; j++) {
+        const a = discs[i];
+        const b = discs[j];
+        // Each panel fits in a disc of its farthest corner; discs must not meet.
+        expect(Math.hypot(a.cx - b.cx, a.cy - b.cy)).toBeGreaterThan(a.r + b.r);
+      }
+  });
+
+  it("treats octagons as polygons and seam-curved panels as wavy", async () => {
+    const { isWavyPanel } = await import("@/lib/types");
+    const { presetById, resolvePresetParams } = await import("@/lib/topology/presets");
+    const at = (id: string) => {
+      const preset = presetById(id)!;
+      return preset.topology(1, resolvePresetParams(preset));
+    };
+    const twentySix = at("rhombicubocta");
+    expect(twentySix.panels.some((p) => p.vertexIndices.length === 8)).toBe(true);
+    expect(twentySix.panels.every((p) => !isWavyPanel(p, twentySix))).toBe(true);
+    for (const id of ["trionda", "baseball"]) {
+      const t = at(id);
+      expect(t.panels.every((p) => isWavyPanel(p, t)), id).toBe(true);
+    }
+  });
+});

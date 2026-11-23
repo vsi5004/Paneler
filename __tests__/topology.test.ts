@@ -9,6 +9,7 @@ import {
   octahedron,
   rhombicDodecahedron,
   rhombicuboctahedron,
+  rhombicuboctahedronShortAngle,
   tetrahedron,
   presetById,
   resolvePresetParams,
@@ -19,6 +20,7 @@ import { goldberg11, goldbergClassI } from "@/lib/topology/goldberg";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
+import { seamMm } from "@/lib/laser/lengthSlider";
 
 describe("topology presets", () => {
   it("tetrahedron has 4 panels, all triangles", () => {
@@ -647,6 +649,27 @@ describe("rhombus and 26-panel designs", () => {
     closed(big);
     expect(big.panels.map((p) => p.id)).toEqual(even.panels.map((p) => p.id));
     expect(types(big).sort()).toEqual(["Quad A 12", "Quad B 6", "Triangle 8"]);
+  });
+
+  it("26-panel Short edge turns the triangles into hexagons and the axis squares into octagons", () => {
+    const flat = rhombicuboctahedron(1, 1, 0);
+    const cut = rhombicuboctahedron(1, 1, 0.5);
+    expect([cut.vertices.length, cut.edges.length, cut.panels.length]).toEqual([48, 72, 26]);
+    closed(cut);
+    expect(cut.panels.map((p) => p.id)).toEqual(flat.panels.map((p) => p.id));
+    expect(types(cut).sort()).toEqual(["Hexagon 8", "Octagon 6", "Quad 12"]);
+  });
+
+  it("26-panel at 100% Big squares and 100% Short edge has every side equal (truncated cuboctahedron)", () => {
+    const t = rhombicuboctahedron(1, 1, 1);
+    const sides = t.edges.map((e) => t.vertices[e.vertexA].angleTo(t.vertices[e.vertexB]));
+    expect(Math.max(...sides) - Math.min(...sides)).toBeLessThan(1e-9);
+    expect(rhombicuboctahedronShortAngle(100, { bigSquares: 100 })).toBeCloseTo(sides[0], 9);
+  });
+
+  it("26-panel's default short side is 4.00mm at 1.8in", () => {
+    const def = presetById("rhombicubocta")!.params!.find((d) => d.key === "shortEdge")!;
+    expect(seamMm(def, def.defaultValue, 1.8, { bigSquares: 100 })).toBeCloseTo(4, 2);
   });
 
   it("both are listed as templates", () => {

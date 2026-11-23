@@ -45,11 +45,11 @@ export function ShapeParamsPanel({
   // steps, and converts back to the param's own value underneath.
   const lengthScale = (def: PresetParamDef) => {
     const offsets = templateLengths?.[def.key];
-    const toMm = (v: number) => labelMm(def, v, diameterIn, offsets);
+    const toMm = (v: number) => labelMm(def, v, diameterIn, offsets, values);
     const min = Math.ceil(toMm(def.min) * 10) / 10;
     const max = Math.floor(toMm(def.max) * 10) / 10;
     const toValue = (mm: number) =>
-      mm <= min ? def.min : mm >= max ? def.max : valueForMm(def, mm, diameterIn, offsets);
+      mm <= min ? def.min : mm >= max ? def.max : valueForMm(def, mm, diameterIn, offsets, values);
     return { toMm, toValue, min, max };
   };
   return (

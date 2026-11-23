@@ -15,7 +15,7 @@ import {
   togglePanel,
   type PanelSelection,
 } from "@/lib/designState";
-import type { PaletteEntry, PanelColors } from "@/lib/types";
+import { isWavyPanel, type PaletteEntry, type PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
@@ -764,7 +764,7 @@ export function PanelerDesigner({
                         values={laserSettings}
                         onChange={setLaserSettings}
                         hasPolygonPanels={(netTopology ?? topology).panels.some(
-                          (p) => p.vertexIndices.length <= 6,
+                          (p) => !isWavyPanel(p, netTopology ?? topology),
                         )}
                         hasShortEdges={(() => {
                           const t = netTopology ?? topology;

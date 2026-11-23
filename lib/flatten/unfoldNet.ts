@@ -1,5 +1,5 @@
 import { Vector3 } from "three";
-import type { Panel, PanelTopology } from "@/lib/types";
+import { isWavyPanel, type Panel, type PanelTopology } from "@/lib/types";
 import { arapFlattenBoundary } from "./arap";
 import { developBand } from "./bandDevelop";
 import { chooseRoot } from "./chooseRoot";
@@ -120,17 +120,23 @@ export function unfoldNet(
     return result;
   }
 
-  for (const [d, panels] of byDepth) {
+  // Rings in depth order: a crowded ring is pushed outward to fit its
+  // panels, and every ring after it must clear it by a full ring step, or
+  // the two overlap (the 26-panel's first ring holds 8 panels).
+  let previousRadius = 0;
+  for (const d of [...byDepth.keys()].sort((a, b) => a - b)) {
+    const panels = byDepth.get(d)!;
     if (d === 0) {
       const local = flattenPanelLocal(rootPanel, topo, circumradius, options);
       result.set(rootPanel.id, local);
       continue;
     }
-    placeRing({
+    previousRadius = placeRing({
       options,
       result,
       panels,
       depth: d,
+      minRadius: previousRadius + RING_SPACING_FACTOR * circumradius,
       circumradius,
       topo,
       rootCentroid,
@@ -197,6 +203,7 @@ function placeRing({
   result,
   panels,
   depth,
+  minRadius,
   circumradius,
   topo,
   rootCentroid,
@@ -207,12 +214,14 @@ function placeRing({
   result: FlatLayout;
   panels: Panel[];
   depth: number;
+  /** At least a ring step outside the ring before. */
+  minRadius: number;
   circumradius: number;
   topo: PanelTopology;
   rootCentroid: Vector3;
   tanX: Vector3;
   tanY: Vector3;
-}): void {
+}): number {
   const n = panels.length;
   // Two constraints on ring radius:
   //   - Don't crowd the previous ring: each ring step is ~2.2 panels wide.
@@ -221,7 +230,7 @@ function placeRing({
   const minByDepth = depth * RING_SPACING_FACTOR * circumradius;
   const minByFit =
     n > 1 ? (n * RING_FIT_PADDING * circumradius) / Math.PI : 0;
-  const ringRadius = Math.max(minByDepth, minByFit);
+  const ringRadius = Math.max(minByDepth, minByFit, minRadius);
 
   // Sort by 3D azimuth so adjacent-in-3D panels land adjacent-in-2D.
   const withAngle = panels.map((panel) => {
@@ -260,6 +269,7 @@ function placeRing({
       sagittaRatios: local.sagittaRatios,
     });
   }
+  return ringRadius;
 }
 
 function flattenPanelLocal(
@@ -271,7 +281,7 @@ function flattenPanelLocal(
   // Wavy junction panels display the same seam-symmetrized outline the
   // laser templates cut, so the net matches the templates exactly.
   const flat =
-    (panel.vertexIndices.length > 6
+    (isWavyPanel(panel, topo)
       ? symmetrizeWavyPanel(panel, topo, options)
       : null) ?? flattenPanelUnscaled(panel, topo);
   let maxR = 0;
