@@ -32,7 +32,7 @@ export function shapeNamePlural(label: string, count = 2): string {
 }
 
 const chip =
-  "inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-[#030610]/80 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/80 backdrop-blur transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-35";
+  "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-[#030610]/80 px-2.5 font-mono text-xs uppercase tracking-[0.12em] text-foreground/80 backdrop-blur transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-35";
 
 /**
  * Tools over the 3D pane: Undo and Redo, and "Select all" of one panel type.
@@ -44,17 +44,17 @@ export function PaneTools({ classes, selection, onSelectAll, onClear, canUndo, c
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-1.5">
         <button type="button" className={chip} onClick={onUndo} disabled={!canUndo} title="Undo (⌘Z / Ctrl+Z)">
-          <Undo2 className="size-3" />
+          <Undo2 className="size-3.5" />
           Undo
         </button>
         <button type="button" className={chip} onClick={onRedo} disabled={!canRedo} title="Redo (⇧⌘Z / Ctrl+Y)">
-          <Redo2 className="size-3" />
+          <Redo2 className="size-3.5" />
           Redo
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger className={chip} disabled={classes.length === 0}>
             Select all
-            <ChevronDown className="size-3" />
+            <ChevronDown className="size-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuGroup>
@@ -62,7 +62,7 @@ export function PaneTools({ classes, selection, onSelectAll, onClear, canUndo, c
                 Panel type
               </DropdownMenuLabel>
               {classes.map((c) => (
-                <DropdownMenuItem key={c.key} onClick={() => onSelectAll(c)} className="justify-between font-mono text-[11px] uppercase tracking-[0.1em]">
+                <DropdownMenuItem key={c.key} onClick={() => onSelectAll(c)} className="justify-between font-mono text-xs uppercase tracking-[0.1em]">
                   <span>{shapeNamePlural(c.label, c.panelIds.length)}</span>
                   <span className="text-muted-foreground">{c.panelIds.length}</span>
                 </DropdownMenuItem>
@@ -75,7 +75,7 @@ export function PaneTools({ classes, selection, onSelectAll, onClear, canUndo, c
         </DropdownMenu>
       </div>
       {selection && (
-        <div className="flex items-center gap-2 rounded-md border border-primary/50 bg-[#030610]/85 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-primary backdrop-blur">
+        <div className="flex items-center gap-2 rounded-md border border-primary/50 bg-[#030610]/85 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-primary backdrop-blur">
           <span>
             {selection.panelIds.length} {selection.label ? shapeNamePlural(selection.label, selection.panelIds.length) : selection.panelIds.length === 1 ? "panel" : "panels"} selected · pick a color
           </span>

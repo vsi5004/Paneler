@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import { Vector3 } from "three";
 import type { HoleCountConvention } from "@/lib/laser/template";
 import type { LaserSettings } from "@/lib/laser/types";
 import type { PanelColors, PanelTopology } from "@/lib/types";
@@ -201,6 +201,64 @@ export function dodecahedron(radius = 1): PanelTopology {
     ],
     radius,
   );
+}
+
+type Point = readonly [number, number, number];
+
+/** Every point from `base` by permuting its coordinates and flipping signs, without repeats. */
+function signedPermutations(base: Point): Point[] {
+  const orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const seen = new Map<string, Point>();
+  for (const order of orders) {
+    for (let signs = 0; signs < 8; signs++) {
+      const p = order.map((axis, i) => base[axis] * (signs & (1 << i) ? -1 : 1)) as unknown as Point;
+      seen.set(p.map((x) => x.toFixed(9)).join(","), p);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
+ * The faces of a convex solid with these vertices, one per outward face
+ * direction: the vertices furthest along it, in order around it (counter-
+ * clockwise seen from outside, as topologyFromFaces expects).
+ */
+function facesByNormals(vertices: readonly Point[], normals: readonly Point[]): number[][] {
+  return normals.map((n) => {
+    const normal = new Vector3(...n).normalize();
+    const reach = vertices.map((v) => normal.dot(new Vector3(...v)));
+    const far = Math.max(...reach);
+    const ids = reach.flatMap((d, i) => (d > far - 1e-9 ? [i] : []));
+    const centre = ids.reduce((c, i) => c.add(new Vector3(...vertices[i])), new Vector3()).divideScalar(ids.length);
+    const u = new Vector3(...vertices[ids[0]]).sub(centre).normalize();
+    const w = new Vector3().crossVectors(normal, u);
+    const angle = (i: number) => {
+      const d = new Vector3(...vertices[i]).sub(centre);
+      return Math.atan2(d.dot(w), d.dot(u));
+    };
+    return ids.sort((a, b) => angle(a) - angle(b));
+  });
+}
+
+export function rhombicDodecahedron(radius = 1): PanelTopology {
+  // 12 identical rhombi, one per cube edge: the cube's 8 corners (3 rhombi
+  // meet) and the 6 axis points (4 meet). The cuboctahedron's dual.
+  const vertices: Point[] = [...signedPermutations([1, 1, 1]), ...signedPermutations([2, 0, 0])];
+  return topologyFromFaces(vertices, facesByNormals(vertices, signedPermutations([1, 1, 0])), radius);
+}
+
+/**
+ * The 26-panel bag: a rhombicuboctahedron. 6 squares on the axes, 12 between
+ * them, 8 triangles at the corners. `bigSquares` is the axis squares' side
+ * over the others' (100% = the regular solid, all squares equal); above 100%
+ * the 12 become oblongs and the triangles shrink. Vertices are the signed
+ * permutations of (1, 1, s), all one distance from the centre for any s.
+ */
+export function rhombicuboctahedron(radius = 1, bigSquares = 1): PanelTopology {
+  const s = 1 + Math.SQRT2 / bigSquares;
+  const vertices = signedPermutations([1, 1, s]);
+  const normals = [...signedPermutations([1, 0, 0]), ...signedPermutations([1, 1, 0]), ...signedPermutations([1, 1, 1])];
+  return topologyFromFaces(vertices, facesByNormals(vertices, normals), radius);
 }
 
 // -----------------------------------------------------------------------------
@@ -454,6 +512,7 @@ export const PRESETS: PresetEntry[] = [
   { id: "cube", label: "Cube", panels: 6, topology: cube },
   { id: "octa", label: "Octahedron", panels: 8, laserCornerHoles: true, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
+  { id: "rhombic12", label: "12-Panel Rhombus", panels: 12, topology: rhombicDodecahedron },
   {
     id: "orbita",
     label: "Orbita 2022",
@@ -533,6 +592,25 @@ export const PRESETS: PresetEntry[] = [
       truncatedOctahedronFamily(radius, (params?.shortEdge ?? 0) / 100),
   },
   { id: "icosa", label: "Icosahedron", panels: 20, topology: icosahedron },
+  {
+    id: "rhombicubocta",
+    label: "26-Panel",
+    panels: 26,
+    params: [
+      {
+        // The 6 axis squares' side over the 12 others' (100% = all equal).
+        key: "bigSquares",
+        label: "Big squares",
+        min: 100,
+        max: 180,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      rhombicuboctahedron(radius, (params?.bigSquares ?? 100) / 100),
+  },
   {
     id: "soccer",
     label: "Soccer Ball",

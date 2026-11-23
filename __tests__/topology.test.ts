@@ -7,6 +7,8 @@ import {
   dodecahedron,
   icosahedron,
   octahedron,
+  rhombicDodecahedron,
+  rhombicuboctahedron,
   tetrahedron,
   presetById,
   resolvePresetParams,
@@ -16,6 +18,7 @@ import { morphFeaturePanels } from "@/lib/topology/panelScaleWarp";
 import { goldberg11, goldbergClassI } from "@/lib/topology/goldberg";
 import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
+import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 
 describe("topology presets", () => {
   it("tetrahedron has 4 panels, all triangles", () => {
@@ -607,5 +610,48 @@ describe("scaleSeamAmplitude (Orbita spoke-length param)", () => {
         }
       });
     });
+  });
+});
+
+describe("rhombus and 26-panel designs", () => {
+  const closed = (t: ReturnType<typeof cube>) => {
+    expect(t.vertices.length - t.edges.length + t.panels.length).toBe(2);
+    expect(t.edges.every((e) => e.panelB !== null)).toBe(true);
+    expect(t.vertices.every((v) => Math.abs(v.length() - 1) < 1e-9)).toBe(true);
+  };
+  const types = (t: ReturnType<typeof cube>) =>
+    groupPanelsByCongruence(t).map((c) => `${c.label} ${c.panelIds.length}`);
+
+  it("12-panel rhombus: 12 identical four-sided panels, closed", () => {
+    const t = rhombicDodecahedron();
+    expect(t.panels).toHaveLength(12);
+    expect(t.panels.every((p) => p.vertexIndices.length === 4)).toBe(true);
+    expect([t.vertices.length, t.edges.length]).toEqual([14, 24]);
+    closed(t);
+    expect(types(t)).toEqual(["Quad 12"]);
+  });
+
+  it("26-panel: 18 squares and 8 triangles, closed; all squares equal by default", () => {
+    const t = rhombicuboctahedron();
+    expect(t.panels).toHaveLength(26);
+    expect(t.panels.filter((p) => p.vertexIndices.length === 4)).toHaveLength(18);
+    expect(t.panels.filter((p) => p.vertexIndices.length === 3)).toHaveLength(8);
+    expect([t.vertices.length, t.edges.length]).toEqual([24, 48]);
+    closed(t);
+    expect(types(t).sort()).toEqual(["Quad 18", "Triangle 8"]);
+  });
+
+  it("26-panel Big squares splits the 6 axis squares from the 12, keeping panel ids", () => {
+    const even = rhombicuboctahedron(1, 1);
+    const big = rhombicuboctahedron(1, 1.5);
+    closed(big);
+    expect(big.panels.map((p) => p.id)).toEqual(even.panels.map((p) => p.id));
+    expect(types(big).sort()).toEqual(["Quad A 12", "Quad B 6", "Triangle 8"]);
+  });
+
+  it("both are listed as templates", () => {
+    expect(presetById("rhombic12")?.panels).toBe(12);
+    expect(presetById("rhombicubocta")?.panels).toBe(26);
+    expect(PRESETS.find((p) => p.id === "rhombicubocta")?.topology(1, { bigSquares: 150 }).panels).toHaveLength(26);
   });
 });

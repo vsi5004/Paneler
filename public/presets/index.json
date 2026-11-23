@@ -72,6 +72,13 @@
     "shapeSignature": "12p"
   },
   {
+    "slug": "rhombic12",
+    "label": "12-Panel Rhombus",
+    "glbPath": "/presets/rhombic12.glb",
+    "panelCount": 12,
+    "shapeSignature": "12q"
+  },
+  {
     "slug": "orbita",
     "label": "Orbita 2022",
     "glbPath": "/presets/orbita.glb",
@@ -140,6 +147,24 @@
     "glbPath": "/presets/icosa.glb",
     "panelCount": 20,
     "shapeSignature": "20t"
+  },
+  {
+    "slug": "rhombicubocta",
+    "label": "26-Panel",
+    "glbPath": "/presets/rhombicubocta.glb",
+    "panelCount": 26,
+    "shapeSignature": "8t+18q",
+    "params": [
+      {
+        "key": "bigSquares",
+        "label": "Big squares",
+        "min": 100,
+        "max": 180,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
   },
   {
     "slug": "soccer",
