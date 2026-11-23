@@ -171,6 +171,11 @@ export function PanelerDesigner({
   );
   const handleUndo = useCallback(() => step("undo"), [step]);
   const handleRedo = useCallback(() => step("redo"), [step]);
+  // Clicking off the ball or the net, or Esc, selects nothing.
+  const clearSelection = useCallback(() => {
+    setSelectedPanelId(null);
+    setSelection(null);
+  }, []);
   // A newly loaded design starts with nothing selected and nothing to undo.
   const startFresh = useCallback(() => {
     setSelectedPanelId(null);
@@ -179,10 +184,15 @@ export function PanelerDesigner({
     setHistory({ undo: 0, redo: 0 });
   }, []);
 
-  // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes. Not while typing in
-  // a field, whose own undo wins there.
+  // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes; Esc selects nothing.
+  // Not while typing in a field, whose own undo wins there, and Esc that
+  // closed a menu or dialog (already handled) is left alone.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!e.defaultPrevented) clearSelection();
+        return;
+      }
       if (!(e.metaKey || e.ctrlKey)) return;
       const key = e.key.toLowerCase();
       const redo = (key === "z" && e.shiftKey) || (key === "y" && e.ctrlKey && !e.metaKey);
@@ -195,7 +205,7 @@ export function PanelerDesigner({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleRedo, handleUndo]);
+  }, [clearSelection, handleRedo, handleUndo]);
 
   // Palette groups for the sidebar. The stitcher's own fabrics lead — those are
   // the colors they can actually sew — with the built-ins below as reference.
@@ -684,6 +694,7 @@ export function PanelerDesigner({
                         selectedPanelIds={highlightedIds}
                         suedeEnabled={suedeEnabled}
                         onPanelClick={handlePanelClick}
+                        onBackgroundClick={clearSelection}
                       />
                     </CanvasFrame>
                     <div className="glow-divider" />
@@ -699,6 +710,7 @@ export function PanelerDesigner({
                               panelColors={panelColors}
                               selectedPanelIds={highlightedIds}
                               onPanelClick={handlePanelClick}
+                              onBackgroundClick={clearSelection}
                               flattenOptions={flattenOptions}
                             />
                           </div>

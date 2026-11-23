@@ -16,6 +16,8 @@ interface PanelerFlatViewProps {
   selectedPanelIds: readonly string[];
   /** `shift` is true for a shift-click, which adds to the selection instead of painting. */
   onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
+  /** A click on the background, between panels: clears the selection. */
+  onBackgroundClick?: () => void;
   /** Per-preset flatten routing (Spiral: seam-true bands). */
   flattenOptions?: { seamTrueBands?: boolean };
 }
@@ -38,6 +40,7 @@ export default function PanelerFlatView({
   panelColors,
   selectedPanelIds,
   onPanelClick,
+  onBackgroundClick,
   flattenOptions,
 }: PanelerFlatViewProps) {
   const [centerPanelId, setCenterPanelId] = useState<string | null>(null);
@@ -58,7 +61,8 @@ export default function PanelerFlatView({
   }, [topology, flattenOptions, centerPanelId]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4">
+    // Panel paths stop their clicks, so a click that reaches here missed them all.
+    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/20 p-4" onClick={onBackgroundClick}>
       <span className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/80">
         Double-click a panel to recenter
       </span>

@@ -65,6 +65,8 @@ interface PanelerCanvasProps {
   suedeEnabled: boolean;
   /** `shift` is true for a shift-click, which adds to the selection instead of painting. */
   onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
+  /** A click that hits no panel (not a drag of the ball): clears the selection. */
+  onBackgroundClick?: () => void;
   /**
    * Opt-in still-image capture, used only by the public order form so the
    * stitcher's email can show the ball.
@@ -82,6 +84,7 @@ export default function PanelerCanvas({
   selectedPanelIds,
   suedeEnabled,
   onPanelClick,
+  onBackgroundClick,
   onCaptureReady,
 }: PanelerCanvasProps) {
   const group = useGlbGroup(glbBytes);
@@ -104,6 +107,8 @@ export default function PanelerCanvas({
       camera={{ position: [0, 0, 8], fov: 45 }}
       gl={{ antialias: true, preserveDrawingBuffer: Boolean(onCaptureReady) }}
       className="flex-1"
+      // Fires only for a click (pointer moved 2 px or less) that hit nothing.
+      onPointerMissed={onBackgroundClick}
     >
       {onCaptureReady && <CaptureRig onReady={onCaptureReady} />}
       <ambientLight intensity={0.6} />
