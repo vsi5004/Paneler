@@ -140,7 +140,8 @@ export function useDesigns({ enabled }: UseDesignsOptions) {
   );
 
   const createFromUpload = useCallback(
-    async (input: CreateFromUploadInput): Promise<DesignMeta | null> => {
+    /** `select: false` leaves the current design alone (the caller decides). */
+    async (input: CreateFromUploadInput, { select = true }: { select?: boolean } = {}): Promise<DesignMeta | null> => {
       if (!enabled) return null;
       const { design } = await jsonFetch<{ design: DesignMeta }>(
         "/api/designs",
@@ -165,7 +166,7 @@ export function useDesigns({ enabled }: UseDesignsOptions) {
         glb_size_bytes: size,
       });
       setDesigns((prev) => [final, ...prev.filter((d) => d.id !== final.id)]);
-      setCurrentId(final.id);
+      if (select) setCurrentId(final.id);
       return final;
     },
     [enabled, uploadBytes, patchMeta],

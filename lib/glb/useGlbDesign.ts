@@ -19,6 +19,7 @@ import {
 } from "@/lib/glb/generate";
 import { presetById, type PresetParams } from "@/lib/topology/presets";
 import type { PanelColors, PanelTopology } from "@/lib/types";
+import { fetchGlbBytes } from "./prefetch";
 
 /** Preset provenance + current shape param values for the loaded design. */
 export interface DesignInfo {
@@ -238,10 +239,8 @@ export function useGlbDesign(): UseGlbDesignResult {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
-        const buf = await res.arrayBuffer();
-        setBytes(new Uint8Array(buf));
+        // Reuses a download a hover over the template's card already started.
+        setBytes(await fetchGlbBytes(url));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load GLB");
       } finally {

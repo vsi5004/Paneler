@@ -3,6 +3,7 @@
     "slug": "baseball",
     "label": "Baseball",
     "glbPath": "/presets/baseball.glb",
+    "thumbPath": "/presets/thumbs/baseball.glb",
     "panelCount": 2,
     "shapeSignature": "2g",
     "params": [
@@ -21,6 +22,7 @@
     "slug": "spiral",
     "label": "Spiral",
     "glbPath": "/presets/spiral.glb",
+    "thumbPath": "/presets/thumbs/spiral.glb",
     "panelCount": 2,
     "shapeSignature": "2g",
     "params": [
@@ -40,6 +42,7 @@
     "slug": "trionda",
     "label": "Trionda 2026",
     "glbPath": "/presets/trionda.glb",
+    "thumbPath": "/presets/thumbs/trionda.glb",
     "panelCount": 4,
     "shapeSignature": "4g"
   },
@@ -47,6 +50,7 @@
     "slug": "tetra",
     "label": "Tetrahedron",
     "glbPath": "/presets/tetra.glb",
+    "thumbPath": "/presets/thumbs/tetra.glb",
     "panelCount": 4,
     "shapeSignature": "4t"
   },
@@ -54,6 +58,7 @@
     "slug": "cube",
     "label": "Cube",
     "glbPath": "/presets/cube.glb",
+    "thumbPath": "/presets/thumbs/cube.glb",
     "panelCount": 6,
     "shapeSignature": "6q"
   },
@@ -61,6 +66,7 @@
     "slug": "octa",
     "label": "Octahedron",
     "glbPath": "/presets/octa.glb",
+    "thumbPath": "/presets/thumbs/octa.glb",
     "panelCount": 8,
     "shapeSignature": "8t"
   },
@@ -68,6 +74,7 @@
     "slug": "dodeca",
     "label": "Dodecahedron",
     "glbPath": "/presets/dodeca.glb",
+    "thumbPath": "/presets/thumbs/dodeca.glb",
     "panelCount": 12,
     "shapeSignature": "12p"
   },
@@ -75,6 +82,7 @@
     "slug": "rhombic12",
     "label": "12-Panel Rhombus",
     "glbPath": "/presets/rhombic12.glb",
+    "thumbPath": "/presets/thumbs/rhombic12.glb",
     "panelCount": 12,
     "shapeSignature": "12q"
   },
@@ -82,6 +90,7 @@
     "slug": "orbita",
     "label": "Orbita 2022",
     "glbPath": "/presets/orbita.glb",
+    "thumbPath": "/presets/thumbs/orbita.glb",
     "panelCount": 12,
     "shapeSignature": "12g",
     "params": [
@@ -100,6 +109,7 @@
     "slug": "teamgeist",
     "label": "Teamgeist 2006",
     "glbPath": "/presets/teamgeist.glb",
+    "thumbPath": "/presets/thumbs/teamgeist.glb",
     "panelCount": 14,
     "shapeSignature": "14g",
     "params": [
@@ -127,6 +137,7 @@
     "slug": "cubocta",
     "label": "Cuboctahedron",
     "glbPath": "/presets/cubocta.glb",
+    "thumbPath": "/presets/thumbs/cubocta.glb",
     "panelCount": 14,
     "shapeSignature": "8t+6q",
     "params": [
@@ -145,6 +156,7 @@
     "slug": "icosa",
     "label": "Icosahedron",
     "glbPath": "/presets/icosa.glb",
+    "thumbPath": "/presets/thumbs/icosa.glb",
     "panelCount": 20,
     "shapeSignature": "20t"
   },
@@ -152,6 +164,7 @@
     "slug": "rhombicubocta",
     "label": "26-Panel",
     "glbPath": "/presets/rhombicubocta.glb",
+    "thumbPath": "/presets/thumbs/rhombicubocta.glb",
     "panelCount": 26,
     "shapeSignature": "12q+8h+6g",
     "params": [
@@ -179,6 +192,7 @@
     "slug": "soccer",
     "label": "Soccer Ball",
     "glbPath": "/presets/soccer.glb",
+    "thumbPath": "/presets/thumbs/soccer.glb",
     "panelCount": 32,
     "shapeSignature": "12p+20h",
     "params": [
@@ -197,6 +211,7 @@
     "slug": "circle-soccer",
     "label": "Circle Soccer",
     "glbPath": "/presets/circle-soccer.glb",
+    "thumbPath": "/presets/thumbs/circle-soccer.glb",
     "panelCount": 32,
     "shapeSignature": "32g",
     "params": [
@@ -215,6 +230,7 @@
     "slug": "circle-soccer-6",
     "label": "Circle Soccer 6",
     "glbPath": "/presets/circle-soccer-6.glb",
+    "thumbPath": "/presets/thumbs/circle-soccer-6.glb",
     "panelCount": 122,
     "shapeSignature": "122g",
     "params": [
@@ -233,6 +249,7 @@
     "slug": "circle-soccer-concave",
     "label": "Concave Circle Soccer",
     "glbPath": "/presets/circle-soccer-concave.glb",
+    "thumbPath": "/presets/thumbs/circle-soccer-concave.glb",
     "panelCount": 32,
     "shapeSignature": "32g",
     "params": [
@@ -251,6 +268,7 @@
     "slug": "circle-soccer-concave-6",
     "label": "Concave Circle Soccer 6",
     "glbPath": "/presets/circle-soccer-concave-6.glb",
+    "thumbPath": "/presets/thumbs/circle-soccer-concave-6.glb",
     "panelCount": 122,
     "shapeSignature": "122g",
     "params": [
@@ -269,6 +287,7 @@
     "slug": "kaleidoscope",
     "label": "Kaleidoscope",
     "glbPath": "/presets/kaleidoscope.glb",
+    "thumbPath": "/presets/thumbs/kaleidoscope.glb",
     "panelCount": 162,
     "shapeSignature": "162g",
     "params": [
@@ -297,6 +316,7 @@
     "slug": "gp2",
     "label": "GP(2,0)",
     "glbPath": "/presets/gp2.glb",
+    "thumbPath": "/presets/thumbs/gp2.glb",
     "panelCount": 42,
     "shapeSignature": "12p+30h"
   },
@@ -304,6 +324,7 @@
     "slug": "gp3",
     "label": "GP(3,0)",
     "glbPath": "/presets/gp3.glb",
+    "thumbPath": "/presets/thumbs/gp3.glb",
     "panelCount": 92,
     "shapeSignature": "12p+80h",
     "params": [
@@ -322,6 +343,7 @@
     "slug": "gp4",
     "label": "GP(4,0)",
     "glbPath": "/presets/gp4.glb",
+    "thumbPath": "/presets/thumbs/gp4.glb",
     "panelCount": 162,
     "shapeSignature": "12p+150h",
     "params": [

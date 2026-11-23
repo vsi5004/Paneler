@@ -25,6 +25,8 @@ interface ManifestEntry {
   slug: string;
   label: string;
   glbPath: string;
+  /** A low-detail copy for the gallery's thumbnail (the full model loads only when picked). */
+  thumbPath: string;
   panelCount: number;
   shapeSignature: string;
   /** Shape param definitions, for gallery display; values live in the GLB. */
@@ -33,6 +35,9 @@ interface ManifestEntry {
   devOnly?: boolean;
 }
 
+/** Mesh budget for the gallery's low-detail copies (full models use 30,000). */
+const THUMB_TRIANGLES = 3_000;
+
 async function main() {
   const here = dirname(fileURLToPath(import.meta.url));
   const outDir = join(here, "..", "public", "presets");
@@ -40,6 +45,7 @@ async function main() {
 
   const io = new NodeIO();
   const manifest: ManifestEntry[] = [];
+  await mkdir(join(outDir, "thumbs"), { recursive: true });
 
   for (const preset of PRESETS) {
     const doc = generateTemplateDocument(preset.id);
@@ -51,18 +57,42 @@ async function main() {
 
     const filename = `${preset.id}.glb`;
     await writeFile(join(outDir, filename), bytes);
+    // The gallery shows ~200px pictures of all the templates at once; a
+    // full model each made opening it download tens of megabytes.
+    const thumbDoc = generateTemplateDocument(preset.id, undefined, undefined, { targetTriangles: THUMB_TRIANGLES });
+    // A thumbnail draws panels only: no seam lines (hidden anyway) and no
+    // texture coordinates (no suede at that size).
+    for (const node of thumbDoc.getRoot().listNodes()) {
+      if (node.getName() !== "__seams") continue;
+      const mesh = node.getMesh();
+      for (const prim of mesh?.listPrimitives() ?? []) {
+        for (const accessor of [...prim.listAttributes(), prim.getIndices()]) accessor?.dispose();
+      }
+      mesh?.dispose();
+      node.dispose();
+    }
+    for (const mesh of thumbDoc.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        const uv = prim.getAttribute("TEXCOORD_0");
+        prim.setAttribute("TEXCOORD_0", null);
+        if (uv && uv.listParents().every((p) => p === thumbDoc.getRoot())) uv.dispose();
+      }
+    }
+    const thumb = await io.writeBinary(thumbDoc);
+    await writeFile(join(outDir, "thumbs", filename), thumb);
 
     manifest.push({
       slug: preset.id,
       label: preset.label,
       glbPath: `/presets/${filename}`,
+      thumbPath: `/presets/thumbs/${filename}`,
       panelCount: panels.length,
       shapeSignature: shapeSignature(panels),
       ...(preset.params?.length ? { params: preset.params } : {}),
       ...(preset.devOnly ? { devOnly: true } : {}),
     });
 
-    console.log(`baked ${preset.id} (${panels.length} panels, ${bytes.byteLength} bytes)`);
+    console.log(`baked ${preset.id} (${panels.length} panels, ${bytes.byteLength} bytes; thumbnail ${thumb.byteLength})`);
   }
 
   await writeFile(

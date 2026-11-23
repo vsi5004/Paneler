@@ -17,6 +17,7 @@ import {
 } from "@/lib/designState";
 import { isWavyPanel, type PaletteEntry, type PanelColors } from "@/lib/types";
 import { useGlbDesign } from "@/lib/glb/useGlbDesign";
+import { fetchGlbBytes } from "@/lib/glb/prefetch";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
 import { holeCountGapMm } from "@/lib/laser/template";
@@ -53,6 +54,8 @@ interface TemplateEntry {
   slug: string;
   label: string;
   glbPath: string;
+  /** Low-detail copy for the gallery thumbnail (absent in older manifests). */
+  thumbPath?: string;
   panelCount: number;
   shapeSignature: string;
   /** Listed only in local development builds. */
@@ -176,12 +179,40 @@ export function PanelerDesigner({
     setSelectedPanelId(null);
     setSelection(null);
   }, []);
+  // Loading a design shows an overlay until the model is on screen (the
+  // canvas's onModelSettled), or until the load fails.
+  const [loadingDesign, setLoadingDesign] = useState(false);
+  const handleModelSettled = useCallback(() => setLoadingDesign(false), []);
+  // Each load gets a number, so a background step that finishes late (a new
+  // template's save) can tell whether another design has been opened since.
+  const loadTokenRef = useRef(0);
+  // A new template's saved-design row, being created in the background.
+  const pendingCreateRef = useRef<Promise<{ id: string } | null> | null>(null);
+  /** Call first in every load: shows the overlay and disowns earlier loads' background steps. */
+  const beginLoad = useCallback(() => {
+    setLoadingDesign(true);
+    loadTokenRef.current += 1;
+    pendingCreateRef.current = null;
+    return loadTokenRef.current;
+  }, []);
   // A newly loaded design starts with nothing selected and nothing to undo.
   const startFresh = useCallback(() => {
     setSelectedPanelId(null);
     setSelection(null);
     historyRef.current = { undo: [], redo: [] };
     setHistory({ undo: 0, redo: 0 });
+  }, []);
+  // loadFromUrl/loadFromBytes report failure through design.error, not by
+  // throwing; a new error ends the overlay (adjusted during render).
+  const [seenError, setSeenError] = useState(design.error);
+  if (design.error !== seenError) {
+    setSeenError(design.error);
+    if (design.error) setLoadingDesign(false);
+  }
+  const loadFailed = useCallback((message: string) => {
+    setLoadingDesign(false);
+    setUploadError(message);
+    window.setTimeout(() => setUploadError(null), 5000);
   }, []);
 
   // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes; Esc selects nothing.
@@ -339,16 +370,24 @@ export function PanelerDesigner({
 
   const handleLoadDesign = useCallback(
     async (id: string) => {
-      const row = await ds.load(id);
-      if (!row) return;
-      // Fetch the GLB bytes from R2 and load into the editor
-      const glbBytes = await ds.fetchGlb(id);
-      setActiveTemplateSlug(null);
-      setUploadedName(row.name);
-      startFresh();
-      await loadFromBytes(glbBytes);
+      beginLoad();
+      try {
+        const row = await ds.load(id);
+        if (!row) {
+          setLoadingDesign(false);
+          return;
+        }
+        // Fetch the GLB bytes from R2 and load into the editor
+        const glbBytes = await ds.fetchGlb(id);
+        setActiveTemplateSlug(null);
+        setUploadedName(row.name);
+        startFresh();
+        await loadFromBytes(glbBytes);
+      } catch (err) {
+        loadFailed(err instanceof Error ? err.message : "Couldn't open the design");
+      }
     },
-    [ds, loadFromBytes, startFresh],
+    [ds, beginLoad, loadFailed, loadFromBytes, startFresh],
   );
 
   // Open the gallery — the actual creation happens after the user picks a template.
@@ -356,41 +395,62 @@ export function PanelerDesigner({
     setGalleryOpen(true);
   }, []);
 
-  // Create a new design from a gallery selection. In DB mode this writes
-  // a new row + uploads the template bytes; in files-only mode it just
-  // loads the template into the editor.
+  // Create a new design from a gallery selection. The template opens at
+  // once; in DB mode its saved-design row (a row, then the bytes uploaded to
+  // R2) is created in the background — that used to hold the model back by
+  // several round trips and a 1-2 MB upload. Save waits for it.
   const handleSelectTemplate = useCallback(
     async (slug: string) => {
       const entry = templates.find((t) => t.slug === slug);
       if (!entry) return;
       const url = PRESETS_BASE + entry.glbPath.replace(/^\/presets/, "");
-
-      if (dbEnabled) {
-        // Fetch the template bytes, then create a new design row
-        // backed by those bytes in R2.
-        const res = await fetch(url);
-        const buf = await res.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        const row = await ds.createFromUpload({
-          name: entry.label,
-          bytes,
-          panelCount: entry.panelCount,
-          shapeSignature: entry.shapeSignature,
-        });
-        if (row) {
+      const token = beginLoad();
+      try {
+        if (dbEnabled) {
+          // Reuses the download a hover over the card started.
+          const bytes = await fetchGlbBytes(url);
+          if (token !== loadTokenRef.current) return;
+          // Not the previously open design's row: Save must not overwrite it.
+          ds.setCurrentId(null);
           setActiveTemplateSlug(null);
-          setUploadedName(row.name);
+          setUploadedName(entry.label);
           startFresh();
+          const creating = ds
+            .createFromUpload(
+              {
+                name: entry.label,
+                bytes,
+                panelCount: entry.panelCount,
+                shapeSignature: entry.shapeSignature,
+              },
+              { select: false },
+            )
+            .then((row) => {
+              // Only if this template is still the one open.
+              if (row && token === loadTokenRef.current) {
+                ds.setCurrentId(row.id);
+                setUploadedName(row.name);
+              }
+              return row;
+            })
+            .catch((err: unknown) => {
+              console.error(err);
+              // Save will create the row from the edited design instead.
+              return null;
+            });
+          pendingCreateRef.current = creating;
           await loadFromBytes(bytes);
+        } else {
+          setActiveTemplateSlug(slug);
+          setUploadedName(null);
+          startFresh();
+          await loadFromUrl(url);
         }
-      } else {
-        setActiveTemplateSlug(slug);
-        setUploadedName(null);
-        startFresh();
-        await loadFromUrl(url);
+      } catch (err) {
+        loadFailed(err instanceof Error ? err.message : "Couldn't load the template");
       }
     },
-    [templates, dbEnabled, ds, loadFromBytes, loadFromUrl, startFresh],
+    [templates, dbEnabled, ds, beginLoad, loadFailed, loadFromBytes, loadFromUrl, startFresh],
   );
 
   // One-shot template manifest fetch. The bake script writes
@@ -452,6 +512,7 @@ export function PanelerDesigner({
 
   const handleGlbUpload = useCallback(
     async (file: File) => {
+      beginLoad();
       try {
         const buf = await file.arrayBuffer();
         setUploadError(null);
@@ -463,11 +524,10 @@ export function PanelerDesigner({
         fileHandleRef.current = null;
         await loadFromBytes(new Uint8Array(buf));
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "GLB load failed");
-        window.setTimeout(() => setUploadError(null), 5000);
+        loadFailed(err instanceof Error ? err.message : "GLB load failed");
       }
     },
-    [loadFromBytes, startFresh],
+    [beginLoad, loadFailed, loadFromBytes, startFresh],
   );
 
   const handleOpen = useCallback(async () => {
@@ -475,16 +535,16 @@ export function PanelerDesigner({
     try {
       const opened = await openGlb();
       if (!opened) return;
+      beginLoad();
       setActiveTemplateSlug(null);
       setUploadedName(opened.name);
       startFresh();
       fileHandleRef.current = opened.handle;
       await loadFromBytes(opened.bytes);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Open failed");
-      window.setTimeout(() => setUploadError(null), 5000);
+      loadFailed(err instanceof Error ? err.message : "Open failed");
     }
-  }, [loadFromBytes, startFresh]);
+  }, [beginLoad, loadFailed, loadFromBytes, startFresh]);
 
   const handleSave = useCallback(async () => {
     setSaveState("saving");
@@ -494,9 +554,12 @@ export function PanelerDesigner({
         setSaveState("idle");
         return;
       }
-      if (dbEnabled && ds.currentId) {
+      // A new template's row may still be being created in the background.
+      const savedId =
+        ds.currentId ?? (pendingCreateRef.current ? (await pendingCreateRef.current)?.id ?? null : null);
+      if (dbEnabled && savedId) {
         // Save to DB/R2
-        await ds.saveBytes(ds.currentId, { bytes: serialized });
+        await ds.saveBytes(savedId, { bytes: serialized });
       } else if (dbEnabled) {
         // Create new design in DB
         await ds.createFromUpload({
@@ -635,12 +698,15 @@ export function PanelerDesigner({
         )}
         <div className="flex flex-1 flex-col">
           {!bytes ? (
-            <EmptyDesignState
-              dbEnabled={dbEnabled}
-              onNew={handleOpenGallery}
-              onOpen={() => void handleOpen()}
-              onImport={() => fileInputRef.current?.click()}
-            />
+            <div className="relative flex flex-1 flex-col">
+              <EmptyDesignState
+                dbEnabled={dbEnabled}
+                onNew={handleOpenGallery}
+                onOpen={() => void handleOpen()}
+                onImport={() => fileInputRef.current?.click()}
+              />
+              {loadingDesign && <LoadingOverlay />}
+            </div>
           ) : (
             <>
               {/* Active file status strip — slim, mono, no controls. */}
@@ -695,7 +761,9 @@ export function PanelerDesigner({
                         suedeEnabled={suedeEnabled}
                         onPanelClick={handlePanelClick}
                         onBackgroundClick={clearSelection}
+                        onModelSettled={handleModelSettled}
                       />
+                      {loadingDesign && <LoadingOverlay />}
                     </CanvasFrame>
                     <div className="glow-divider" />
                     <CanvasFrame
@@ -853,6 +921,20 @@ export function PanelerDesigner({
         templates={templates}
         onSelect={handleSelectTemplate}
       />
+    </div>
+  );
+}
+
+/** Over the 3D pane while a design loads: the brand mark, spinning, and a word. */
+function LoadingOverlay() {
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#030610]/80 backdrop-blur-sm">
+      <span className="animate-spin [animation-duration:1.6s]">
+        <span className="block scale-[2.2]">
+          <Sigil />
+        </span>
+      </span>
+      <span className="mt-3 font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Loading design…</span>
     </div>
   );
 }

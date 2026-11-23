@@ -23,10 +23,14 @@ import {
 } from "three";
 import { GLTFLoader } from "three-stdlib";
 
+import { prefetchGlb } from "@/lib/glb/prefetch";
+
 interface TemplateEntry {
   slug: string;
   label: string;
   glbPath: string;
+  /** Low-detail copy for the gallery thumbnail (absent in older manifests). */
+  thumbPath?: string;
   panelCount: number;
   shapeSignature: string;
 }
@@ -104,6 +108,10 @@ function SpecimenCard({
     <button
       type="button"
       onClick={onSelect}
+      // Start downloading the full model while the pointer is over the card,
+      // so picking it doesn't wait on the network.
+      onPointerEnter={() => prefetchGlb(BASE + template.glbPath)}
+      onFocus={() => prefetchGlb(BASE + template.glbPath)}
       style={{ animationDelay: `${index * 35}ms` }}
       className="specimen-card group relative flex flex-col items-stretch overflow-hidden rounded-sm border border-border bg-[oklch(0.1_0.003_85)] p-3 text-left transition-all duration-200 hover:border-primary/60 hover:bg-[oklch(0.12_0.005_85)]"
     >
@@ -121,7 +129,7 @@ function SpecimenCard({
 
       <div className="relative mx-auto my-2 aspect-square w-full max-w-[140px]">
         {visible ? (
-          <GlbThumbnail glbPath={template.glbPath} label={template.label} />
+          <GlbThumbnail glbPath={template.thumbPath ?? template.glbPath} label={template.label} />
         ) : (
           <div className="size-full rounded bg-muted/10" />
         )}

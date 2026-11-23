@@ -62,6 +62,14 @@ const nextConfig: NextConfig = {
     if (isStaticExport) return [];
     return [
       {
+        // Template models (and their gallery thumbnails) only change on a
+        // deploy, and Next serves public/ with max-age=0, so every visit
+        // downloaded them again. An hour fresh, then a day served while
+        // revalidating.
+        source: "/presets/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" }],
+      },
+      {
         // `/:path*` matches every path including the root. `/(.*)` only matched
         // non-empty paths, which left the root page (`/app` after basePath
         // stripping) without the security headers.

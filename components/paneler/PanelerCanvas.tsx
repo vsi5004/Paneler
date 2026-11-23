@@ -67,6 +67,8 @@ interface PanelerCanvasProps {
   onPanelClick: (panelId: string, opts?: { shift?: boolean }) => void;
   /** A click that hits no panel (not a drag of the ball): clears the selection. */
   onBackgroundClick?: () => void;
+  /** A newly loaded model is on screen, or failed to parse (ends the designer's loading overlay). */
+  onModelSettled?: () => void;
   /**
    * Opt-in still-image capture, used only by the public order form so the
    * stitcher's email can show the ball.
@@ -85,9 +87,13 @@ export default function PanelerCanvas({
   suedeEnabled,
   onPanelClick,
   onBackgroundClick,
+  onModelSettled,
   onCaptureReady,
 }: PanelerCanvasProps) {
-  const group = useGlbGroup(glbBytes);
+  const group = useGlbGroup(glbBytes, onModelSettled);
+  useEffect(() => {
+    if (group) onModelSettled?.();
+  }, [group, onModelSettled]);
 
   // Lazy-load the suede maps the first time the toggle is flipped on.
   const [maps, setMaps] = useState<{ normal: Texture; roughness: Texture } | null>(null);
@@ -229,7 +235,7 @@ function CameraLights() {
  * first parse completes. Disposes previous geometry on input change so we
  * don't leak GPU memory when switching templates.
  */
-function useGlbGroup(bytes: Uint8Array | null): Group | null {
+function useGlbGroup(bytes: Uint8Array | null, onError?: () => void): Group | null {
   const [group, setGroup] = useState<Group | null>(null);
 
   useEffect(() => {
@@ -281,12 +287,15 @@ function useGlbGroup(bytes: Uint8Array | null): Group | null {
         setGroup(gltf.scene as unknown as Group);
       },
       (err) => {
-        if (!cancelled) console.error("GLB parse error", err);
+        if (cancelled) return;
+        console.error("GLB parse error", err);
+        onError?.();
       },
     );
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new callback must not re-parse the model
   }, [bytes]);
 
   // Dispose old group resources when we get a new one (or when unmounting).
