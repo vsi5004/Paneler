@@ -9,12 +9,17 @@ import { randomUUID } from "node:crypto";
 
 import { auth } from "@/lib/auth";
 import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
-import { createDesign, listDesigns } from "@/lib/db/designs";
+import { countDesigns, createDesign, listDesigns } from "@/lib/db/designs";
 import { designKey, putObject } from "@/lib/r2/client";
+import { bodyErrorResponse, readJsonBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
 const MAX_NAME_CHARS = 200;
+const MAX_BODY_BYTES = 16 * 1024;
+/** Designs per account. The busiest real account had 39 (Nov 2026). */
+const MAX_DESIGNS = 200;
+const TEMPLATE_SLUG = /^[a-z0-9_-]{1,64}$/;
 const TEMPLATES_DIR = join(process.cwd(), "public", "presets");
 
 export async function GET() {
@@ -54,15 +59,24 @@ export async function POST(req: Request) {
 
   let body: CreateBody;
   try {
-    body = (await req.json()) as CreateBody;
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    body = (await readJsonBody(req, MAX_BODY_BYTES)) as CreateBody;
+  } catch (err) {
+    return bodyErrorResponse(err);
   }
   if (body.source !== "template" && body.source !== "upload") {
     return NextResponse.json({ error: "invalid_source" }, { status: 400 });
   }
   if (body.source === "template" && !body.templateSlug) {
     return NextResponse.json({ error: "missing_template_slug" }, { status: 400 });
+  }
+  // A path component below: no separators or dots, so it stays in TEMPLATES_DIR.
+  if (body.source === "template" && !TEMPLATE_SLUG.test(String(body.templateSlug))) {
+    return NextResponse.json({ error: "template_not_found" }, { status: 404 });
+  }
+  // Checked before any upload. Concurrent creates can pass it together; that
+  // overshoots by at most a few for one account, which is fine for a storage cap.
+  if ((await countDesigns(userSub)) >= MAX_DESIGNS) {
+    return NextResponse.json({ error: "too_many_designs", max: MAX_DESIGNS }, { status: 403 });
   }
   if (typeof body.name === "string" && body.name.length > MAX_NAME_CHARS) {
     return NextResponse.json({ error: "name_too_long" }, { status: 400 });

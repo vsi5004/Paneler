@@ -8,6 +8,7 @@ export function bucket(): string {
 export function designKey(id: string): string {
   return `designs/${id}.glb`;
 }
+export const MAX_GLB_BYTES = 32 * 1024 * 1024;
 export function avatarKey(sub: string): string {
   return `avatars/${sub}.webp`;
 }

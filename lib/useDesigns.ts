@@ -75,9 +75,14 @@ export function useDesigns({ enabled }: UseDesignsOptions) {
   /** Direct upload of bytes to R2 via a presigned PUT URL. */
   const uploadBytes = useCallback(
     async (id: string, bytes: Uint8Array): Promise<{ etag: string | null; size: number }> => {
+      // The URL is signed for exactly this many bytes.
       const { url } = await jsonFetch<{ url: string; key: string }>(
         `/api/designs/${id}/glb-upload-url`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ size: bytes.byteLength }),
+        },
       );
       // Important: do NOT set Content-Type here — the presigned PUT URL was
       // minted without Content-Type in the signed headers, so anything we set

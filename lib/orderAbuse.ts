@@ -23,6 +23,13 @@ import { createHash } from "node:crypto";
 export const MAX_SUBMISSIONS = 5;
 export const WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * Orders per shop per window, from all clients together. Backstops the
+ * per-client limit, whose key a sender who reaches the pod without passing
+ * through Cloudflare could forge.
+ */
+export const MAX_SHOP_SUBMISSIONS = 20;
+
 /** Most distinct clients tracked before stale entries are swept. */
 const MAX_TRACKED = 5000;
 
@@ -36,20 +43,33 @@ interface ClientRecord {
 }
 
 const clients = new Map<string, ClientRecord>();
+const shops = new Map<string, number[]>();
 
 /**
  * Identify the submitting client.
  *
- * X-Forwarded-For is attacker-controlled: a client may send their own header,
- * and the proxy APPENDS the peer it actually saw. So the LAST entry is the one
- * the proxy vouches for, and every earlier entry is whatever the client chose
- * to claim. Taking the first, the common mistake, would let anyone reset their
- * own rate limit by sending a header of their choosing.
+ * CLIENT_IP_HEADER names a header a trusted edge sets on every request
+ * (paneler.app: `cf-connecting-ip`, set by Cloudflare). Set it whenever the
+ * last proxy hop is not the client: behind k3s ServiceLB, Traefik's peer is a
+ * svclb pod, so the last X-Forwarded-For entry is the same for every visitor
+ * and all customers would share one bucket. Only name a header the edge
+ * overwrites, or clients can pick their own key.
+ *
+ * Without it, X-Forwarded-For: a client may send their own header, and the
+ * proxy APPENDS the peer it actually saw, so the LAST entry is the one the
+ * proxy vouches for. Taking the first would let anyone reset their own limit.
  *
  * Falls back to a fixed string rather than anything spoofable, so a missing
  * header degrades to one shared bucket instead of to no limit at all.
  */
-export function clientKey(headers: Headers): string {
+export function clientKey(
+  headers: Headers,
+  ipHeader: string | undefined = process.env.CLIENT_IP_HEADER,
+): string {
+  if (ipHeader) {
+    const ip = headers.get(ipHeader)?.trim();
+    if (ip) return ip;
+  }
   const xff = headers.get("x-forwarded-for");
   if (xff) {
     const parts = xff.split(",").map((p) => p.trim()).filter(Boolean);
@@ -129,6 +149,20 @@ export function checkSubmission(
 }
 
 /**
+ * Record an order to a shop and say whether the shop may take another this
+ * window. Called after checkSubmission passes, so a client already refused
+ * never uses up a shop's allowance. Entries are bounded by published shops:
+ * the route looks the shop up first.
+ */
+export function checkShopVolume(shopId: string, now: number = Date.now()): boolean {
+  const hits = (shops.get(shopId) ?? []).filter((t) => now - t < WINDOW_MS);
+  const ok = hits.length < MAX_SHOP_SUBMISSIONS;
+  if (ok) hits.push(now);
+  shops.set(shopId, hits);
+  return ok;
+}
+
+/**
  * Drop clients with nothing left inside the window. Without this the map grows
  * one entry per IP forever on a long-lived pod, which is a slow leak rather
  * than a crash and so would go unnoticed.
@@ -145,4 +179,5 @@ function sweep(now: number): void {
 /** Test seam. Never called by the app. */
 export function __resetAbuseState(): void {
   clients.clear();
+  shops.clear();
 }

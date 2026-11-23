@@ -15,15 +15,11 @@ import {
 import { FabricValidationError, validateFabrics } from "@/lib/fabrics";
 import { OrderFormError, validateShop } from "@/lib/orderForm";
 import { generateShopId } from "@/lib/apiKey";
+import { bodyErrorResponse, readJsonBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Body cap, enforced before parsing. Nothing else in the app limits request
- * size, and validateFabrics() only runs after req.json() has already
- * materialized the whole payload into memory. 64 KB is generous for a list
- * bounded at 60 entries.
- */
+/** Body cap, counted while reading. 64 KB is generous for a list bounded at 60 entries. */
 const MAX_BODY_BYTES = 64 * 1024;
 
 /**
@@ -65,16 +61,11 @@ export async function PUT(req: Request) {
   const r = await resolveUser();
   if (r.kind === "err") return r.res;
 
-  const declared = Number(req.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
-  }
-
   let body: { fabrics?: unknown; shop?: unknown };
   try {
-    body = (await req.json()) as { fabrics?: unknown; shop?: unknown };
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    body = (await readJsonBody(req, MAX_BODY_BYTES)) as { fabrics?: unknown; shop?: unknown };
+  } catch (err) {
+    return bodyErrorResponse(err);
   }
 
   // Both sections are optional so the page can save whichever changed, but at

@@ -7,11 +7,13 @@ import {
   updateDesign,
 } from "@/lib/db/designs";
 import { deleteObject } from "@/lib/r2/client";
+import { bodyErrorResponse, readJsonBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
 const MAX_NAME_CHARS = 200;
 const MAX_FILL_CHARS = 100;
+const MAX_BODY_BYTES = 16 * 1024;
 
 interface PatchBody {
   name?: string;
@@ -71,9 +73,9 @@ export async function PUT(
 
   let body: PatchBody;
   try {
-    body = (await req.json()) as PatchBody;
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    body = (await readJsonBody(req, MAX_BODY_BYTES)) as PatchBody;
+  } catch (err) {
+    return bodyErrorResponse(err);
   }
   if (typeof body.name === "string" && body.name.length > MAX_NAME_CHARS) {
     return NextResponse.json({ error: "name_too_long" }, { status: 400 });

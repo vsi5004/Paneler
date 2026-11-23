@@ -28,6 +28,14 @@ export async function listDesigns(userSub: string): Promise<DesignMeta[]> {
   });
 }
 
+/** How many designs the user has (RLS-scoped to them). */
+export async function countDesigns(userSub: string): Promise<number> {
+  return withUserSession(userSub, async (client) => {
+    const { rows } = await client.query<{ n: number }>(`SELECT count(*)::int AS n FROM designs`);
+    return rows[0].n;
+  });
+}
+
 export async function getDesign(
   userSub: string,
   id: string,

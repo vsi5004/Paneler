@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 import {
+  MAX_SHOP_SUBMISSIONS,
   MAX_SUBMISSIONS,
   WINDOW_MS,
   __resetAbuseState,
+  checkShopVolume,
   checkSubmission,
   clientKey,
   fingerprintOrder,
@@ -35,6 +37,36 @@ describe("clientKey", () => {
 
   it("falls back to a shared bucket, never to no limit", () => {
     expect(clientKey(new Headers())).toBe("unknown");
+  });
+
+  it("prefers the configured edge header, so customers behind one proxy hop get their own buckets", () => {
+    // paneler.app: every request's last X-Forwarded-For hop is the same svclb pod.
+    const a = new Headers({ "x-forwarded-for": "10.42.0.7", "cf-connecting-ip": "198.51.100.1" });
+    const b = new Headers({ "x-forwarded-for": "10.42.0.7", "cf-connecting-ip": "198.51.100.2" });
+    expect(clientKey(a, "cf-connecting-ip")).toBe("198.51.100.1");
+    expect(clientKey(b, "cf-connecting-ip")).toBe("198.51.100.2");
+  });
+
+  it("ignores that header unless configured, so clients cannot pick their own key", () => {
+    const h = new Headers({ "x-forwarded-for": "203.0.113.7", "cf-connecting-ip": "1.1.1.1" });
+    expect(clientKey(h, undefined)).toBe("203.0.113.7");
+  });
+
+  it("falls back to X-Forwarded-For when the configured header is missing", () => {
+    expect(clientKey(new Headers({ "x-forwarded-for": "203.0.113.7" }), "cf-connecting-ip")).toBe("203.0.113.7");
+  });
+});
+
+describe("checkShopVolume", () => {
+  it("caps one shop's orders per window across all clients", () => {
+    for (let i = 0; i < MAX_SHOP_SUBMISSIONS; i += 1) expect(checkShopVolume("shop", 0)).toBe(true);
+    expect(checkShopVolume("shop", 0)).toBe(false);
+    expect(checkShopVolume("other", 0)).toBe(true);
+  });
+
+  it("frees up once the window passes", () => {
+    for (let i = 0; i < MAX_SHOP_SUBMISSIONS; i += 1) checkShopVolume("shop", 0);
+    expect(checkShopVolume("shop", WINDOW_MS)).toBe(true);
   });
 });
 

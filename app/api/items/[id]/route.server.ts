@@ -7,6 +7,7 @@ import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { deleteItem, updateItem } from "@/lib/db/orderItems";
 import { getUserProfile } from "@/lib/db/users";
 import { OrderFormError, validateItem } from "@/lib/orderForm";
+import { bodyErrorResponse, readJsonBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -39,15 +40,11 @@ export async function PUT(
   const r = await resolveUser();
   if (r.kind === "err") return r.res;
 
-  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
-  }
-
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    body = await readJsonBody(req, MAX_BODY_BYTES);
+  } catch (err) {
+    return bodyErrorResponse(err);
   }
 
   let input;

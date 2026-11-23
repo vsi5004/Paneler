@@ -9,6 +9,7 @@ import { createItem, listItems } from "@/lib/db/orderItems";
 import { getDesign } from "@/lib/db/designs";
 import { getUserProfile } from "@/lib/db/users";
 import { MAX_ITEMS, OrderFormError, validateItem } from "@/lib/orderForm";
+import { bodyErrorResponse, readJsonBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -46,15 +47,11 @@ export async function POST(req: Request) {
   const r = await resolveUser();
   if (r.kind === "err") return r.res;
 
-  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
-  }
-
   let body: { designId?: unknown; item?: unknown };
   try {
-    body = (await req.json()) as { designId?: unknown; item?: unknown };
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    body = (await readJsonBody(req, MAX_BODY_BYTES)) as { designId?: unknown; item?: unknown };
+  } catch (err) {
+    return bodyErrorResponse(err);
   }
 
   if (typeof body.designId !== "string" || !UUID_RE.test(body.designId)) {

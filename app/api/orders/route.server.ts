@@ -17,7 +17,8 @@ import { getPublicItem, getPublicShop, getShopNotifyEmail } from "@/lib/db/shop"
 import { isMailEnabled, sendMail } from "@/lib/email";
 import { composeOrderEmail, generateOrderRef } from "@/lib/orderEmail";
 import { OrderFormError, validateOrder } from "@/lib/orderForm";
-import { checkSubmission, clientKey, fingerprintOrder } from "@/lib/orderAbuse";
+import { checkShopVolume, checkSubmission, clientKey, fingerprintOrder } from "@/lib/orderAbuse";
+import { bodyErrorResponse, readFormBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -47,15 +48,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "mail_unavailable" }, { status: 503 });
   }
 
-  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
-  }
-
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    form = await readFormBody(req, MAX_BODY_BYTES);
+  } catch (err) {
+    return bodyErrorResponse(err, "invalid_body");
   }
 
   const shopId = form.get("shopId");
@@ -99,6 +96,12 @@ export async function POST(req: Request) {
           { error: "rate_limited", detail: "Try again in an hour." },
           { status: 429 },
         );
+  }
+  if (!checkShopVolume(shopId)) {
+    return NextResponse.json(
+      { error: "shop_busy", detail: "This shop has had a lot of orders in the last hour. Try again later." },
+      { status: 429 },
+    );
   }
 
   const to = await getShopNotifyEmail(shopId);

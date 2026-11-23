@@ -10,6 +10,7 @@ import { getCurrentUserSub, isDbEnabled } from "@/lib/dbMode";
 import { ensureUserProfile, setShop } from "@/lib/db/users";
 import { generateShopId } from "@/lib/apiKey";
 import { avatarKey, putObject } from "@/lib/r2/client";
+import { bodyErrorResponse, readFormBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -51,17 +52,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // BEFORE parsing — req.formData() buffers the whole body, so checking the
-  // file size afterwards has already paid the cost the cap exists to avoid.
-  if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
-  }
-
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    form = await readFormBody(req, MAX_BODY_BYTES);
+  } catch (err) {
+    return bodyErrorResponse(err, "invalid_body");
   }
   const file = form.get("avatar");
   if (!(file instanceof File)) {

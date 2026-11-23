@@ -581,6 +581,11 @@ export function PanelerDesigner({
       console.error(err);
       setSaveState("error");
       window.setTimeout(() => setSaveState("idle"), 2500);
+      const limit = err instanceof Error ? SAVE_LIMIT_MESSAGES[err.message] : undefined;
+      if (limit) {
+        setUploadError(limit);
+        window.setTimeout(() => setUploadError(null), 8000);
+      }
     }
   }, [design, uploadedName, activeTemplateSlug, dbEnabled, ds, topology]);
 
@@ -924,6 +929,12 @@ export function PanelerDesigner({
     </div>
   );
 }
+
+/** Server refusals on save that the user can act on (app/api/designs routes). */
+const SAVE_LIMIT_MESSAGES: Record<string, string> = {
+  too_many_designs: "You have 200 saved designs, the most allowed. Delete some to save new ones.",
+  glb_too_large: "This design is over 32 MB, too large to save.",
+};
 
 /** Over the 3D pane while a design loads: the brand mark, spinning, and a word. */
 function LoadingOverlay() {

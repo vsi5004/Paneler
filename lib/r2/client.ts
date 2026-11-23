@@ -12,6 +12,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const TTL_GET = 60 * 15; // 15 minutes — bounds how long a tab can sit on a stale URL
 const TTL_PUT = 60 * 5; // 5 minutes — uploads happen immediately after the mint
 
+/** Largest design GLB accepted. Real designs are under 3 MB (Nov 2026). */
+export const MAX_GLB_BYTES = 32 * 1024 * 1024;
+
 let client: S3Client | null = null;
 
 function getClient(): S3Client {
@@ -60,24 +63,35 @@ export function avatarKey(userSub: string): string {
   return `avatars/${encodeURIComponent(userSub)}.webp`;
 }
 
+/**
+ * Presigned GET for a design GLB. The response type is fixed here because the
+ * uploader, not the server, chose the stored Content-Type (see presignedPutUrl),
+ * and these URLs are handed to anonymous shop visitors.
+ */
 export async function presignedGetUrl(key: string): Promise<string> {
   return getSignedUrl(
     getClient(),
-    new GetObjectCommand({ Bucket: bucket(), Key: key }),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ResponseContentType: "model/gltf-binary",
+      ResponseContentDisposition: "attachment",
+    }),
     { expiresIn: TTL_GET },
   );
 }
 
 /**
- * Presigned PUT URL. Critically does NOT include Content-Type in the signed
- * headers — XHR/fetch in the browser will set its own Content-Type slightly
- * differently than the SDK assumes, which trips silent SignatureDoesNotMatch
- * 403s. We accept whatever the browser sends.
+ * Presigned PUT URL for exactly `contentLength` bytes: Content-Length is
+ * signed, so R2 refuses any other size. Content-Type is NOT signed — the
+ * presigner never signs it, and browsers set it slightly differently than the
+ * SDK assumes (silent SignatureDoesNotMatch 403s) — so presignedGetUrl fixes
+ * the served type instead.
  */
-export async function presignedPutUrl(key: string): Promise<string> {
+export async function presignedPutUrl(key: string, contentLength: number): Promise<string> {
   return getSignedUrl(
     getClient(),
-    new PutObjectCommand({ Bucket: bucket(), Key: key }),
+    new PutObjectCommand({ Bucket: bucket(), Key: key, ContentLength: contentLength }),
     { expiresIn: TTL_PUT, unhoistableHeaders: new Set(["content-type"]) },
   );
 }
