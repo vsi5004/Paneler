@@ -28,3 +28,14 @@ A Paneler design is a binary glTF (`.glb`). Geometry, panel boundaries, and per-
 - Imported balls (`scripts/import-ball-topology.ts`) emit thin wrappers over `lib/topology/importedBall.ts`, which re-densifies RDP-sparse boundary edges (>3°) with shared great-arc midpoints — required by the concave mesher. See `scripts/IMPORTING_BALLS.md`.
 - The selection outline is the panel mesh's open edges after position-welding (`buildOpenEdgesGeometry` in `PanelerCanvas.tsx`) — never use angle-threshold `EdgesGeometry`, which sprays lines on steep puff bevels.
 <!-- END:paneler-shape-params -->
+
+<!-- BEGIN:paneler-stitch-holes -->
+# Stitch holes by count (footbag-rule templates)
+
+- On footbag-rule balls (soccer, GP(3,0), circle soccers, Hex-Capped 38, Cube-and-Corner 38, Star Bag), each main panel is stitched on every side. Fillers meet each other only along short unstitched sides (bleed holes). A preset opts in with `laserHoleCount`, and its `isFiller` decides which panels are fillers. Use the id suffix when only fillers have that shape; when a shape is both main and filler (GP(3,0), Hex-Capped, Cube-and-Corner), use adjacency instead.
+- The slider value N counts the **filler's** side of each stitched seam. The main panel's side of that seam gets N − 2. The filler's two extra holes sit on the corner extensions at the seam's ends and stitch it to the next filler across the short side. That gives soccer its pentagon 6 / hexagon 8.
+- A seam is a run of edges shared with one neighbour, not one polygon side. A Star Bag star meets a hexagon along two sides, which is one seam: N on the star, N − 2 on the hexagon, spread evenly over both sides. Name the slider after what N counts (`sliderLabel`, default "Holes per hex edge"), and name `matchSide` after the N − 2 side.
+- `lib/topology/footbagRule.ts` builds this kind of ball: a regular main polygon on each vertex of a parent solid, with fillers filling the gaps. Each size slider needs a range box where every short side stays over 2° and under the shortest stitched side. `footbagRule.test.ts` checks the corners of that box.
+- Concave fillers (stars) need densified seams (`maxSegment`), like Bagzuca's. Densified panels count as wavy, so they get no curvature sliders and their templates are labelled generically (Panel A/B).
+- `public/presets/index.json` is served `no-cache`, so new templates show as soon as they deploy; the GLBs are cached for an hour.
+<!-- END:paneler-stitch-holes -->
