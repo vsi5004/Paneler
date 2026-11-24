@@ -70,6 +70,13 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" }],
       },
       {
+        // The template list revalidates every load (a 304 when unchanged), so a
+        // deploy's new templates show at once. Listed after the rule above: the
+        // later header wins.
+        source: "/presets/index.json",
+        headers: [{ key: "Cache-Control", value: "public, no-cache" }],
+      },
+      {
         // `/:path*` matches every path including the root. `/(.*)` only matched
         // non-empty paths, which left the root page (`/app` after basePath
         // stripping) without the security headers.
