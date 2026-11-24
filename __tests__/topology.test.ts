@@ -21,6 +21,7 @@ import { projectToSphere } from "@/lib/mesh/projectToSphere";
 import { subdivideTopology, getPanelTriangles } from "@/lib/mesh/subdivide";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 import { seamMm } from "@/lib/laser/lengthSlider";
+import { isWavyPanel } from "@/lib/types";
 
 describe("topology presets", () => {
   it("tetrahedron has 4 panels, all triangles", () => {
@@ -676,5 +677,51 @@ describe("rhombus and 26-panel designs", () => {
     expect(presetById("rhombic12")?.panels).toBe(12);
     expect(presetById("rhombicubocta")?.panels).toBe(26);
     expect(PRESETS.find((p) => p.id === "rhombicubocta")?.topology(1, { bigSquares: 150 }).panels).toHaveLength(26);
+  });
+});
+
+describe("Bagzuca", () => {
+  const preset = presetById("bagzuca")!;
+  const at = (swirl: number) => preset.topology(1, resolvePresetParams(preset, { swirl }));
+
+  /** Area of a spherical polygon (unit sphere), signed sum of fan triangles from `c`. */
+  const area = (pts: Vector3[], c: Vector3) =>
+    pts.reduce((s, a, i) => {
+      const b = pts[(i + 1) % pts.length];
+      return s + 2 * Math.atan2(c.dot(a.clone().cross(b)), 1 + c.dot(a) + a.dot(b) + b.dot(c));
+    }, 0);
+
+  it.each([0, 100, 130])("swirl %i%%: six identical panels, a sixth of the sphere each, closed", (swirl) => {
+    const t = at(swirl);
+    expect(t.panels).toHaveLength(6);
+    expect(t.vertices.length - t.edges.length + t.panels.length).toBe(2);
+    expect(t.edges.every((e) => e.panelB !== null)).toBe(true);
+    expect(groupPanelsByCongruence(t)).toHaveLength(1);
+    for (const p of t.panels) {
+      const pts = p.vertexIndices.map((i) => t.vertices[i].clone().normalize());
+      const c = pts.reduce((s, v) => s.add(v), new Vector3()).normalize();
+      expect(area(pts, c) / ((4 * Math.PI) / 6)).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("swirl 0% is the plain spherical cube: seams on the great arcs", () => {
+    const t = at(0);
+    const corners = cube().vertices.map((v) => v.clone().normalize());
+    for (const e of t.edges) {
+      // every seam point lies on a plane through two adjacent cube corners and the centre
+      const p = t.vertices[e.vertexA];
+      const onArc = corners.some((a) =>
+        corners.some((b) => Math.abs(a.dot(b) - 1 / 3) < 1e-9 && Math.abs(a.clone().cross(b).normalize().dot(p)) < 1e-9),
+      );
+      expect(onArc).toBe(true);
+    }
+  });
+
+  it("panels are wavy (a seam vertex belongs to two panels) and Y junctions are the 8 cube corners", () => {
+    const t = at(100);
+    const uses = new Map<number, number>();
+    for (const p of t.panels) for (const i of p.vertexIndices) uses.set(i, (uses.get(i) ?? 0) + 1);
+    expect([...uses.values()].filter((n) => n === 3)).toHaveLength(8);
+    expect(isWavyPanel(t.panels[0], t)).toBe(true);
   });
 });

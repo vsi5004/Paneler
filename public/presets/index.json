@@ -63,6 +63,25 @@
     "shapeSignature": "6q"
   },
   {
+    "slug": "bagzuca",
+    "label": "Bagzuca",
+    "glbPath": "/presets/bagzuca.glb",
+    "thumbPath": "/presets/thumbs/bagzuca.glb",
+    "panelCount": 6,
+    "shapeSignature": "6g",
+    "params": [
+      {
+        "key": "swirl",
+        "label": "Swirl",
+        "min": 0,
+        "max": 130,
+        "step": 5,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
+  },
+  {
     "slug": "octa",
     "label": "Octahedron",
     "glbPath": "/presets/octa.glb",

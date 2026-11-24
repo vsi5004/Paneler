@@ -16,6 +16,7 @@ import { trionda } from "./trionda";
 import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
 import { scaleSeamAmplitude } from "./seamAmplitudeWarp";
+import { BAGZUCA_SWIRL, bagzuca } from "./bagzuca";
 import {
   kaleidoscopeColors,
   kaleidoscopeTopology,
@@ -539,6 +540,26 @@ export const PRESETS: PresetEntry[] = [
   { id: "trionda", label: "Trionda 2026", panels: 4, topology: trionda },
   { id: "tetra", label: "Tetrahedron", panels: 4, laserCornerHoles: true, topology: tetrahedron },
   { id: "cube", label: "Cube", panels: 6, topology: cube },
+  {
+    id: "bagzuca",
+    label: "Bagzuca",
+    panels: 6,
+    params: [
+      {
+        // How far each seam swings into its neighbours: 100% = the
+        // photographed ball, 0% = straight seams (a plain spherical cube).
+        key: "swirl",
+        label: "Swirl",
+        min: 0,
+        max: 130,
+        step: 5,
+        defaultValue: 100,
+        unit: "%",
+      },
+    ],
+    topology: (radius?: number, params?: PresetParams) =>
+      bagzuca(radius, (BAGZUCA_SWIRL * (params?.swirl ?? 100)) / 100),
+  },
   { id: "octa", label: "Octahedron", panels: 8, laserCornerHoles: true, topology: octahedron },
   { id: "dodeca", label: "Dodecahedron", panels: 12, topology: dodecahedron },
   { id: "rhombic12", label: "12-Panel Rhombus", panels: 12, topology: rhombicDodecahedron },
