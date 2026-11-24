@@ -47,6 +47,7 @@ interface LaserSettingsPanelProps {
    */
   holeCount?: {
     gapMm: number | undefined;
+    sliderLabel: string;
     matchSide: string;
     /** The side the convention marks with an extra hole; shows the Edge marker switch. */
     markEdgeLabel?: string;
@@ -122,7 +123,7 @@ export function LaserSettingsPanel({
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              Holes per hex edge
+              {holeCount.sliderLabel}
             </label>
             <span className="font-mono text-[10px] tabular-nums text-foreground">
               {values.hexEdgeHoles}

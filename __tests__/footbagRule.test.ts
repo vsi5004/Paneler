@@ -170,3 +170,19 @@ describe("Hex-capped 38 ring angle", () => {
     expect(Math.max(...angs)).toBeLessThan(130);
   });
 });
+
+describe("Star bag stitch holes", () => {
+  it("a star seam takes N holes and its hexagon N − 2, the star's extras at the arm tips", async () => {
+    const { buildLaserTemplate } = await import("@/lib/laser/template");
+    const { defaultLaserSettings } = await import("@/lib/laser/constants");
+    const preset = presetById("starbag")!;
+    const t = preset.topology(1, resolvePresetParams(preset, {}));
+    const settings = { ...defaultLaserSettings(), hexEdgeHoles: 10 };
+    const opts = { holeCount: preset.laserHoleCount };
+    for (const cls of groupPanelsByCongruence(t)) {
+      const stitched = buildLaserTemplate(t, cls, settings, opts).edgeHoles.filter((n) => n > 0);
+      const star = preset.laserHoleCount!.isFiller(t, cls.panelIds[0]);
+      expect(stitched).toEqual(new Array(star ? 5 : 3).fill(star ? 10 : 8));
+    }
+  });
+});

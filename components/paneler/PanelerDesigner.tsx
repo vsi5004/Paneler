@@ -314,6 +314,7 @@ export function PanelerDesigner({
     const convention = designInfo ? presetById(designInfo.presetId)?.laserHoleCount : undefined;
     return {
       gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions),
+      sliderLabel: convention?.sliderLabel ?? "Holes per hex edge",
       matchSide: convention?.matchSide ?? "matching side",
       markEdgeLabel: convention?.markEdge ? convention.markEdgeLabel : undefined,
     };

@@ -370,9 +370,10 @@ export interface PresetEntry {
    */
   /**
    * `markEdgeLabel` names the side `markEdge` marks, for the Edge marker
-   * switch's hint; required when `markEdge` is set.
+   * switch's hint; required when `markEdge` is set. `sliderLabel` replaces
+   * "Holes per hex edge" where the fillers aren't hexes.
    */
-  laserHoleCount?: HoleCountConvention & { matchSide: string; markEdgeLabel?: string };
+  laserHoleCount?: HoleCountConvention & { matchSide: string; markEdgeLabel?: string; sliderLabel?: string };
   topology: (radius?: number, params?: PresetParams) => PanelTopology;
   /**
    * Per-vertex warp applied to the subdivided mesh before sphere
@@ -501,11 +502,13 @@ const CUBECORNER_HOLE_COUNT = {
   isFiller: (topo: PanelTopology, id: string) => id.endsWith("_hexagon") && touches(topo, id, "_quad"),
   matchSide: "square & corner-hex side",
 };
-// Each star meets a hexagon along two equal sides, one seam: N − 2 holes
-// spread evenly over both, so (N − 2) / 2 per side.
+// Each star meets a hexagon along two equal sides, one seam: the star's
+// side of it takes N holes (its end extras stitch to the next star), the
+// hexagon's N − 2.
 const STARBAG_HOLE_COUNT = {
   isFiller: (_topo: PanelTopology, id: string) => id.endsWith("_polygon"),
-  matchSide: "two hexagon sides",
+  sliderLabel: "Holes per star seam",
+  matchSide: "hexagon seam",
 };
 
 /**
