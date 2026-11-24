@@ -21,6 +21,7 @@ import { fetchGlbBytes } from "@/lib/glb/prefetch";
 import { presetById } from "@/lib/topology/presets";
 import { usePlayback } from "@/lib/kaleidoscope/usePlayback";
 import { holeCountGapMm } from "@/lib/laser/template";
+import { HOLE_BUNCHING_MM } from "@/lib/laser/constants";
 import { templateLengthOffsets, type LengthOffset } from "@/lib/laser/lengthSlider";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 
@@ -313,12 +314,34 @@ export function PanelerDesigner({
     if (!laserTemplateOptions?.holeCount || !netTopology) return undefined;
     const convention = designInfo ? presetById(designInfo.presetId)?.laserHoleCount : undefined;
     return {
-      gapMm: holeCountGapMm(netTopology, laserSettings, laserTemplateOptions),
+      // Unbunched, so it reads as the pitch whatever the bunching.
+      gapMm: holeCountGapMm(netTopology, { ...laserSettings, holeBunchingMm: 0 }, laserTemplateOptions),
       sliderLabel: convention?.sliderLabel ?? "Holes per hex edge",
       matchSide: convention?.matchSide ?? "matching side",
       markEdgeLabel: convention?.markEdge ? convention.markEdgeLabel : undefined,
     };
   }, [netTopology, laserSettings, laserTemplateOptions, designInfo]);
+
+  // Hole bunching: the value a design cuts with until the slider moves
+  // (see buildLaserTemplate), and a max of half the pitch. Hidden on
+  // single closed-seam balls (Baseball, Spiral), whose loops aren't bunched.
+  const bunching = useMemo(() => {
+    const t = netTopology ?? topology;
+    if (!t) return undefined;
+    const neighbours = new Map<string, Set<string>>();
+    for (const e of t.edges) {
+      if (!e.panelB) continue;
+      neighbours.set(e.panelA, (neighbours.get(e.panelA) ?? new Set()).add(e.panelB));
+      neighbours.set(e.panelB, (neighbours.get(e.panelB) ?? new Set()).add(e.panelA));
+    }
+    if (![...neighbours.values()].some((s) => s.size > 1)) return undefined;
+    const spacingLaid =
+      !laserTemplateOptions?.holeCount &&
+      !laserTemplateOptions?.cornerHoles &&
+      t.panels.some((p) => !isWavyPanel(p, t));
+    const pitch = holeCount?.gapMm ?? laserSettings.holeSpacingMm;
+    return { defaultMm: spacingLaid ? HOLE_BUNCHING_MM : 0, maxMm: pitch / 2 };
+  }, [netTopology, topology, laserTemplateOptions, holeCount, laserSettings.holeSpacingMm]);
 
   // Length sliders on count-controlled designs (GP(3,0)'s and the soccer
   // ball's Short edge) show, and step in, the short side as the templates
@@ -849,6 +872,7 @@ export function PanelerDesigner({
                           return maxLen > 0 && lens.some((l) => l < 0.55 * maxLen);
                         })()}
                         holeCount={holeCount}
+                        bunching={bunching}
                         panelTypes={panelTypes}
                       />
                       <div className="workshop-hairline my-5" />

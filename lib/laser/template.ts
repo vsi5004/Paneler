@@ -835,13 +835,13 @@ function placeStitchHoles(
 } {
   const spacing = settings.holeSpacingMm;
   const cornerMargin = settings.cornerMarginMm;
-  // Pair bunching only on simple polygon panels, where the palindromic
-  // pattern provably mates across a seam. On wavy imported panels
-  // (trionda, baseball: >6 corners) seam alignment can't be verified
-  // visually, so a mismatched 2.1-vs-2.9 pairing would go unnoticed —
-  // uniform spacing removes the risk.
+  // Pair bunching (the Hole bunching slider). Unset = each mode's proven
+  // default: 0.4mm on spacing-laid polygon runs; none on count-set,
+  // corner-anchored and wavy runs, whose templates were proven unbunched.
+  // Every pattern reads the same from either end, so mating seams agree.
   const isWavy = isWavyPanel(cls.representative, topo);
-  const bunching = isWavy ? 0 : HOLE_BUNCHING_MM;
+  const runBunching = settings.holeBunchingMm ?? (isWavy ? 0 : HOLE_BUNCHING_MM);
+  const anchoredBunching = settings.holeBunchingMm ?? 0;
   const loop = cls.representative.vertexIndices;
   const nEdges = loop.length;
 
@@ -1024,8 +1024,8 @@ function placeStitchHoles(
   // pinwheels, not the baseball's single closed seam) get one hole
   // EXACTLY at each corner — the same physical junction point exists on
   // every panel meeting there, so corner holes mate unambiguously — and
-  // the remaining holes divide each run EVENLY corner-to-corner (no
-  // bunching, no end slack). Count derives from the canonical run length
+  // the remaining holes divide each run EVENLY corner-to-corner (no end
+  // slack; bunched only when the slider is set). Count derives from the canonical run length
   // so all equivalent runs and both sides of a seam agree.
   const cornerHoles = (isWavy && runs.length > 1) || !!options.cornerHoles;
 
@@ -1097,7 +1097,8 @@ function placeStitchHoles(
         holes.push({ x: p.x + offset.x, y: p.y + offset.y });
       };
       if (fillerExtras) tip(0, -1);
-      for (let k = 0; k < n; k++) holes.push(at((k + 0.5) * pitch));
+      const pattern = bunchedPattern(n, pitch, anchoredBunching);
+      for (const p of pattern) holes.push(at(flatSpan / 2 + p));
       if (fillerExtras) tip(flatSpan, 1);
       if (settings.edgeMarker && options.holeCount.markEdge?.(topo, cls.representative.id, resolved.neighborId!)) {
         // Mid-side, pushed out along the outward normal to just inside the cut line.
@@ -1152,8 +1153,9 @@ function placeStitchHoles(
         const subPattern = (patternLen * subLen) / flatSpan;
         const nInterior = Math.max(0, Math.round(subPattern / spacing) - 1);
         const gap = subLen / (nInterior + 1);
-        for (let k = 1; k <= nInterior; k++) {
-          placeFlat(anchors[a] + k * gap);
+        // Bunching pairs the interior holes only; the anchors stay put.
+        for (const p of bunchedPattern(nInterior, gap, anchoredBunching)) {
+          placeFlat(anchors[a] + subLen / 2 + p);
         }
         holeCount += nInterior;
       }
@@ -1187,6 +1189,7 @@ function placeStitchHoles(
       continue;
     }
 
+    const bunching = Math.min(runBunching, spacing / 2);
     let n = 2 * Math.floor((usable + bunching + spacing) / (2 * spacing));
     while (n >= 2 && (n - 1) * spacing - bunching > usable) {
       n -= 2;
@@ -1229,6 +1232,24 @@ function placeStitchHoles(
     edgeHoles.push(n + (extras ? 2 : 0));
   }
   return { holes, markerHoles, edgeHoles, unstitchedSpans, cornerExtensions, runs };
+}
+
+/**
+ * Offsets, centred on 0, of n holes at pitch `pitch` drawn into pairs as
+ * Footbag-Panel-Generator does: the gap inside a pair shrinks by `bunching`,
+ * the gap between pairs grows by it (capped at half the pitch). Pairs are
+ * counted in from both ends, so the pattern reads the same from either end
+ * and mates with the panel that runs the seam the other way; for even n
+ * that is the plain alternating pattern.
+ */
+export function bunchedPattern(n: number, pitch: number, bunching: number): number[] {
+  const b = Math.min(bunching, pitch / 2);
+  const pos = [0];
+  for (let g = 0; g < n - 1; g++) {
+    pos.push(pos[g] + pitch + (Math.min(g, n - 2 - g) % 2 === 0 ? -b : b));
+  }
+  const mid = pos[pos.length - 1] / 2;
+  return n > 0 ? pos.map((p) => p - mid) : [];
 }
 
 function pointAtArcLength(

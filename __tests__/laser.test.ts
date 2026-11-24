@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { presetById, resolvePresetParams } from "@/lib/topology/presets";
 import type { PanelTopology } from "@/lib/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
-import { buildLaserTemplate, holeCountGapMm, laserPanelOutline, unstitchedSideMm } from "@/lib/laser/template";
+import {
+  buildLaserTemplate,
+  bunchedPattern,
+  holeCountGapMm,
+  laserPanelOutline,
+  unstitchedSideMm,
+} from "@/lib/laser/template";
 import { templateFilename, templateToSvg } from "@/lib/laser/svg";
 import {
   DEFAULT_BITE_DEPTH_MM,
@@ -1275,5 +1281,80 @@ describe("SVG output", () => {
     expect(
       templateFilename("GP(3,0)", t, { ...SETTINGS, showHoles: false }),
     ).toBe("gp-3-0_hexagon-a_1.8in_2mm_noholes.svg");
+  });
+});
+
+describe("hole bunching slider", () => {
+  const gapsOf = (pts: Vec2[]) => pts.slice(1).map((h, i) => Math.hypot(h.x - pts[i].x, h.y - pts[i].y));
+
+  it("pairs like Footbag-Panel-Generator: alternating gaps, centred, reading the same from either end", () => {
+    // Even n: (n−1)·pitch − b long, gaps pitch−b, pitch+b, … as in the reference.
+    const even = bunchedPattern(6, 2.5, 0.5);
+    expect(even[5] - even[0]).toBeCloseTo(5 * 2.5 - 0.5, 9);
+    expect(gapsOf(even.map((x) => ({ x, y: 0 })))).toEqual(
+      [2, 3, 2, 3, 2].map((g) => expect.closeTo(g, 9)),
+    );
+    // Odd n: paired in from both ends so the run still mates reversed.
+    const odd = gapsOf(bunchedPattern(5, 2.5, 0.5).map((x) => ({ x, y: 0 })));
+    expect(odd).toEqual([2, 3, 3, 2].map((g) => expect.closeTo(g, 9)));
+    // Capped at half the pitch, centred on 0.
+    const capped = bunchedPattern(4, 2, 5);
+    expect(capped[1] - capped[0]).toBeCloseTo(1, 9);
+    expect(capped[0] + capped[3]).toBeCloseTo(0, 9);
+    expect(bunchedPattern(0, 2.5, 0.4)).toEqual([]);
+  });
+
+  it("spacing-laid seams take the slider's value", () => {
+    const topo = topoOf("cube");
+    const cls = groupPanelsByCongruence(topo)[0];
+    const t = buildLaserTemplate(topo, cls, { ...SETTINGS, holeBunchingMm: 1 });
+    const run = t.holes.slice(0, t.holes.length / 4);
+    gapsOf(run).forEach((g, i) => {
+      expect(g).toBeCloseTo(i % 2 === 0 ? HOLE_SPACING_MM - 1 : HOLE_SPACING_MM + 1, 0);
+    });
+  });
+
+  it("count-set seams bunch the main panel's N − 2 holes, counts unchanged and symmetric", () => {
+    const preset = presetById("soccer")!;
+    const topo = topoOf("soccer");
+    const options = { holeCount: preset.laserHoleCount };
+    const pent = groupPanelsByCongruence(topo).find((c) => c.label === "Pentagon")!;
+    const plain = buildLaserTemplate(topo, pent, SETTINGS, options);
+    const bunched = buildLaserTemplate(topo, pent, { ...SETTINGS, holeBunchingMm: 0.5 }, options);
+    expect(bunched.edgeHoles).toEqual(plain.edgeHoles);
+    const run = bunched.holes.slice(0, 6);
+    const pitch = gapsOf(plain.holes.slice(0, 6));
+    const gaps = gapsOf(run);
+    gaps.forEach((g, i) => expect(g - pitch[i]).toBeCloseTo(i % 2 === 0 ? -0.5 : 0.5, 1));
+    expect(gaps[0]).toBeCloseTo(gaps[gaps.length - 1], 2);
+  });
+
+  it("corner-anchored runs keep their corner holes and bunch only between them", () => {
+    const topo = topoOf("trionda");
+    const cls = groupPanelsByCongruence(topo)[0];
+    const plain = buildLaserTemplate(topo, cls, SETTINGS);
+    const bunched = buildLaserTemplate(topo, cls, { ...SETTINGS, holeBunchingMm: 0.5 });
+    expect(bunched.holes).toHaveLength(plain.holes.length);
+    expect(bunched.holes[0].x).toBeCloseTo(plain.holes[0].x, 6);
+    expect(bunched.holes[0].y).toBeCloseTo(plain.holes[0].y, 6);
+    expect(bunched.holes.some((h, i) => Math.hypot(h.x - plain.holes[i].x, h.y - plain.holes[i].y) > 0.2)).toBe(true);
+  });
+
+  it("unset keeps every design's proven default", () => {
+    for (const id of ["cube", "soccer", "trionda"]) {
+      const topo = topoOf(id);
+      const preset = presetById(id)!;
+      const options = preset.laserHoleCount ? { holeCount: preset.laserHoleCount } : {};
+      for (const cls of groupPanelsByCongruence(topo)) {
+        const unset = buildLaserTemplate(topo, cls, SETTINGS, options).holes;
+        const explicit = buildLaserTemplate(
+          topo,
+          cls,
+          { ...SETTINGS, holeBunchingMm: id === "cube" ? HOLE_BUNCHING_MM : 0 },
+          options,
+        ).holes;
+        expect(explicit).toEqual(unset);
+      }
+    }
   });
 });

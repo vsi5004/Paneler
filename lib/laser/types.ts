@@ -45,6 +45,13 @@ export interface LaserSettings {
    */
   hexEdgeHoles: number;
   /**
+   * Pair bunching, mm: the gap inside each hole pair shrinks by this and
+   * the gap between pairs grows by it. Unset = the design's default (0.4mm
+   * on spacing-laid polygon seams, 0 elsewhere), so designs saved before
+   * the slider existed cut as they did.
+   */
+  holeBunchingMm?: number;
+  /**
    * Cut the edge-marker hole on templates whose hole convention marks a
    * side (HoleCountConvention.markEdge — the 92-panel small hex).
    */

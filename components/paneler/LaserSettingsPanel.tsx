@@ -53,6 +53,11 @@ interface LaserSettingsPanelProps {
     markEdgeLabel?: string;
   };
   /**
+   * Hole bunching slider: the design's value until the slider moves, and
+   * the max (half the pitch). Absent → hidden (closed single-seam balls).
+   */
+  bunching?: { defaultMm: number; maxMm: number };
+  /**
    * The design's panel types (template labels). With more than one, Panel
    * curvature becomes one slider per type.
    */
@@ -60,9 +65,9 @@ interface LaserSettingsPanelProps {
 }
 
 /**
- * Sidebar "Templates" section: footbag size and bite depth. Everything else
- * (hole size/spacing/bunching, gather correction) is hard-coded to proven
- * values in lib/laser/constants.ts.
+ * Sidebar "Templates" section: footbag size, bite depth, stitch holes and
+ * curvature. Hole size and gather correction are hard-coded to proven values
+ * in lib/laser/constants.ts.
  */
 export function LaserSettingsPanel({
   values,
@@ -70,6 +75,7 @@ export function LaserSettingsPanel({
   hasPolygonPanels,
   hasShortEdges,
   holeCount,
+  bunching,
   panelTypes,
 }: LaserSettingsPanelProps) {
   const first = (v: number | readonly number[]) =>
@@ -198,6 +204,34 @@ export function LaserSettingsPanel({
           />
         </div>
         )}
+        {bunching && (() => {
+          const max = Math.max(0, Math.floor(bunching.maxMm * 10) / 10);
+          const value = Math.min(values.holeBunchingMm ?? bunching.defaultMm, max);
+          return (
+            <div>
+              <div className="mb-2 flex items-baseline justify-between">
+                <label className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+                  Hole bunching
+                </label>
+                <span className="font-mono text-[10px] tabular-nums text-foreground">
+                  {value.toFixed(1)}mm
+                </span>
+              </div>
+              <Slider
+                value={[value]}
+                min={0}
+                max={max}
+                step={0.1}
+                onValueChange={(v) => onChange({ holeBunchingMm: first(v) })}
+              />
+              <p className="mt-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
+                {value > 0
+                  ? `Holes in pairs: gap ${value.toFixed(1)}mm shorter inside a pair, longer between`
+                  : "Off: holes evenly spaced"}
+              </p>
+            </div>
+          );
+        })()}
         {hasShortEdges && !holeCount && (
         <div className="flex items-center justify-between">
           <label

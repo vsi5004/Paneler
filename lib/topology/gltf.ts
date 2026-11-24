@@ -166,6 +166,7 @@ function parseDesignExtras(
       sharpCorners,
       hexEdgeHoles,
       edgeMarker,
+      holeBunchingMm,
     } = laser as Record<string, unknown>;
     if (
       typeof diameterIn === "number" &&
@@ -210,6 +211,9 @@ function parseDesignExtras(
             ? hexEdgeHoles
             : DEFAULT_HEX_EDGE_HOLES,
         edgeMarker: typeof edgeMarker === "boolean" ? edgeMarker : true,
+        ...(typeof holeBunchingMm === "number" && Number.isFinite(holeBunchingMm) && holeBunchingMm >= 0
+          ? { holeBunchingMm }
+          : {}),
       };
     }
   }

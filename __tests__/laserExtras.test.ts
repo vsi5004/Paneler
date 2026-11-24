@@ -74,6 +74,14 @@ describe("laser settings persistence", () => {
     });
   });
 
+  it("round-trips a set hole bunching, and leaves an unset one unset", async () => {
+    const doc = generateTemplateDocument("soccer");
+    setLaserExtras(doc, { ...LASER, holeBunchingMm: 0.7 });
+    expect((await parseGlb(await serializeDocument(doc))).design?.laser?.holeBunchingMm).toBe(0.7);
+    setLaserExtras(doc, LASER);
+    expect((await parseGlb(await serializeDocument(doc))).design?.laser).not.toHaveProperty("holeBunchingMm");
+  });
+
   it("leaves legacy preset-only extras working unchanged", async () => {
     const doc = generateTemplateDocument("cubocta", { shortEdge: 20 });
     const parsed = await parseGlb(await serializeDocument(doc));
