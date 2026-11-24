@@ -5,7 +5,7 @@ import type { PanelTopology } from "@/lib/types";
 import { groupPanelsByCongruence } from "@/lib/laser/congruence";
 import {
   buildLaserTemplate,
-  bunchedPattern,
+  fixedEndOffsets,
   holeCountGapMm,
   laserPanelOutline,
   unstitchedSideMm,
@@ -450,25 +450,20 @@ describe("cut outline offset", () => {
 });
 
 describe("stitch holes", () => {
-  it("lays alternating bunched gaps along each seam run", () => {
+  it("bunches each seam run in pairs from its fixed end holes", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
     const t = buildLaserTemplate(topo, cls, SETTINGS);
     expect(t.holes.length).toBeGreaterThan(8);
-    // Cube face: 4 identical runs (one per edge). Holes come out in run
-    // order; measure consecutive gaps within the first run.
+    // Cube face: 4 identical runs (one per edge), holes in run order.
     const perRun = t.holes.length / 4;
-    expect(perRun % 2).toBe(0); // even count per run
+    expect(perRun % 2).toBe(0);
     const run = t.holes.slice(0, perRun);
     const gaps = run.slice(1).map((h, i) => Math.hypot(h.x - run[i].x, h.y - run[i].y));
-    for (let i = 0; i < gaps.length; i++) {
-      const expected =
-        i % 2 === 0
-          ? HOLE_SPACING_MM - HOLE_BUNCHING_MM
-          : HOLE_SPACING_MM + HOLE_BUNCHING_MM;
-      expect(gaps[i]).toBeGreaterThan(expected - 0.15);
-      expect(gaps[i]).toBeLessThan(expected + 0.15);
-    }
+    // Ends fixed: the run spans what even spacing would, pairs close up by b.
+    const pitch = gaps.reduce((a, g) => a + g, 0) / gaps.length;
+    const off = fixedEndOffsets(perRun, HOLE_BUNCHING_MM);
+    gaps.forEach((g, i) => expect(Math.abs(g - pitch - (off[i + 1] - off[i]))).toBeLessThan(0.15));
   });
 
   it("keeps every hole on the seam line", () => {
@@ -1287,46 +1282,94 @@ describe("SVG output", () => {
 describe("hole bunching slider", () => {
   const gapsOf = (pts: Vec2[]) => pts.slice(1).map((h, i) => Math.hypot(h.x - pts[i].x, h.y - pts[i].y));
 
-  it("pairs like Footbag-Panel-Generator: alternating gaps, centred, reading the same from either end", () => {
-    // Even n: (n−1)·pitch − b long, gaps pitch−b, pitch+b, … as in the reference.
-    const even = bunchedPattern(6, 2.5, 0.5);
-    expect(even[5] - even[0]).toBeCloseTo(5 * 2.5 - 0.5, 9);
-    expect(gapsOf(even.map((x) => ({ x, y: 0 })))).toEqual(
-      [2, 3, 2, 3, 2].map((g) => expect.closeTo(g, 9)),
-    );
-    // Odd n: paired in from both ends so the run still mates reversed.
-    const odd = gapsOf(bunchedPattern(5, 2.5, 0.5).map((x) => ({ x, y: 0 })));
-    expect(odd).toEqual([2, 3, 3, 2].map((g) => expect.closeTo(g, 9)));
-    // Capped at half the pitch, centred on 0.
-    const capped = bunchedPattern(4, 2, 5);
-    expect(capped[1] - capped[0]).toBeCloseTo(1, 9);
-    expect(capped[0] + capped[3]).toBeCloseTo(0, 9);
-    expect(bunchedPattern(0, 2.5, 0.4)).toEqual([]);
-  });
-
-  it("spacing-laid seams take the slider's value", () => {
+  it("spacing-laid seams take the slider's value: pairs close up by it, ends fixed", () => {
     const topo = topoOf("cube");
     const cls = groupPanelsByCongruence(topo)[0];
     const t = buildLaserTemplate(topo, cls, { ...SETTINGS, holeBunchingMm: 1 });
-    const run = t.holes.slice(0, t.holes.length / 4);
-    gapsOf(run).forEach((g, i) => {
-      expect(g).toBeCloseTo(i % 2 === 0 ? HOLE_SPACING_MM - 1 : HOLE_SPACING_MM + 1, 0);
-    });
+    const perRun = t.holes.length / 4;
+    const gaps = gapsOf(t.holes.slice(0, perRun));
+    const pitch = gaps.reduce((a, g) => a + g, 0) / gaps.length;
+    const off = fixedEndOffsets(perRun, 1);
+    gaps.forEach((g, i) => expect(Math.abs(g - pitch - (off[i + 1] - off[i]))).toBeLessThan(0.15));
+    expect(Math.abs(gaps[0] - (pitch - 1))).toBeLessThan(0.15);
   });
 
-  it("count-set seams bunch the main panel's N − 2 holes, counts unchanged and symmetric", () => {
+  it("at 0 every mode lays holes exactly as it did before bunching existed", () => {
+    // Even spacing: equal gaps on spacing-laid, count-set and corner-anchored runs.
+    for (const id of ["cube", "soccer", "trionda", "starbag"]) {
+      const preset = presetById(id)!;
+      const topo = topoOf(id);
+      const options = preset.laserHoleCount ? { holeCount: preset.laserHoleCount } : {};
+      const settings = { ...SETTINGS, ...preset.laserDefaults, holeBunchingMm: 0 };
+      for (const cls of groupPanelsByCongruence(topo)) {
+        const t = buildLaserTemplate(topo, cls, settings, options);
+        if (id === "cube") {
+          const run = t.holes.slice(0, t.holes.length / 4);
+          const gaps = gapsOf(run);
+          expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(0.05);
+        }
+        expect(t.holes.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("fixed-end sides pair (0, 1), (2, 3) … in from both ends", () => {
+    expect(fixedEndOffsets(4, 0.5)).toEqual([0, -0.5, 0.5, 0]);
+    expect(fixedEndOffsets(6, 0.5)).toEqual([0, -0.5, 0.25, -0.25, 0.5, 0]);
+    expect(fixedEndOffsets(5, 0.5)).toEqual([0, -0.5, 0, 0.5, 0]);
+    expect(fixedEndOffsets(2, 0.5)).toEqual([0, 0]);
+    // From one end: (tip, 2), (3, 4), the far end hole alone.
+    expect(fixedEndOffsets(5, 0.5, "start")).toEqual([0, -0.5, 0.25, -0.25, 0]);
+    expect(fixedEndOffsets(5, 0.5, "end")).toEqual([0, 0.25, -0.25, 0.5, 0]);
+  });
+
+  it("count-set seams: each panel pairs its own side from its end holes (a filler's tips are ends)", () => {
     const preset = presetById("soccer")!;
     const topo = topoOf("soccer");
     const options = { holeCount: preset.laserHoleCount };
-    const pent = groupPanelsByCongruence(topo).find((c) => c.label === "Pentagon")!;
-    const plain = buildLaserTemplate(topo, pent, SETTINGS, options);
-    const bunched = buildLaserTemplate(topo, pent, { ...SETTINGS, holeBunchingMm: 0.5 }, options);
-    expect(bunched.edgeHoles).toEqual(plain.edgeHoles);
-    const run = bunched.holes.slice(0, 6);
-    const pitch = gapsOf(plain.holes.slice(0, 6));
-    const gaps = gapsOf(run);
-    gaps.forEach((g, i) => expect(g - pitch[i]).toBeCloseTo(i % 2 === 0 ? -0.5 : 0.5, 1));
-    expect(gaps[0]).toBeCloseTo(gaps[gaps.length - 1], 2);
+    const classes = groupPanelsByCongruence(topo);
+    const b = 0.5;
+    for (const label of ["Pentagon", "Hexagon"]) {
+      const cls = classes.find((c) => c.label === label)!;
+      const plain = buildLaserTemplate(topo, cls, SETTINGS, options);
+      const bunched = buildLaserTemplate(topo, cls, { ...SETTINGS, holeBunchingMm: b }, options);
+      expect(bunched.edgeHoles).toEqual(plain.edgeHoles);
+      // First stitched seam: pentagon 6 holes; hexagon tip + 6 + tip.
+      const k = label === "Pentagon" ? 6 : 8;
+      const p0 = plain.holes.slice(0, k);
+      const p1 = bunched.holes.slice(0, k);
+      const ends = label === "Pentagon" ? [0, 5] : [0, 7];
+      for (const i of ends) expect(Math.hypot(p1[i].x - p0[i].x, p1[i].y - p0[i].y)).toBeLessThan(1e-6);
+      const d = gapsOf(p1).map((g, i) => g - gapsOf(p0)[i]);
+      // Pentagon: (0, 1) (2, 3) (4, 5). Hexagon: (tip, 1) (2, 3) (4, 5) (6, tip).
+      const want = label === "Pentagon" ? [-b, 1.5 * b, -b, 1.5 * b, -b] : [-b, 1.5 * b, -b, b, -b, 1.5 * b, -b];
+      want.forEach((w, i) => expect(d[i]).toBeCloseTo(w, 1));
+    }
+  });
+
+  it("Star Bag: each hexagon side keeps its end holes; its 2nd and 3rd holes move out to them", () => {
+    const preset = presetById("starbag")!;
+    const topo = topoOf("starbag");
+    const options = { holeCount: preset.laserHoleCount };
+    const settings = { ...SETTINGS, hexEdgeHoles: 10 };
+    const hex = groupPanelsByCongruence(topo).find((c) => !preset.laserHoleCount!.isFiller(topo, c.panelIds[0]))!;
+    const p0 = buildLaserTemplate(topo, hex, settings, options).holes.slice(0, 8);
+    const p1 = buildLaserTemplate(topo, hex, { ...settings, holeBunchingMm: 0.6 }, options).holes.slice(0, 8);
+    for (const i of [0, 3, 4, 7]) expect(Math.hypot(p1[i].x - p0[i].x, p1[i].y - p0[i].y)).toBeLessThan(1e-6);
+    const d = gapsOf(p1).map((g, i) => g - gapsOf(p0)[i]);
+    // Per side of 4: (0, 1) and (2, 3) close by 0.6, the gap between them grows by 1.2.
+    [-0.6, 1.2, -0.6].forEach((want, i) => {
+      expect(d[i]).toBeCloseTo(want, 1);
+      expect(d[i + 4]).toBeCloseTo(want, 1);
+    });
+
+    // Star side: tip, 2, 3, 4, notch hole. (tip, 2) and (3, 4) pair up, counted from each tip.
+    const star = groupPanelsByCongruence(topo).find((c) => preset.laserHoleCount!.isFiller(topo, c.panelIds[0]))!;
+    const s0 = buildLaserTemplate(topo, star, settings, options).holes.slice(0, 10);
+    const s1 = buildLaserTemplate(topo, star, { ...settings, holeBunchingMm: 0.6 }, options).holes.slice(0, 10);
+    for (const i of [0, 4, 5, 9]) expect(Math.hypot(s1[i].x - s0[i].x, s1[i].y - s0[i].y)).toBeLessThan(1e-6);
+    const ds = gapsOf(s1).map((g, i) => g - gapsOf(s0)[i]);
+    [-0.6, 0.9, -0.6, 0.3, 0, 0.3, -0.6, 0.9, -0.6].forEach((want, i) => expect(ds[i]).toBeCloseTo(want, 1));
   });
 
   it("corner-anchored runs keep their corner holes and bunch only between them", () => {

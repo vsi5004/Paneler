@@ -13,10 +13,9 @@ export const STITCH_HOLE_DIAMETER_MM = 0.2;
 /** Nominal hole-to-hole pitch along a seam. */
 export const HOLE_SPACING_MM = 2.5;
 /**
- * Pair bunching: gap within a hole pair is spacing − bunching (2.1mm),
- * gap between pairs is spacing + bunching (2.9mm). The alternating
- * pattern is reversal-symmetric for even hole counts, which makes the
- * holes on both sides of a shared seam line up.
+ * Default pair bunching on spacing-laid seams: each hole pair closes up by
+ * this much, end holes fixed (see fixedEndOffsets). The Hole bunching
+ * slider overrides it.
  */
 export const HOLE_BUNCHING_MM = 0.4;
 /** Distance of the first/last hole from a panel corner. */

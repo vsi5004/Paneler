@@ -1,3 +1,4 @@
+import type { Vector3 } from "three";
 import { isWavyPanel, type PanelTopology } from "@/lib/types";
 import {
   flattenPanelUnscaled,
@@ -665,10 +666,8 @@ function polylinePath(points: Vec2[]): string {
  * instead of restarting at every micro-edge.
  *
  * Within a run: the largest even hole count n with
- * `(n−1)·spacing − bunching ≤ usable` is centered on the run, holes laid
- * with alternating gaps (spacing − bunching, spacing + bunching). Even
- * counts + centering make the pattern reversal-symmetric, so the two
- * panels sharing a seam get matching holes.
+ * `(n−1)·spacing − bunching ≤ usable` is centered on the run at even
+ * spacing, then bunched by fixedEndOffsets (end holes fixed).
  */
 interface Span {
   /** Arc-length start of an unstitched short run on the seam outline. */
@@ -838,7 +837,7 @@ function placeStitchHoles(
   // Pair bunching (the Hole bunching slider). Unset = each mode's proven
   // default: 0.4mm on spacing-laid polygon runs; none on count-set,
   // corner-anchored and wavy runs, whose templates were proven unbunched.
-  // Every pattern reads the same from either end, so mating seams agree.
+  // Every mode bunches with fixedEndOffsets: end holes stay put.
   const isWavy = isWavyPanel(cls.representative, topo);
   const runBunching = settings.holeBunchingMm ?? (isWavy ? 0 : HOLE_BUNCHING_MM);
   const anchoredBunching = settings.holeBunchingMm ?? 0;
@@ -1037,6 +1036,31 @@ function placeStitchHoles(
     (c, sm) => ({ x: c.x + sm.p.x / samples.length, y: c.y + sm.p.y / samples.length }),
     { x: 0, y: 0 },
   );
+  // A run's polygon sides: it turns a corner where the 3D boundary turns
+  // more than 20° (densified seams and circle arcs bend far less per
+  // point). Returns each side's share of the run's holes, by length.
+  const unitAt = (k: number) => topo.vertices[loop[(k + nEdges) % nEdges]].clone().normalize();
+  const turnAt = (i: number) => {
+    const v = unitAt(i);
+    const tangent = (w: Vector3) => w.clone().sub(v.clone().multiplyScalar(w.dot(v)));
+    return Math.PI - tangent(unitAt(i - 1)).angleTo(tangent(unitAt(i + 1)));
+  };
+  const sidesOfRun = (run: number[], holesInRun: number, flatSpan: number) => {
+    const s0 = edgeStart.get(run[0])!;
+    const rel = (i: number) => (edgeStart.get(i)! - s0 + totalLength) % totalLength;
+    const cuts = run
+      .slice(1)
+      .filter((i) => turnAt(i) > (20 * Math.PI) / 180)
+      .map(rel);
+    const bounds = [0, ...cuts, flatSpan];
+    const lens = bounds.slice(1).map((b, j) => b - bounds[j]);
+    // Largest remainder, so the counts add up to the run's.
+    const raw = lens.map((l) => (holesInRun * l) / flatSpan);
+    const counts = raw.map(Math.floor);
+    const order = raw.map((r, j) => [r - counts[j], j]).sort((a, b) => b[0] - a[0]);
+    for (let k = 0; k < holesInRun - counts.reduce((a, c) => a + c, 0); k++) counts[order[k][1]]++;
+    return counts;
+  };
   const cornerExtensions: CornerExtension[] = [];
   for (const [runIndex, resolved] of runSpans.entries()) {
     if (!resolved) continue;
@@ -1076,7 +1100,14 @@ function placeStitchHoles(
         continue;
       }
       const at = (sFlat: number) => pointAtArcLength(samples, s0 + sFlat, totalLength);
+      // Holes sit in even cells along the run. A run can turn polygon
+      // corners (a Star Bag star meets a hexagon along two sides); its sides
+      // only group the holes for bunching, by fixedEndOffsets: each side's
+      // end holes stay put, and on a filler the tip hole is that end and
+      // pairs count from it. Each panel bunches its own sides, as
+      // Footbag-Panel-Generator does, so filler and main pairs needn't match.
       const pitch = flatSpan / n;
+      const sides = sidesOfRun(runs[runIndex], n, flatSpan);
       // Unit direction leaving the run past its start (dir −1) or end (+1).
       const outward = (sFlat: number, dir: number): Vec2 => {
         const p = at(sFlat);
@@ -1097,8 +1128,16 @@ function placeStitchHoles(
         holes.push({ x: p.x + offset.x, y: p.y + offset.y });
       };
       if (fillerExtras) tip(0, -1);
-      const pattern = bunchedPattern(n, pitch, anchoredBunching);
-      for (const p of pattern) holes.push(at(flatSpan / 2 + p));
+      let first = 0;
+      sides.forEach((count, j) => {
+        const lead = fillerExtras && j === 0 ? 1 : 0;
+        const tail = fillerExtras && j === sides.length - 1 ? 1 : 0;
+        // A star side pairs in from its tip; sides with a tip at both ends or none, from both ends.
+        const from = lead === tail ? "both" : lead ? "start" : "end";
+        const offsets = fixedEndOffsets(count + lead + tail, Math.min(anchoredBunching, pitch / 2), from);
+        for (let k = 0; k < count; k++) holes.push(at((first + k + 0.5) * pitch + offsets[k + lead]));
+        first += count;
+      });
       if (fillerExtras) tip(flatSpan, 1);
       if (settings.edgeMarker && options.holeCount.markEdge?.(topo, cls.representative.id, resolved.neighborId!)) {
         // Mid-side, pushed out along the outward normal to just inside the cut line.
@@ -1153,9 +1192,10 @@ function placeStitchHoles(
         const subPattern = (patternLen * subLen) / flatSpan;
         const nInterior = Math.max(0, Math.round(subPattern / spacing) - 1);
         const gap = subLen / (nInterior + 1);
-        // Bunching pairs the interior holes only; the anchors stay put.
-        for (const p of bunchedPattern(nInterior, gap, anchoredBunching)) {
-          placeFlat(anchors[a] + subLen / 2 + p);
+        // The anchors are the end holes: they stay put, pairs count in from them.
+        const offsets = fixedEndOffsets(nInterior + 2, Math.min(anchoredBunching, gap / 2));
+        for (let k = 1; k <= nInterior; k++) {
+          placeFlat(anchors[a] + k * gap + offsets[k]);
         }
         holeCount += nInterior;
       }
@@ -1194,13 +1234,11 @@ function placeStitchHoles(
     while (n >= 2 && (n - 1) * spacing - bunching > usable) {
       n -= 2;
     }
-    let span: number;
-    if (n < 2) {
-      n = 1;
-      span = 0;
-    } else {
-      span = (n - 1) * spacing - bunching;
-    }
+    // Bunching leaves the end holes where even spacing puts them, so the
+    // span is (n − 1)·spacing; the count keeps its old bunched-span rule so
+    // proven counts don't change.
+    if (n < 2) n = 1;
+    const span = (n - 1) * spacing;
     // COUNT comes from the shared 3D length (the mating invariant);
     // POSITIONS are laid with exact bunched gaps in the panel's FLAT
     // outline — that's the physical fabric, so gaps must be true there.
@@ -1213,21 +1251,17 @@ function placeStitchHoles(
     };
     const patternStart =
       cornerMargin + (flatSpan - 2 * cornerMargin - span * gapScale) / 2;
+    // Pairs count in from the end holes — the corner extras when present.
+    const lead = extras ? 1 : 0;
+    const offsets = fixedEndOffsets(n + 2 * lead, bunching * gapScale);
     if (extras) {
       placeFlat(Math.max(0.3, patternStart - spacing * gapScale));
     }
-    let sFlat = patternStart;
     for (let k = 0; k < n; k++) {
-      placeFlat(sFlat);
-      if (k < n - 1) {
-        sFlat +=
-          (k % 2 === 0 ? spacing - bunching : spacing + bunching) * gapScale;
-      }
+      placeFlat(patternStart + k * spacing * gapScale + offsets[k + lead]);
     }
     if (extras) {
-      placeFlat(
-        Math.min(flatSpan - 0.3, sFlat + spacing * gapScale),
-      );
+      placeFlat(Math.min(flatSpan - 0.3, patternStart + span * gapScale + spacing * gapScale));
     }
     edgeHoles.push(n + (extras ? 2 : 0));
   }
@@ -1235,21 +1269,46 @@ function placeStitchHoles(
 }
 
 /**
- * Offsets, centred on 0, of n holes at pitch `pitch` drawn into pairs as
- * Footbag-Panel-Generator does: the gap inside a pair shrinks by `bunching`,
- * the gap between pairs grows by it (capped at half the pitch). Pairs are
- * counted in from both ends, so the pattern reads the same from either end
- * and mates with the panel that runs the seam the other way; for even n
- * that is the plain alternating pattern.
+ * Hole bunching, as Footbag-Panel-Generator's slider: offsets for one side's
+ * evenly spaced holes. The end holes stay fixed: pairs
+ * (0, 1), (2, 3) … counted from `from` — the start, the end, or both ends
+ * inward (a middle pair for even counts) — each closing up by `bunching`. A
+ * pair holding an end hole moves only its other hole, by the full amount; an
+ * inner pair moves both by half. The gaps between pairs grow to make up the
+ * difference.
  */
-export function bunchedPattern(n: number, pitch: number, bunching: number): number[] {
-  const b = Math.min(bunching, pitch / 2);
-  const pos = [0];
-  for (let g = 0; g < n - 1; g++) {
-    pos.push(pos[g] + pitch + (Math.min(g, n - 2 - g) % 2 === 0 ? -b : b));
+export function fixedEndOffsets(
+  count: number,
+  bunching: number,
+  from: "start" | "end" | "both" = "both",
+): number[] {
+  const off = new Array<number>(count).fill(0);
+  const pair = (a: number, c: number) => {
+    if (a === 0 && c === count - 1) return;
+    if (a === 0) off[c] -= bunching;
+    else if (c === count - 1) off[a] += bunching;
+    else {
+      off[a] += bunching / 2;
+      off[c] -= bunching / 2;
+    }
+  };
+  if (from !== "both") {
+    for (let k = 0; k + 1 < count; k += 2) {
+      if (from === "start") pair(k, k + 1);
+      else pair(count - 2 - k, count - 1 - k);
+    }
+    return off;
   }
-  const mid = pos[pos.length - 1] / 2;
-  return n > 0 ? pos.map((p) => p - mid) : [];
+  let lo = 0;
+  let hi = count - 1;
+  while (hi - lo >= 3) {
+    pair(lo, lo + 1);
+    pair(hi - 1, hi);
+    lo += 2;
+    hi -= 2;
+  }
+  if (hi - lo === 1) pair(lo, hi);
+  return off;
 }
 
 function pointAtArcLength(
