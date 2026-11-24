@@ -17,6 +17,7 @@ import { teamgeist } from "./teamgeist";
 import { orbita } from "./orbita";
 import { scaleSeamAmplitude } from "./seamAmplitudeWarp";
 import { BAGZUCA_SWIRL, bagzuca } from "./bagzuca";
+import { cubeCorner38, hexCapped38, starBag } from "./footbagRule";
 import {
   kaleidoscopeColors,
   kaleidoscopeTopology,
@@ -486,6 +487,42 @@ const GP3_HOLE_COUNT = {
   markEdgeLabel: "the small hex's shorter pentagon side",
 };
 
+// Footbag-rule balls (footbagRule.ts): the fillers are the hexes/stars whose
+// short sides meet other fillers; every main panel is stitched all round.
+const touches = (topo: PanelTopology, id: string, suffix: string) =>
+  topo.edges.some(
+    (e) => (e.panelA === id && e.panelB?.endsWith(suffix)) || (e.panelB === id && e.panelA.endsWith(suffix)),
+  );
+const HEXCAP_HOLE_COUNT = {
+  isFiller: (topo: PanelTopology, id: string) => id.endsWith("_hexagon") && touches(topo, id, "_pentagon"),
+  matchSide: "pentagon & cap side",
+};
+const CUBECORNER_HOLE_COUNT = {
+  isFiller: (topo: PanelTopology, id: string) => id.endsWith("_hexagon") && touches(topo, id, "_quad"),
+  matchSide: "square & corner-hex side",
+};
+// Each star meets a hexagon along two equal sides, one seam: N − 2 holes
+// spread evenly over both, so (N − 2) / 2 per side.
+const STARBAG_HOLE_COUNT = {
+  isFiller: (_topo: PanelTopology, id: string) => id.endsWith("_polygon"),
+  matchSide: "two hexagon sides",
+};
+
+/**
+ * A main panel's size as a percent of the default circumradius. Ranges are
+ * the box where every short side stays over 2° and under the shortest
+ * stitched side (footbagRule.test.ts checks its corners).
+ */
+const sizeParam = (key: string, label: string, min: number, max: number): PresetParamDef => ({
+  key,
+  label,
+  min,
+  max,
+  step: 1,
+  defaultValue: 100,
+  unit: "%",
+});
+
 export const PRESETS: PresetEntry[] = [
   {
     id: "baseball",
@@ -701,6 +738,35 @@ export const PRESETS: PresetEntry[] = [
     ],
     topology: (radius?: number, params?: PresetParams) =>
       truncatedIcosahedronFamily(radius, (params?.shortEdge ?? 100) / 100),
+  },
+  {
+    id: "hexcap38",
+    label: "Hex-Capped 38",
+    panels: 38,
+    laserHoleCount: HEXCAP_HOLE_COUNT,
+    laserDefaults: { hexEdgeHoles: 8 },
+    params: [sizeParam("pentSize", "Pentagon size", 88, 108), sizeParam("hexSize", "Cap hexagon size", 85, 120)],
+    topology: (radius?: number, params?: PresetParams) =>
+      hexCapped38(radius, (params?.pentSize ?? 100) / 100, (params?.hexSize ?? 100) / 100),
+  },
+  {
+    id: "cubecorner38",
+    label: "Cube-and-Corner 38",
+    panels: 38,
+    laserHoleCount: CUBECORNER_HOLE_COUNT,
+    laserDefaults: { hexEdgeHoles: 8 },
+    params: [sizeParam("squareSize", "Square size", 80, 115), sizeParam("hexSize", "Corner hexagon size", 90, 110)],
+    topology: (radius?: number, params?: PresetParams) =>
+      cubeCorner38(radius, (params?.squareSize ?? 100) / 100, (params?.hexSize ?? 100) / 100),
+  },
+  {
+    id: "starbag",
+    label: "Star Bag",
+    panels: 32,
+    laserHoleCount: STARBAG_HOLE_COUNT,
+    laserDefaults: { hexEdgeHoles: 10 },
+    params: [sizeParam("hexSize", "Hexagon size", 80, 112)],
+    topology: (radius?: number, params?: PresetParams) => starBag(radius, (params?.hexSize ?? 100) / 100),
   },
   {
     id: "circle-soccer",

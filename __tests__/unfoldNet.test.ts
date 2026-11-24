@@ -180,6 +180,11 @@ describe("unfoldNet", () => {
     ["orbita", undefined, 0.03, 0.15],
     ["bagzuca", undefined, 0.03, 0.15],
     ["bagzuca", { swirl: 130 }, 0.03, 0.15],
+    ["starbag", undefined, 0.03, 0.15],
+    ["starbag", { hexSize: 80 }, 0.03, 0.15],
+    ["starbag", { hexSize: 112 }, 0.03, 0.15],
+    ["hexcap38", undefined, 0.03, 0.15],
+    ["cubecorner38", undefined, 0.03, 0.15],
     // full-winding bands exercise the BFS hinge-unfold ARAP init
     ["spiral", undefined, 0.08, 0.35],
     ["spiral", { twist: 250 }, 0.05, 0.3],

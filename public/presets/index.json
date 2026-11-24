@@ -227,6 +227,81 @@
     ]
   },
   {
+    "slug": "hexcap38",
+    "label": "Hex-Capped 38",
+    "glbPath": "/presets/hexcap38.glb",
+    "thumbPath": "/presets/thumbs/hexcap38.glb",
+    "panelCount": 38,
+    "shapeSignature": "12p+26h",
+    "params": [
+      {
+        "key": "pentSize",
+        "label": "Pentagon size",
+        "min": 88,
+        "max": 108,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      },
+      {
+        "key": "hexSize",
+        "label": "Cap hexagon size",
+        "min": 85,
+        "max": 120,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
+  },
+  {
+    "slug": "cubecorner38",
+    "label": "Cube-and-Corner 38",
+    "glbPath": "/presets/cubecorner38.glb",
+    "thumbPath": "/presets/thumbs/cubecorner38.glb",
+    "panelCount": 38,
+    "shapeSignature": "6q+32h",
+    "params": [
+      {
+        "key": "squareSize",
+        "label": "Square size",
+        "min": 80,
+        "max": 115,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      },
+      {
+        "key": "hexSize",
+        "label": "Corner hexagon size",
+        "min": 90,
+        "max": 110,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
+  },
+  {
+    "slug": "starbag",
+    "label": "Star Bag",
+    "glbPath": "/presets/starbag.glb",
+    "thumbPath": "/presets/thumbs/starbag.glb",
+    "panelCount": 32,
+    "shapeSignature": "32g",
+    "params": [
+      {
+        "key": "hexSize",
+        "label": "Hexagon size",
+        "min": 80,
+        "max": 112,
+        "step": 1,
+        "defaultValue": 100,
+        "unit": "%"
+      }
+    ]
+  },
+  {
     "slug": "circle-soccer",
     "label": "Circle Soccer",
     "glbPath": "/presets/circle-soccer.glb",
