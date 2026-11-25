@@ -768,6 +768,9 @@ export const PRESETS: PresetEntry[] = [
     panels: 32,
     laserHoleCount: STARBAG_HOLE_COUNT,
     laserDefaults: { hexEdgeHoles: 10 },
+    // Calibrated from a stitched prototype: at the default 1.18 a 2.0in
+    // bag came out 2.38in, so 1.18 × 2.0 / 2.38 ≈ 0.99.
+    gatherCorrection: 0.99,
     params: [sizeParam("hexSize", "Hexagon size", 80, 112)],
     topology: (radius?: number, params?: PresetParams) => starBag(radius, (params?.hexSize ?? 100) / 100),
   },
