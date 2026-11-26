@@ -1102,10 +1102,10 @@ function placeStitchHoles(
       const at = (sFlat: number) => pointAtArcLength(samples, s0 + sFlat, totalLength);
       // Holes sit in even cells along the run. A run can turn polygon
       // corners (a Star Bag star meets a hexagon along two sides); its sides
-      // only group the holes for bunching, by fixedEndOffsets: each side's
-      // end holes stay put, and on a filler the tip hole is that end and
-      // pairs count from it. Each panel bunches its own sides, as
-      // Footbag-Panel-Generator does, so filler and main pairs needn't match.
+      // only group the holes for bunching, by fixedEndOffsets: a filler pairs
+      // each side from its tip, a main panel pairs along the whole seam.
+      // Each panel bunches its own holes, as Footbag-Panel-Generator does,
+      // so filler and main pairs needn't match.
       const pitch = flatSpan / n;
       const sides = sidesOfRun(runs[runIndex], n, flatSpan);
       // Unit direction leaving the run past its start (dir −1) or end (+1).
@@ -1127,18 +1127,32 @@ function placeStitchHoles(
         cornerExtensions.push({ s: s0 + sFlat, offset });
         holes.push({ x: p.x + offset.x, y: p.y + offset.y });
       };
-      if (fillerExtras) tip(0, -1);
-      let first = 0;
-      sides.forEach((count, j) => {
-        const lead = fillerExtras && j === 0 ? 1 : 0;
-        const tail = fillerExtras && j === sides.length - 1 ? 1 : 0;
-        // A star side pairs in from its tip; sides with a tip at both ends or none, from both ends.
-        const from = lead === tail ? "both" : lead ? "start" : "end";
-        const offsets = fixedEndOffsets(count + lead + tail, Math.min(anchoredBunching, pitch / 2), from);
-        for (let k = 0; k < count; k++) holes.push(at((first + k + 0.5) * pitch + offsets[k + lead]));
-        first += count;
-      });
-      if (fillerExtras) tip(flatSpan, 1);
+      const b = Math.min(anchoredBunching, pitch / 2);
+      if (fillerExtras) {
+        tip(0, -1);
+        let first = 0;
+        sides.forEach((count, j) => {
+          const lead = j === 0 ? 1 : 0;
+          const tail = j === sides.length - 1 ? 1 : 0;
+          // A star side pairs in from its tip; sides with a tip at both ends or none, from both ends.
+          const from = lead === tail ? "both" : lead ? "start" : "end";
+          const offsets = fixedEndOffsets(count + lead + tail, b, from);
+          for (let k = 0; k < count; k++) holes.push(at((first + k + 0.5) * pitch + offsets[k + lead]));
+          first += count;
+        });
+        tip(flatSpan, 1);
+      } else {
+        // A main panel pairs along its whole seam, across corners (Star Bag
+        // hexagon: 1–2, 3–4, 5–6 …); its side ends stay fixed where they can.
+        const sideEnds = new Set<number>();
+        let first = 0;
+        for (const count of sides) {
+          if (count > 0) sideEnds.add(first).add(first + count - 1);
+          first += count;
+        }
+        const offsets = fixedEndOffsets(n, b, "both", (i) => sideEnds.has(i));
+        for (let k = 0; k < n; k++) holes.push(at((k + 0.5) * pitch + offsets[k]));
+      }
       if (settings.edgeMarker && options.holeCount.markEdge?.(topo, cls.representative.id, resolved.neighborId!)) {
         // Mid-side, pushed out along the outward normal to just inside the cut line.
         const mid = at(flatSpan / 2);
@@ -1273,20 +1287,21 @@ function placeStitchHoles(
  * evenly spaced holes. The end holes stay fixed: pairs
  * (0, 1), (2, 3) … counted from `from` — the start, the end, or both ends
  * inward (a middle pair for even counts) — each closing up by `bunching`. A
- * pair holding an end hole moves only its other hole, by the full amount; an
- * inner pair moves both by half. The gaps between pairs grow to make up the
- * difference.
+ * pair holding one fixed hole moves only its other hole, by the full amount;
+ * any other pair moves both by half. The gaps between pairs grow to make up
+ * the difference. `fixed` defaults to the two end holes.
  */
 export function fixedEndOffsets(
   count: number,
   bunching: number,
   from: "start" | "end" | "both" = "both",
+  fixed: (i: number) => boolean = (i) => i === 0 || i === count - 1,
 ): number[] {
   const off = new Array<number>(count).fill(0);
   const pair = (a: number, c: number) => {
     if (a === 0 && c === count - 1) return;
-    if (a === 0) off[c] -= bunching;
-    else if (c === count - 1) off[a] += bunching;
+    if (fixed(a) && !fixed(c)) off[c] -= bunching;
+    else if (fixed(c) && !fixed(a)) off[a] += bunching;
     else {
       off[a] += bunching / 2;
       off[c] -= bunching / 2;

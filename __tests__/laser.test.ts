@@ -1372,6 +1372,24 @@ describe("hole bunching slider", () => {
     [-0.6, 0.9, -0.6, 0.3, 0, 0.3, -0.6, 0.9, -0.6].forEach((want, i) => expect(ds[i]).toBeCloseTo(want, 1));
   });
 
+  it("Star Bag: the hexagon pairs 1–2, 3–4, 5–6 … along its whole seam, across the notch corner", () => {
+    const preset = presetById("starbag")!;
+    const topo = topoOf("starbag");
+    const options = { holeCount: preset.laserHoleCount };
+    const settings = { ...SETTINGS, hexEdgeHoles: 12 };
+    const hex = groupPanelsByCongruence(topo).find((c) => !preset.laserHoleCount!.isFiller(topo, c.panelIds[0]))!;
+    const p0 = buildLaserTemplate(topo, hex, settings, options).holes.slice(0, 10);
+    const p1 = buildLaserTemplate(topo, hex, { ...settings, holeBunchingMm: 0.6 }, options).holes.slice(0, 10);
+    for (const i of [0, 9]) expect(Math.hypot(p1[i].x - p0[i].x, p1[i].y - p0[i].y)).toBeLessThan(1e-6);
+    const d = gapsOf(p1).map((g, i) => g - gapsOf(p0)[i]);
+    // 5 per side: (1, 2) (3, 4) (5, 6) (7, 8) (9, 10) each close by 0.6. 5–6 straddles the
+    // corner, so its straight-line gap closes a little less than 0.6 along the edge.
+    [-0.6, 0.9, -0.6, 0.6, -0.6, 0.6, -0.6, 0.9, -0.6].forEach((want, i) =>
+      expect(Math.abs(d[i] - want)).toBeLessThan(i === 4 ? 0.1 : 0.05),
+    );
+    expect(fixedEndOffsets(10, 0.6, "both", (i) => [0, 4, 5, 9].includes(i))).toEqual([0, -0.6, 0.3, -0.3, 0.3, -0.3, 0.3, -0.3, 0.6, 0]);
+  });
+
   it("corner-anchored runs keep their corner holes and bunch only between them", () => {
     const topo = topoOf("trionda");
     const cls = groupPanelsByCongruence(topo)[0];
